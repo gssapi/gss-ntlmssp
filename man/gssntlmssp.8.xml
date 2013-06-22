@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE reference PUBLIC "-//OASIS//DTD DocBook V4.4//EN"
+"http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd">
+<reference>
+<title>GSSAPI NTLM mechanism manual page</title>
+<refentry>
+    <refentryinfo>
+        <productname>GSS-NTLMSSP</productname>
+        <orgname>GSS-NTLMSSP - http://ssimo.org/gss-ntlmssp</orgname>
+    </refentryinfo>
+
+    <refmeta>
+        <refentrytitle>gssntlmssp</refentrytitle>
+        <manvolnum>8</manvolnum>
+    </refmeta>
+
+    <refnamediv id='name'>
+        <refname>gssntlmssp</refname>
+        <refpurpose>GSSAPI NTLM Security Service Provider mechanism</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv id='synopsis'>
+        <cmdsynopsis>
+            <command>gssntlmssp_v1 2.16.840.1.113730.3.8.15.X /usr/lib64/gssntlmssp/gssntlmssp.so </command>
+            <arg choice='opt'>
+                <replaceable>options</replaceable>
+            </arg>
+        </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1 id='description'>
+        <title>DESCRIPTION</title>
+        <para>
+            A GSSAPI NTLM mechanism that allows to perform NTLM authentication
+            in GSSAPI programs.
+        </para>
+    </refsect1>
+
+    <refsect1 id='see_also'>
+        <title>SEE ALSO</title>
+        <para>
+            <citerefentry>
+                <refentrytitle>gssapi</refentrytitle><manvolnum>8</manvolnum>
+            </citerefentry>.
+        </para>
+    </refsect1>
+</refentry>
+</reference>

@@ -1,0 +1,20 @@
+
+First off, run:
+# autoreconf -f -i
+
+Then the usual ./configure and make
+
+In order to build gss-ntlmssp the following development packages are needed:
+
+    autoconf
+    automake
+    docbook-style-xsl
+    doxygen
+    findutils
+    krb5-devel
+    libtool
+    libxml2
+    libxslt
+    m4
+    pkgconfig
+

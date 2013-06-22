@@ -1,0 +1,70 @@
+Name:		@PACKAGE_NAME@
+Version:	@PACKAGE_VERSION@
+Release:	0@PRERELEASE_VERSION@%{?dist}
+Summary:	GSSAPI NTLMSSP Mechanism
+
+Group:		System Environment/Libraries
+License:	MIT
+URL:		http://ssimo.org/gss-ntlm
+Source0:	http://ssimo.org/gss-ntlm/%{name}-%{version}.tar.gz
+BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
+
+### Patches ###
+
+### Dependencies ###
+
+Requires: krb5-libs >= 1.11.2
+
+### Build Dependencies ###
+
+BuildRequires: autoconf
+BuildRequires: automake
+BuildRequires: libtool
+BuildRequires: m4
+BuildRequires: libxslt
+BuildRequires: libxml2
+BuildRequires: docbook-style-xsl
+BuildRequires: doxygen
+BuildRequires: gettext-devel
+BuildRequires: pkgconfig
+BuildRequires: krb5-devel >= 1.11.2
+BuildRequires: findutils
+
+
+%description
+A GSSAPI Mechanism that implements NTLMSSP
+
+%prep
+%setup -q
+
+
+%build
+autoreconf -f -i
+%configure \
+    --disable-static \
+    --disable-rpath
+
+make %{?_smp_mflags} all
+make test_gssntlmssp
+
+%install
+rm -rf %{buildroot}
+make install DESTDIR=%{buildroot}
+rm -f %{buildroot}%{_libdir}/gssntlmssp/gssntlmssp.la
+install -d -m755 %{buildroot}%{_sysconfdir}/gss
+install -m644 examples/mech.ntlmssp %{buildroot}%{_sysconfdir}/gss/mech.ntlmssp
+
+%clean
+rm -rf %{buildroot}
+
+
+%files
+%defattr(-,root,root,-)
+%attr(0644,root,root) %config(noreplace) /%{_sysconfdir}/gss/mech.ntlmssp
+%{_libdir}/gssntlmssp/gssntlmssp.so
+%{_mandir}/man8/gssntlmssp.8*
+
+%changelog
+* Sat Jun 22 2013 Simo Sorce <simo@samba.org> - @PACKAGE_VERSION@-0@PRERELEASE_VERSION@
+- Start
+
