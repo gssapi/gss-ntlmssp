@@ -69,9 +69,11 @@ EXTRA_DIST = build/config.rpath
 GSS_NTLM_LIBS = $(GSSAPI_LIBS)
 
 GN_MECHGLUE_OBJ = \
+    src/ntlm.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \
+    src/ntlm.h \
     src/gss_ntlmssp.h
 
 ####################
