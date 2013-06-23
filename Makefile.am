@@ -72,6 +72,8 @@ GN_MECHGLUE_OBJ = \
     src/crypto.c \
     src/ntlm_crypto.c \
     src/ntlm.c \
+    src/gss_spi.c \
+    src/gss_sec_ctx.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \
@@ -90,6 +92,7 @@ gssntlmssp_la_CFLAGS = \
     $(AM_FLAGS)
 gssntlmssp_la_LDFLAGS = \
     $(GN_MECHGLUE_LIBS) \
+    -export-symbols-regex '^gss_' \
     -avoid-version \
     -module
 
