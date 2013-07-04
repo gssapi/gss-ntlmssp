@@ -29,6 +29,8 @@ BuildRequires: gettext-devel
 BuildRequires: pkgconfig
 BuildRequires: krb5-devel >= 1.11.2
 BuildRequires: findutils
+BuildRequires: libunistring-devel
+BuildRequires: openssl-devel
 
 
 %description

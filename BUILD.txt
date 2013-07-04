@@ -15,6 +15,7 @@ In order to build gss-ntlmssp the following development packages are needed:
     libtool
     libxml2
     libxslt
+    libunistring
     m4
     pkgconfig
-
+    openssl

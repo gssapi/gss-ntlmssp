@@ -61,6 +61,7 @@ m4_include([external/pkg.m4])
 m4_include([external/docbook.m4])
 m4_include([external/sizes.m4])
 m4_include([external/ax_pthread.m4])
+m4_include([external/m4_ax_check_openssl.m4])
 
 AX_PTHREAD(,[AC_MSG_ERROR([Could not find Pthreads support])])
 
@@ -85,6 +86,18 @@ AC_CHECK_LIB(gssapi_krb5, gss_export_cred,,
 
 AC_SUBST([GSSAPI_CFLAGS])
 AC_SUBST([GSSAPI_LIBS])
+
+AC_CHECK_HEADERS([unicase.h uniconv.h],,
+                 [AC_MSG_ERROR([Could not find libunistring headers])])
+UNISTRING_LIBS="-lunistring"
+AC_CHECK_LIB(unistring, u8_toupper,,
+             [AC_MSG_ERROR([libunistring does not support u8_toupper])],
+             [$UNISTRING_LIBS])
+
+AX_CHECK_OPENSSL(,[AC_MSG_ERROR([Could not find OpenSSL support])])
+
+CRYPTO_LIBS="$OPENSSL_LIBS"
+AC_SUBST([CRYPTO_LIBS])
 
 if test x$HAVE_MANPAGES != x; then
     CHECK_XML_TOOLS

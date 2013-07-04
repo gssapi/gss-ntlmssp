@@ -18,6 +18,10 @@
 #ifndef _NTLM_H_
 #define _NTLM_H
 
+#include <stdbool.h>
+
+#include "ntlm_common.h"
+
 /* Negotiate Flags */
 #define NTLMSSP_NEGOTIATE_56                        (1 << 31)
 #define NTLMSSP_NEGOTIATE_KEY_EXCH                  (1 << 30)
@@ -65,33 +69,6 @@
 #define NTLMSSP_VERSION_BUILD 0
 #define NTLMSSP_VERSION_REV NTLMSSP_REVISION_W2K3
 
-enum ntlm_err_code {
-    ERR_BASE = 0x4E540000, /* base error space at 'NT00' */
-    ERR_DECODE,
-    ERR_ENCODE,
-};
-#define NTLM_ERR_MASK 0x4E54FFFF
-#define IS_NTLM_ERR_CODE(x) (((x) & NTLM_ERR_MASK) ? true : false)
-
-#define discard_const(ptr) ((void *)((uintptr_t)(ptr)))
-#define safefree(x) do { free(x); x = NULL; } while(0)
-
-struct ntlm_buffer {
-    uint8_t *data;
-    size_t length;
-};
-
-void ntlm_free_buffer_data(struct ntlm_buffer *buf);
-
-uint64_t ntlm_timestamp_now(void);
-
-
-enum ntlm_role {
-    NTLM_CLIENT,
-    NTLM_SERVER,
-    NTLM_DOMAIN_SERVER,
-    NTLM_DOMAIN_CONTROLLER
-};
 
 struct ntlm_ctx;
 
@@ -113,6 +90,141 @@ int ntlm_init_ctx(struct ntlm_ctx **ctx);
  * NOTE: even if an error is returned the contetx is freed and NULLed
  */
 int ntlm_free_ctx(struct ntlm_ctx **ctx);
+
+void ntlm_free_buffer_data(struct ntlm_buffer *buf);
+
+uint64_t ntlm_timestamp_now(void);
+
+
+/* ############### CRYPTO FUNCTIONS ################ */
+
+struct ntlm_key {
+    uint8_t data[16]; /* up to 16 bytes (128 bits) */
+    size_t length;
+};
+
+/**
+ * @brief   Turns a utf8 password into an NT Hash
+ *
+ * @param password      The password
+ * @param result        The returned hash
+ *
+ * @return 0 on success or an error;
+ */
+int ntlm_pwd_to_nt_hash(const char *password, struct ntlm_key *result);
+
+/**
+ * @brief   Generates a NTLMv2 Response Key
+ *
+ * @param ctx           An ntlm context
+ * @param nt_hash       The NT Hash of the user password
+ * @param user          The user name
+ * @param domain        The user's domain
+ * @param result        The resulting key
+ *                          (must be a preallocated 16 bytes buffer)
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int NTOWFv2(struct ntlm_ctx *ctx, struct ntlm_key *nt_hash,
+            const char *user, const char *domain, struct ntlm_key *result);
+
+/**
+ * @brief   Computes The NTLMv2 Response
+ *
+ * @param ntlmv2_key         The NTLMv2 key computed by NTOWFv2()
+ * @param server_chal[8]     The server provided challenge
+ * @param client_chal[8]     A client generated random challenge
+ * @param timestamp          A FILETIME timestamp
+ * @param target_info        The target info
+ * @param nt_response        The resulting nt_response buffer
+ *
+ * @return 0 on success or error.
+ */
+int ntlmv2_compute_nt_response(struct ntlm_key *ntlmv2_key,
+                               uint8_t server_chal[8], uint8_t client_chal[8],
+                               uint64_t timestamp,
+                               struct ntlm_buffer *target_info,
+                               struct ntlm_buffer *nt_response);
+
+/**
+ * @brief   Computes The LMv2 Response
+ *
+ * @param ntlmv2_key         The NTLMv2 key computed by NTOWFv2()
+ * @param server_chal[8]     The server provided challenge
+ * @param client_chal[8]     A client generated random challenge
+ * @param lm_response        The resulting lm_response buffer
+ *
+ * @return 0 on success or error.
+ */
+int ntlmv2_compute_lm_response(struct ntlm_key *ntlmv2_key,
+                               uint8_t server_chal[8], uint8_t client_chal[8],
+                               struct ntlm_buffer *lm_response);
+
+/**
+ * @brief   Computes the NTLMv2 SessionBaseKey
+ *
+ * @param ntlmv2_key            The NTLMv2 key computed by NTOWFv2()
+ * @param nt_response           The NTLMv2 response
+ * @param session_base_key      The resulting session key
+ *
+ * @return 0 on success or error.
+ */
+int ntlmv2_session_base_key(struct ntlm_key *ntlmv2_key,
+                            struct ntlm_buffer *nt_response,
+                            struct ntlm_key *session_base_key);
+
+/**
+ * @brief   Comutes the NTLM session key
+ *
+ * @param key_exchange_key[16]          The Key Exchange Key
+ * @param key_exch                      KEY_EXCH has been negotited
+ * @param exported_session_key[16]      Resulting exported session key
+ *
+ * @return 0 on success or error.
+ */
+int ntlm_exported_session_key(struct ntlm_key *key_exchange_key,
+                              bool key_exch,
+                              struct ntlm_key *exported_session_key);
+
+/**
+ * @brief   Comutes the NTLM encrypted session key
+ *
+ * @param key_exchange_key[16]          The Key Exchange Key
+ * @param exported_session_key[16]      Resulting exported session key
+ * @param encrypted_random_session_key  Resulting encrypted session key
+ *
+ * @return 0 on success or error.
+ */
+int ntlm_encrypted_session_key(struct ntlm_key *key_exchange_key,
+                               struct ntlm_key *exported_session_key,
+                               struct ntlm_key *encrypted_random_session_key);
+
+/**
+ * @brief   Computes all the sign and seal keys from the session key
+ *
+ * @param flags                 Incoming challenge/authenticate flags
+ * @param client                Wheter this ia a client or a server
+ * @param random_session_key    The session key
+ * @param sign_send_key         Resulting Signing key for send ops
+ * @param sign_recv_key         Resulting Signing key for recv ops
+ * @param seal_send_key         Resulting Sealing key for send ops
+ * @param seal_recv_key         Resulting Sealing key for recv ops
+ * @param seal_send_handle      Handle for RC4 encryption (v1 sealing)
+ * @param seal_recv_handle      Handle for RC4 decryption (v1 sealing)
+ *
+ * @return 0 on success or error.
+ */
+int ntlm_signseal_keys(uint32_t flags, bool client,
+                       struct ntlm_key *random_session_key,
+                       struct ntlm_key *sign_send_key,
+                       struct ntlm_key *sign_recv_key,
+                       struct ntlm_key *seal_send_key,
+                       struct ntlm_key *seal_recv_key,
+                       struct ntlm_rc4_handle **seal_send_handle,
+                       struct ntlm_rc4_handle **seal_recv_handle);
+
+
+/* ############## ENCODING / DECODING ############## */
 
 /**
  * @brief   A utility function to construct a target_info structure

@@ -28,8 +28,6 @@
 #include <errno.h>
 #include <iconv.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 
@@ -126,32 +124,6 @@ struct wire_single_host_data {
 #pragma pack(push, 1)
 struct wire_channel_binding {
     uint8_t md5_hash[16];
-};
-#pragma pack(pop)
-
-/* lm response, v1 or v2 */
-#pragma pack(push, 1)
-union wire_lm_response {
-    struct {
-        uint8_t resp[24];
-    } v1;
-    struct {
-        uint8_t resp[16];
-        uint8_t cli_chal[8];
-    } v2;
-};
-#pragma pack(pop)
-
-/* ntlm response, v1 or v2 */
-#pragma pack(push, 1)
-union wire_ntlm_response {
-    struct {
-        uint8_t resp[24];
-    } v1;
-    struct {
-        uint8_t resp[16];
-        uint8_t cli_chal[8];
-    } v2;
 };
 #pragma pack(pop)
 

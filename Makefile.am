@@ -64,15 +64,19 @@ AM_CPPFLAGS = \
     -DSYSCONFDIR=\"$(sysconfdir)\" \
     -DLOCALEDIR=\"$(localedir)\"
 
-EXTRA_DIST = build/config.rpath
+#EXTRA_DIST = build/config.rpath
 
-GSS_NTLM_LIBS = $(GSSAPI_LIBS)
+GN_MECHGLUE_LIBS = $(GSSAPI_LIBS) $(CRYPTO_LIBS)
 
 GN_MECHGLUE_OBJ = \
+    src/crypto.c \
+    src/ntlm_crypto.c \
     src/ntlm.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \
+    src/crypto.h \
+    src/ntlm_common.h \
     src/ntlm.h \
     src/gss_ntlmssp.h
 
@@ -85,6 +89,7 @@ gssntlmssp_la_SOURCES = \
 gssntlmssp_la_CFLAGS = \
     $(AM_FLAGS)
 gssntlmssp_la_LDFLAGS = \
+    $(GN_MECHGLUE_LIBS) \
     -avoid-version \
     -module
 
