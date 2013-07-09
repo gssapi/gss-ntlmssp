@@ -99,7 +99,7 @@ int ntlm_pwd_to_nt_hash(const char *password, struct ntlm_key *result)
     payload.data = (uint8_t *)retstr;
     payload.length = out;
     hash.data = result->data;
-    hash.length= result->length;
+    hash.length = result->length;
 
     ret = MD4_HASH(&payload, &hash);
     free(retstr);

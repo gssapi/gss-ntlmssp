@@ -31,6 +31,8 @@
 #include <string.h>
 #include <sys/time.h>
 
+#include <unicase.h>
+
 #include "ntlm.h"
 
 #pragma pack(push, 1)
@@ -246,6 +248,24 @@ uint64_t ntlm_timestamp_now(void)
 
     return filetime;
 }
+
+bool ntlm_casecmp(const char *s1, const char *s2)
+{
+    size_t s1_len, s2_len;
+    int ret, res;
+
+    if (s1 == s2) return true;
+    if (!s1 || !s2) return false;
+
+    s1_len = strlen(s1);
+    s2_len = strlen(s2);
+
+    ret = ulc_casecmp(s1, s1_len, s2, s2_len,
+                      uc_locale_language(), NULL, &res);
+    if (ret || res != 0) return false;
+    return true;
+}
+
 
 /**
  * @brief  Converts a string using the provided iconv context.

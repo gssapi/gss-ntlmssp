@@ -95,6 +95,7 @@ void ntlm_free_buffer_data(struct ntlm_buffer *buf);
 
 uint64_t ntlm_timestamp_now(void);
 
+bool ntlm_casecmp(const char *s1, const char *s2);
 
 /* ############### CRYPTO FUNCTIONS ################ */
 
