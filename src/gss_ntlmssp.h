@@ -41,7 +41,7 @@
 
 struct gssntlm_name {
     enum ntlm_name_type {
-        GSSNTLM_NAME_NONE,
+        GSSNTLM_NAME_ANON,
         GSSNTLM_NAME_USER,
         GSSNTLM_NAME_SERVER
     } type;
@@ -133,6 +133,8 @@ int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 
 extern const gss_OID_desc gssntlm_oid;
 
+extern const gss_OID_desc gssntlm_oid;
+
 uint32_t gssntlm_acquire_cred(uint32_t *minor_status,
                               gss_name_t desired_name,
                               uint32_t time_req,
@@ -144,6 +146,20 @@ uint32_t gssntlm_acquire_cred(uint32_t *minor_status,
 
 uint32_t gssntlm_release_cred(uint32_t *minor_status,
                               gss_cred_id_t *cred_handle);
+
+uint32_t gssntlm_import_name(uint32_t *minor_status,
+                             gss_buffer_t input_name_buffer,
+                             gss_OID input_name_type,
+                             gss_name_t *output_name);
+
+uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
+                                     gss_OID mech_type,
+                                     gss_buffer_t input_name_buffer,
+                                     gss_OID input_name_type,
+                                     gss_name_t *output_name);
+
+uint32_t gssntlm_release_name(uint32_t *minor_status,
+                              gss_name_t *input_name);
 
 uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                                   gss_cred_id_t claimant_cred_handle,

@@ -81,3 +81,33 @@ OM_uint32 gss_release_cred(OM_uint32 *minor_status,
 {
     return gssntlm_release_cred(minor_status, cred_handle);
 }
+
+OM_uint32 gss_import_name(OM_uint32 *minor_status,
+                          gss_buffer_t input_name_buffer,
+                          gss_OID input_name_type,
+                          gss_name_t *output_name)
+{
+    return gssntlm_import_name(minor_status,
+                               input_name_buffer,
+                               input_name_type,
+                               output_name);
+}
+
+OM_uint32 gssspi_import_name_by_mech(OM_uint32 *minor_status,
+                                     gss_OID mech_type,
+                                     gss_buffer_t input_name_buffer,
+                                     gss_OID input_name_type,
+                                     gss_name_t *output_name)
+{
+    return gssntlm_import_name(minor_status,
+                               input_name_buffer,
+                               input_name_type,
+                               output_name);
+}
+
+OM_uint32 gss_release_name(OM_uint32 *minor_status,
+                           gss_name_t *input_name)
+{
+    return gssntlm_release_name(minor_status,
+                                input_name);
+}
