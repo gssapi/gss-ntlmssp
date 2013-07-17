@@ -81,7 +81,7 @@ struct wire_ntlmv2_cli_chal {
 #define MAX_USER_DOM_LEN 512
 
 
-int ntlm_pwd_to_nt_hash(const char *password, struct ntlm_key *result)
+int NTOWFv1(const char *password, struct ntlm_key *result)
 {
     struct ntlm_buffer payload;
     struct ntlm_buffer hash;
@@ -103,6 +103,156 @@ int ntlm_pwd_to_nt_hash(const char *password, struct ntlm_key *result)
 
     ret = MD4_HASH(&payload, &hash);
     free(retstr);
+    return ret;
+}
+
+#define DES_CONST "KGS!@#$%"
+int LMOWFv1(const char *password, struct ntlm_key *result)
+{
+    struct ntlm_buffer key;
+    struct ntlm_buffer plain;
+    struct ntlm_buffer cipher;
+    char upcased[15];
+    char *retstr;
+    size_t out;
+    size_t len;
+    int ret;
+
+    if (result->length != 16) return EINVAL;
+
+    len = strlen(password);
+    if (len > 14) return ERANGE;
+
+    out = 15;
+    retstr = (char *)u8_toupper((const uint8_t *)password, len,
+                                NULL, NULL, (uint8_t *)upcased, &out);
+    if (!retstr) return ERR_CRYPTO;
+    if (retstr != upcased) {
+        free(retstr);
+        ret = EINVAL;
+    }
+    memset(&upcased[len], 0, 15 - len);
+
+    /* part1 */
+    key.data = (uint8_t *)upcased;
+    key.length = 7;
+    plain.data = discard_const(DES_CONST);
+    plain.length = 8;
+    cipher.data = result->data;
+    cipher.length = 8;
+    ret = WEAK_DES(&key, &plain, &cipher);
+    if (ret) return ret;
+
+    /* part2 */
+    key.data = (uint8_t *)&upcased[7];
+    key.length = 7;
+    plain.data = discard_const(DES_CONST);
+    plain.length = 8;
+    cipher.data = &result->data[8];
+    cipher.length = 8;
+    return WEAK_DES(&key, &plain, &cipher);
+}
+
+int ntlm_compute_nt_response(struct ntlm_key *nt_key, bool ext_sec,
+                             uint8_t server_chal[8], uint8_t client_chal[8],
+                             struct ntlm_buffer *nt_response)
+{
+    struct ntlm_buffer key = { nt_key->data, nt_key->length };
+    struct ntlm_buffer payload;
+    struct ntlm_buffer result;
+    uint8_t buf1[16];
+    uint8_t buf2[16];
+    int ret;
+
+    memcpy(buf1, server_chal, 8);
+    if (ext_sec) {
+        memcpy(&buf1[8], client_chal, 8);
+        payload.data = buf1;
+        payload.length = 16;
+        result.data = buf2;
+        result.length = 16;
+        ret = MD5_HASH(&payload, &result);
+        if (ret) return ret;
+        memcpy(buf1, result.data, 8);
+    }
+    payload.data = buf1;
+    payload.length = 8;
+
+    return DESL(&key, &payload, nt_response);
+}
+
+int ntlm_compute_lm_response(struct ntlm_key *lm_key, bool ext_sec,
+                             uint8_t server_chal[8], uint8_t client_chal[8],
+                             struct ntlm_buffer *lm_response)
+{
+    struct ntlm_buffer key = { lm_key->data, lm_key->length };
+    struct ntlm_buffer payload = { server_chal, 8 };
+
+    if (ext_sec) {
+        memcpy(lm_response->data, client_chal, 8);
+        memset(&lm_response->data[8], 0, 16);
+        return 0;
+    }
+    return DESL(&key, &payload, lm_response);
+}
+
+int ntlm_session_base_key(struct ntlm_key *nt_key,
+                          struct ntlm_key *session_base_key)
+{
+    struct ntlm_buffer payload = { nt_key->data, nt_key->length };
+    struct ntlm_buffer hash = { session_base_key->data,
+                                session_base_key->length };
+
+    return MD4_HASH(&payload, &hash);
+}
+
+int KXKEY(struct ntlm_ctx *ctx,
+          bool ext_sec,
+          bool neg_lm_key,
+          bool non_nt_sess_key,
+          uint8_t server_chal[8],
+          struct ntlm_key *lm_key,
+          struct ntlm_key *session_base_key,
+          struct ntlm_buffer *lm_response,
+          struct ntlm_key *key_exchange_key)
+{
+    struct ntlm_buffer payload;
+    struct ntlm_buffer result;
+    struct ntlm_buffer key;
+    uint8_t buf[16];
+    int ret = 0;
+
+    if (ext_sec) {
+        key.data = session_base_key->data;
+        key.length = session_base_key->length;
+        memcpy(buf, server_chal, 8);
+        memcpy(&buf[8], lm_response->data, 8);
+        payload.data = buf;
+        payload.length = 16;
+        result.data = key_exchange_key->data;
+        result.length = key_exchange_key->length;
+        ret = HMAC_MD5(&key, &payload, &result);
+    } else if (neg_lm_key) {
+        payload.data = lm_response->data;
+        payload.length = 8;
+        key.data = lm_key->data;
+        key.length = 7;
+        result.data = key_exchange_key->data;
+        result.length = 8;
+        ret = WEAK_DES(&key, &payload, &result);
+        if (ret) return ret;
+        buf[0] = lm_key->data[7];
+        memset(&buf[1], 0xbd, 6);
+        key.data = buf;
+        result.data = &key_exchange_key->data[8];
+        result.length = 8;
+        ret = WEAK_DES(&key, &payload, &result);
+    } else if (non_nt_sess_key) {
+        memcpy(key_exchange_key->data, lm_key, 8);
+        memset(&key_exchange_key->data[8], 0, 8);
+    } else {
+        memcpy(key_exchange_key->data, session_base_key->data, 16);
+    }
     return ret;
 }
 

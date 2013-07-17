@@ -16,7 +16,9 @@
 */
 
 #include <errno.h>
+#include <string.h>
 
+#include <openssl/des.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -219,3 +221,69 @@ int RC4K(struct ntlm_buffer *key,
     return ret;
 }
 
+int WEAK_DES(struct ntlm_buffer *key,
+             struct ntlm_buffer *payload,
+             struct ntlm_buffer *result)
+{
+    DES_key_schedule schedule;
+    DES_cblock key8;
+
+    if ((key->length != 7) ||
+        (payload->length != 8) ||
+        (result->length != 8)) {
+        return EINVAL;
+    }
+
+    /* Undocumented shuffle needed before calling DES_set_key_unchecked */
+    key8[0] =  key->data[0];
+    key8[1] = (key->data[0] << 7) | (key->data[1] >> 1);
+    key8[2] = (key->data[1] << 6) | (key->data[2] >> 2);
+    key8[3] = (key->data[2] << 5) | (key->data[3] >> 3);
+    key8[4] = (key->data[3] << 4) | (key->data[4] >> 4);
+    key8[5] = (key->data[4] << 3) | (key->data[5] >> 5);
+    key8[6] = (key->data[5] << 2) | (key->data[6] >> 6);
+    key8[7] = (key->data[6] << 1);
+
+    DES_set_key_unchecked(&key8, &schedule);
+    DES_ecb_encrypt((DES_cblock *)payload->data,
+                    (DES_cblock *)result->data, &schedule, 1);
+    return 0;
+}
+
+int DESL(struct ntlm_buffer *key,
+         struct ntlm_buffer *payload,
+         struct ntlm_buffer *result)
+{
+    uint8_t buf7[7];
+    struct ntlm_buffer key7;
+    struct ntlm_buffer res8;
+
+    if ((key->length != 16) ||
+        (payload->length != 8) ||
+        (result->length != 24)) {
+        return EINVAL;
+    }
+
+    /* part 1 */
+    key7.data = key->data;
+    key7.length = 7;
+    res8.data = result->data;
+    res8.length = 8;
+    WEAK_DES(&key7, payload, &res8);
+    /* part 2 */
+    key7.data = &key->data[7];
+    key7.length = 7;
+    res8.data = &result->data[8];
+    res8.length = 8;
+    WEAK_DES(&key7, payload, &res8);
+    /* part 3 */
+    memcpy(buf7, &key->data[14], 2);
+    memset(&buf7[2], 0, 5);
+    key7.data = buf7;
+    key7.length = 7;
+    res8.data = &result->data[16];
+    res8.length = 8;
+    WEAK_DES(&key7, payload, &res8);
+
+    return 0;
+}

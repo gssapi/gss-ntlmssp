@@ -97,6 +97,138 @@ uint8_t T_ServerChallenge[] = {
     0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef
 };
 
+/* NTLMv1 Auth Test Data */
+struct {
+    struct ntlm_key ResponseKeyLM;
+    struct ntlm_key ResponseKeyNT;
+    struct ntlm_key SessionBaseKey;
+    uint8_t LMv1Response[24];
+    uint8_t NTLMv1Response[24];
+    struct ntlm_key KeyExchangeKey;
+    struct ntlm_key EncryptedSessionKey1;
+    struct ntlm_key EncryptedSessionKey2;
+    struct ntlm_key EncryptedSessionKey3;
+    uint32_t ChallengeFlags;
+    uint8_t ChallengeMessage[0x44];
+    /* Version field differs from the one MS DOCS generated */
+    uint8_t EncChallengeMessage[0x44];
+    uint8_t AuthenticateMessage[0xAC];
+} T_NTLMv1 = {
+    {
+      .data = {
+        0xe5, 0x2c, 0xac, 0x67, 0x41, 0x9a, 0x9a, 0x22,
+        0x4a, 0x3b, 0x10, 0x8f, 0x3f, 0xa6, 0xcb, 0x6d
+      },
+      .length = 16
+    },
+    {
+      .data = {
+        0xa4, 0xf4, 0x9c, 0x40, 0x65, 0x10, 0xbd, 0xca,
+        0xb6, 0x82, 0x4e, 0xe7, 0xc3, 0x0f, 0xd8, 0x52
+      },
+      .length = 16
+    },
+    {
+      .data = {
+        0xd8, 0x72, 0x62, 0xb0, 0xcd, 0xe4, 0xb1, 0xcb,
+        0x74, 0x99, 0xbe, 0xcc, 0xcd, 0xf1, 0x07, 0x84
+      },
+      .length = 16
+    },
+    {
+        0x98, 0xde, 0xf7, 0xb8, 0x7f, 0x88, 0xaa, 0x5d,
+        0xaf, 0xe2, 0xdf, 0x77, 0x96, 0x88, 0xa1, 0x72,
+        0xde, 0xf1, 0x1c, 0x7d, 0x5c, 0xcd, 0xef, 0x13
+    },
+    {
+        0x67, 0xc4, 0x30, 0x11, 0xf3, 0x02, 0x98, 0xa2,
+        0xad, 0x35, 0xec, 0xe6, 0x4f, 0x16, 0x33, 0x1c,
+        0x44, 0xbd, 0xbe, 0xd9, 0x27, 0x84, 0x1f, 0x94
+    },
+    {
+      .data = {
+        0xb0, 0x9e, 0x37, 0x9f, 0x7f, 0xbe, 0xcb, 0x1e,
+        0xaf, 0x0a, 0xfd, 0xcb, 0x03, 0x83, 0xc8, 0xa0
+      },
+      .length = 16
+    },
+    {
+      .data = {
+        0x51, 0x88, 0x22, 0xb1, 0xb3, 0xf3, 0x50, 0xc8,
+        0x95, 0x86, 0x82, 0xec, 0xbb, 0x3e, 0x3c, 0xb7
+      },
+      .length = 16
+    },
+    {
+      .data = {
+        0x74, 0x52, 0xca, 0x55, 0xc2, 0x25, 0xa1, 0xca,
+        0x04, 0xb4, 0x8f, 0xae, 0x32, 0xcf, 0x56, 0xfc
+      },
+      .length = 16
+    },
+    {
+      .data = {
+        0x4c, 0xd7, 0xbb, 0x57, 0xd6, 0x97, 0xef, 0x9b,
+        0x54, 0x9f, 0x02, 0xb8, 0xf9, 0xb3, 0x78, 0x64
+      },
+      .length = 16
+    },
+    (
+      NTLMSSP_NEGOTIATE_56 | NTLMSSP_NEGOTIATE_KEY_EXCH |
+      NTLMSSP_NEGOTIATE_128 | NTLMSSP_NEGOTIATE_VERSION |
+      NTLMSSP_TARGET_TYPE_SERVER |
+      NTLMSSP_NEGOTIATE_ALWAYS_SIGN | NTLMSSP_NEGOTIATE_NTLM |
+      NTLMSSP_NEGOTIATE_SEAL | NTLMSSP_NEGOTIATE_SIGN |
+      NTLMSSP_NEGOTIATE_OEM | NTLMSSP_NEGOTIATE_UNICODE
+    ),
+    {
+        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
+        0x38, 0x00, 0x00, 0x00, 0x33, 0x82, 0x02, 0xe2,
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x06, 0x00, 0x70, 0x17, 0x00, 0x00, 0x00, 0x0f,
+        0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
+        0x65, 0x00, 0x72, 0x00
+    },
+    {
+        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
+        0x38, 0x00, 0x00, 0x00, 0x33, 0x82, 0x02, 0xe2,
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f,
+        0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
+        0x65, 0x00, 0x72, 0x00
+    },
+    {
+        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
+        0x03, 0x00, 0x00, 0x00, 0x18, 0x00, 0x18, 0x00,
+        0x6c, 0x00, 0x00, 0x00, 0x18, 0x00, 0x18, 0x00,
+        0x84, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
+        0x48, 0x00, 0x00, 0x00, 0x08, 0x00, 0x08, 0x00,
+        0x54, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00,
+        0x5c, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00,
+        0x9c, 0x00, 0x00, 0x00, 0x35, 0x82, 0x80, 0xe2,
+        0x05, 0x01, 0x28, 0x0a, 0x00, 0x00, 0x00, 0x0f,
+        0x44, 0x00, 0x6f, 0x00, 0x6d, 0x00, 0x61, 0x00,
+        0x69, 0x00, 0x6e, 0x00, 0x55, 0x00, 0x73, 0x00,
+        0x65, 0x00, 0x72, 0x00, 0x43, 0x00, 0x4f, 0x00,
+        0x4d, 0x00, 0x50, 0x00, 0x55, 0x00, 0x54, 0x00,
+        0x45, 0x00, 0x52, 0x00, 0x98, 0xde, 0xf7, 0xb8,
+        0x7f, 0x88, 0xaa, 0x5d, 0xaf, 0xe2, 0xdf, 0x77,
+        0x96, 0x88, 0xa1, 0x72, 0xde, 0xf1, 0x1c, 0x7d,
+        0x5c, 0xcd, 0xef, 0x13, 0x67, 0xc4, 0x30, 0x11,
+        0xf3, 0x02, 0x98, 0xa2, 0xad, 0x35, 0xec, 0xe6,
+        0x4f, 0x16, 0x33, 0x1c, 0x44, 0xbd, 0xbe, 0xd9,
+        0x27, 0x84, 0x1f, 0x94, 0x51, 0x88, 0x22, 0xb1,
+        0xb3, 0xf3, 0x50, 0xc8, 0x95, 0x86, 0x82, 0xec,
+        0xbb, 0x3e, 0x3c, 0xb7
+    }
+};
+
 /* NTLMv2 Auth Test Data */
 struct {
     uint32_t ChallengeFlags;
@@ -223,13 +355,119 @@ struct {
     }
 };
 
+int test_LMOWFv1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key result = { .length = 16 };
+    int ret;
+
+    ret = LMOWFv1(T_Passwd, &result);
+    if (ret) return ret;
+
+    if (memcmp(result.data, T_NTLMv1.ResponseKeyLM.data, 16) != 0) {
+        fprintf(stderr, "results differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_16(T_NTLMv1.ResponseKeyLM.data));
+        fprintf(stderr, "obtained %s\n",
+                        hex_to_str_16(result.data));
+        ret = EINVAL;
+    }
+
+    return ret;
+}
+
+int test_NTOWFv1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key result = { .length = 16 };
+    int ret;
+
+    ret = NTOWFv1(T_Passwd, &result);
+    if (ret) return ret;
+
+    if (memcmp(result.data, T_NTLMv1.ResponseKeyNT.data, 16) != 0) {
+        fprintf(stderr, "results differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_16(T_NTLMv1.ResponseKeyNT.data));
+        fprintf(stderr, "obtained %s\n",
+                        hex_to_str_16(result.data));
+        ret = EINVAL;
+    }
+
+    return ret;
+}
+
+int test_SessionBaseKeyV1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key session_base_key = { .length = 16 };
+    int ret;
+
+    ret = ntlm_session_base_key(&T_NTLMv1.ResponseKeyNT, &session_base_key);
+    if (ret) return ret;
+
+    if (memcmp(session_base_key.data, T_NTLMv1.SessionBaseKey.data, 16) != 0) {
+        fprintf(stderr, "results differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_16(T_NTLMv1.SessionBaseKey.data));
+        fprintf(stderr, "obtained %s\n",
+                        hex_to_str_16(session_base_key.data));
+        ret = EINVAL;
+    }
+
+    return ret;
+}
+
+int test_LMResponseV1(struct ntlm_ctx *ctx)
+{
+    uint8_t buf[24];
+    struct ntlm_buffer result = { buf, 24 };
+    int ret;
+
+    ret = ntlm_compute_lm_response(&T_NTLMv1.ResponseKeyLM, false,
+                                   T_ServerChallenge, T_ClientChallenge,
+                                   &result);
+    if (ret) return ret;
+
+    if (memcmp(result.data, T_NTLMv1.LMv1Response, 16) != 0) {
+        fprintf(stderr, "results differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_16(T_NTLMv1.LMv1Response));
+        fprintf(stderr, "obtained %s\n",
+                        hex_to_str_16(result.data));
+        ret = EINVAL;
+    }
+
+    return ret;
+}
+
+int test_NTResponseV1(struct ntlm_ctx *ctx)
+{
+    uint8_t buf[24];
+    struct ntlm_buffer result = { buf, 24 };
+    int ret;
+
+    ret = ntlm_compute_nt_response(&T_NTLMv1.ResponseKeyNT, false,
+                                   T_ServerChallenge, T_ClientChallenge,
+                                   &result);
+    if (ret) return ret;
+
+    if (memcmp(result.data, T_NTLMv1.NTLMv1Response, 16) != 0) {
+        fprintf(stderr, "results differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_16(T_NTLMv1.NTLMv1Response));
+        fprintf(stderr, "obtained %s\n",
+                        hex_to_str_16(result.data));
+        ret = EINVAL;
+    }
+
+    return ret;
+}
+
 int test_NTOWFv2(struct ntlm_ctx *ctx)
 {
     struct ntlm_key nt_hash = { .length = 16 };
     struct ntlm_key result = { .length = 16 };
     int ret;
 
-    ret = ntlm_pwd_to_nt_hash(T_Passwd, &nt_hash);
+    ret = NTOWFv1(T_Passwd, &nt_hash);
     if (ret) return ret;
 
     ret = NTOWFv2(ctx, &nt_hash, T_User, T_UserDom, &result);
@@ -341,6 +579,118 @@ int test_EncryptedSessionKey(struct ntlm_ctx *ctx,
         ret = EINVAL;
     }
 
+    return ret;
+}
+
+int test_EncryptedSessionKey1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer lm_response = { T_NTLMv1.LMv1Response, 24 };
+    struct ntlm_key key_exchnage_key = { .length = 16 };
+    int ret;
+
+    ret = KXKEY(ctx, false, false, false, T_ServerChallenge,
+                &T_NTLMv1.ResponseKeyLM, &T_NTLMv1.SessionBaseKey,
+                &lm_response, &key_exchnage_key);
+    if (ret) return ret;
+
+    return test_EncryptedSessionKey(ctx, &key_exchnage_key,
+                                    &T_NTLMv1.EncryptedSessionKey1);
+}
+
+int test_EncryptedSessionKey2(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer lm_response = { T_NTLMv1.LMv1Response, 24 };
+    struct ntlm_key key_exchnage_key = { .length = 16 };
+    int ret;
+
+    ret = KXKEY(ctx, false, false, true, T_ServerChallenge,
+                &T_NTLMv1.ResponseKeyLM, &T_NTLMv1.SessionBaseKey,
+                &lm_response, &key_exchnage_key);
+    if (ret) return ret;
+
+    return test_EncryptedSessionKey(ctx, &key_exchnage_key,
+                                    &T_NTLMv1.EncryptedSessionKey2);
+}
+
+int test_EncryptedSessionKey3(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer lm_response = { T_NTLMv1.LMv1Response, 24 };
+    struct ntlm_key key_exchnage_key = { .length = 16 };
+    int ret;
+
+    ret = KXKEY(ctx, false, true, false, T_ServerChallenge,
+                &T_NTLMv1.ResponseKeyLM, &T_NTLMv1.SessionBaseKey,
+                &lm_response, &key_exchnage_key);
+    if (ret) return ret;
+
+    return test_EncryptedSessionKey(ctx, &key_exchnage_key,
+                                    &T_NTLMv1.EncryptedSessionKey3);
+}
+
+int test_DecodeChallengeMessageV1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer chal_msg = { T_NTLMv1.ChallengeMessage, 0x68 };
+    uint32_t type;
+    uint32_t flags;
+    char *target_name = NULL;
+    uint8_t chal[8];
+    struct ntlm_buffer challenge = { chal, 8 };
+    int ret;
+
+    ret = ntlm_decode_msg_type(ctx, &chal_msg, &type);
+    if (ret) return ret;
+    if (type != 2) return EINVAL;
+
+    ret = ntlm_decode_chal_msg(ctx, &chal_msg, &flags, &target_name,
+                               &challenge, NULL);
+    if (ret) return ret;
+
+    if (flags != T_NTLMv1.ChallengeFlags) {
+        fprintf(stderr, "flags differ!\n");
+        fprintf(stderr, "expected %d\n", T_NTLMv1.ChallengeFlags);
+        fprintf(stderr, "obtained %d\n", flags);
+        ret = EINVAL;
+    }
+
+    if (strcmp(target_name, T_Server_Name) != 0) {
+        fprintf(stderr, "Target Names differ!\n");
+        fprintf(stderr, "expected %s\n", T_Server_Name);
+        fprintf(stderr, "obtained %s\n", target_name);
+        ret = EINVAL;
+    }
+
+    if (memcmp(chal, T_ServerChallenge, 8) != 0) {
+        fprintf(stderr, "Challenges differ!\n");
+        fprintf(stderr, "expected %s\n", hex_to_str_8(T_ServerChallenge));
+        fprintf(stderr, "obtained %s\n", hex_to_str_8(chal));
+        ret = EINVAL;
+    }
+
+    free(target_name);
+    return ret;
+}
+
+int test_EncodeChallengeMessageV1(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer challenge = { T_ServerChallenge, 8 };
+    struct ntlm_buffer message = { 0 };
+    int ret;
+
+    ret = ntlm_encode_chal_msg(ctx, T_NTLMv1.ChallengeFlags, T_Server_Name,
+                               &challenge, NULL, &message);
+    if (ret) return ret;
+
+    if ((message.length != 0x44) ||
+        (memcmp(message.data, T_NTLMv1.EncChallengeMessage, 0x44) != 0)) {
+        fprintf(stderr, "Challenge Messages differ!\n");
+        fprintf(stderr, "expected:\n%s",
+                        hex_to_dump(T_NTLMv1.EncChallengeMessage, 0x44));
+        fprintf(stderr, "obtained:\n%s",
+                        hex_to_dump(message.data, message.length));
+        ret = EINVAL;
+    }
+
+    free(message.data);
     return ret;
 }
 
@@ -530,8 +880,44 @@ int main(int argc, const char *argv[])
     ret = ntlm_init_ctx(&ctx);
     if (ret) goto done;
 
-    fprintf(stdout, "Test NTOWFv2\n");
-    ret = test_NTOWFv2(ctx);
+    fprintf(stdout, "Test LMOWFv1\n");
+    ret = test_LMOWFv1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test NTOWFv1\n");
+    ret = test_NTOWFv1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test LMResponse v1\n");
+    ret = test_LMResponseV1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test NTResponse v1\n");
+    ret = test_NTResponseV1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test SessionBaseKey v1\n");
+    ret = test_SessionBaseKeyV1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test EncryptedSessionKey v1 (1)\n");
+    ret = test_EncryptedSessionKey1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test EncryptedSessionKey v1 (2)\n");
+    ret = test_EncryptedSessionKey2(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test EncryptedSessionKey v1 (3)\n");
+    ret = test_EncryptedSessionKey3(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test decoding ChallengeMessage v1\n");
+    ret = test_DecodeChallengeMessageV1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test encoding ChallengeMessage v1\n");
+    ret = test_EncodeChallengeMessageV1(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test LMResponse v2\n");

@@ -112,7 +112,83 @@ struct ntlm_key {
  *
  * @return 0 on success or an error;
  */
-int ntlm_pwd_to_nt_hash(const char *password, struct ntlm_key *result);
+int NTOWFv1(const char *password, struct ntlm_key *result);
+
+/**
+ * @brief   Turns a utf8 password into an LM Hash
+ *
+ * @param password      The password
+ * @param result        The returned hash
+ *
+ * @return 0 on success or an error;
+ */
+int LMOWFv1(const char *password, struct ntlm_key *result);
+
+/**
+ * @brief   Generates a v1 NT Response
+ *
+ * @param nt_key            The NTLMv1 key computed by NTOWFv1()
+ * @param ext_sec           Whether Extended Security has been negotiated
+ * @param server_chal[8]    The server challenge
+ * @param client_chal[8]    The client challenge (only with Extended Security)
+ * @param nt_response       The output buffer (must be 24 bytes preallocated)
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int ntlm_compute_nt_response(struct ntlm_key *nt_key, bool ext_sec,
+                             uint8_t server_chal[8], uint8_t client_chal[8],
+                             struct ntlm_buffer *nt_response);
+
+/**
+ * @brief   Generates a v1 LM Response
+ *
+ * @param lm_key            The LMv1 key computed by LMOWFv1()
+ * @param ext_sec           Whether Extended Security has been negotiated
+ * @param server_chal[8]    The server challenge
+ * @param client_chal[8]    The client challenge (only with Extended Security)
+ * @param lm_response       The output buffer (must be 24 bytes preallocated)
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int ntlm_compute_lm_response(struct ntlm_key *lm_key, bool ext_sec,
+                             uint8_t server_chal[8], uint8_t client_chal[8],
+                             struct ntlm_buffer *lm_response);
+
+/**
+ * @brief   Returns the v1 session key
+ *
+ * @param nt_key            The NTLMv1 key computed by NTOWFv1()
+ * @param session_base_key  The output buffer (must be 16 bytes preallocated)
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int ntlm_session_base_key(struct ntlm_key *nt_key,
+                          struct ntlm_key *session_base_key);
+
+/**
+ * @brief   V1 Key Exchange Key calculation
+ *
+ * @param ctx               An ntlm context
+ * @param ext_sec           Whether Extended Security has been negotiated
+ * @param neg_lm_key        Whether LM KEY has been negotiated
+ * @param non_nt_sess_key   Whether non NT Session Key has been negotiated
+ * @param server_chal       The server challenge (only with Extended Security)
+ * @param lm_key            The LMv1 key computed by LMOWFv1()
+ * @param session_base_key  The Session Base Key
+ * @param lm_response       The LM v1 Response
+ * @param key_exchange_key  The output buffer (must be 16 bytes preallocated)
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int KXKEY(struct ntlm_ctx *ctx,
+          bool ext_sec,
+          bool neg_lm_key,
+          bool non_nt_sess_key,
+          uint8_t server_chal[8],
+          struct ntlm_key *lm_key,
+          struct ntlm_key *session_base_key,
+          struct ntlm_buffer *lm_response,
+          struct ntlm_key *key_exchange_key);
 
 /**
  * @brief   Generates a NTLMv2 Response Key

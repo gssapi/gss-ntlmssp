@@ -112,6 +112,32 @@ void RC4_FREE(struct ntlm_rc4_handle **handle);
 int RC4K(struct ntlm_buffer *key,
          enum ntlm_cipher_mode mode,
          struct ntlm_buffer *payload,
-struct ntlm_buffer *result);
+         struct ntlm_buffer *result);
+
+/**
+ * @brief Extreely weak DES encryption
+ *
+ * @param key       The encryption/decryption key (must be 8 bytes)
+ * @param payload   Input buffer (must be 8 bytes)
+ * @param result    Output buffer (must be 8 bytes)
+ *
+ * @return 0 on success or EINVAL if any buffer is not 8 in length
+ */
+int WEAK_DES(struct ntlm_buffer *key,
+             struct ntlm_buffer *payload,
+             struct ntlm_buffer *result);
+
+/**
+ * @brief A sad weak encryption/expansion scheme needed by NTLMv1
+ *
+ * @param key       The encryption/decryption key (must be 16 bytes)
+ * @param payload   Input buffer (must be 8 bytes)
+ * @param result    Output buffer (must be 24 bytes)
+ *
+ * @return 0 on success or EINVAL if any buffer is not of proper length
+ */
+int DESL(struct ntlm_buffer *key,
+         struct ntlm_buffer *payload,
+         struct ntlm_buffer *result);
 
 #endif /* _SRC_CRYPTO_H_ */

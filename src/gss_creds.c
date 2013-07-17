@@ -98,7 +98,7 @@ static int get_initial_creds(struct gssntlm_name *name,
                 goto done;
             }
             cred->cred.user.nt_hash.length = 16;
-            ret = ntlm_pwd_to_nt_hash(pwd, &cred->cred.user.nt_hash);
+            ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
 
             goto done;
         }
