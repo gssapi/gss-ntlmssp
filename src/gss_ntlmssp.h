@@ -78,6 +78,8 @@ struct gssntlm_cred {
             int dummy;
         } server;
     } cred;
+
+    int lm_compatibility_level;
 };
 
 struct gssntlm_signseal {
@@ -105,7 +107,6 @@ struct gssntlm_ctx {
 
     struct gssntlm_cred cred;
     char *workstation;
-    int lm_compatibility_level;
 
     struct ntlm_ctx *ntlm;
     struct ntlm_buffer nego_msg;

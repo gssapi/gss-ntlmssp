@@ -120,9 +120,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         ctx->role = GSSNTLM_CLIENT;
 
-        /* use most secure defaults for now, we can add options to relax
-         * security later */
-        ctx->lm_compatibility_level = SEC_LEVEL_MAX;
         ctx->neg_flags = NTLMSSP_DEFAULT_CLIENT_FLAGS;
 
         /*
@@ -164,7 +161,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             workstation = ctx->workstation;
         }
 
-        sec_req = gssntlm_required_security(ctx->lm_compatibility_level,
+        sec_req = gssntlm_required_security(cred->lm_compatibility_level,
                                             ctx->role);
         if (sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
@@ -239,7 +236,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        sec_req = gssntlm_required_security(ctx->lm_compatibility_level,
+        sec_req = gssntlm_required_security(ctx->cred.lm_compatibility_level,
                                             ctx->role);
         if (sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
@@ -391,7 +388,61 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
         } else {
             /* ### NTLMv1 ### */
+            uint8_t client_chal[8];
+            uint8_t nt_resp_buf[24];
+            uint8_t lm_resp_buf[24];
+            struct ntlm_buffer cli_chal = { client_chal, 8 };
+            struct ntlm_buffer nt_response = { nt_resp_buf, 24 };
+            struct ntlm_buffer lm_response = { lm_resp_buf, 24 };
+            struct ntlm_key session_base_key = { .length = 16 };
+            bool NoLMResponseNTLMv1 = true; /* FIXME: get from conf/env */
+            bool ext_sec;
 
+            /* Random client challenge */
+            retmin = RAND_BUFFER(&cli_chal);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            ext_sec = (in_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
+
+            retmin = ntlm_compute_nt_response(&ctx->cred.cred.user.nt_hash,
+                                              ext_sec, server_chal,
+                                              client_chal, &nt_response);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            if (!ext_sec && NoLMResponseNTLMv1) {
+                memcpy(lm_response.data, nt_response.data, 24);
+            } else {
+                retmin = ntlm_compute_lm_response(&ctx->cred.cred.user.lm_hash,
+                                                  ext_sec, server_chal,
+                                                  client_chal, &lm_response);
+                if (retmin) {
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                }
+            }
+
+            retmin = ntlm_session_base_key(&ctx->cred.cred.user.nt_hash,
+                                           &session_base_key);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            retmin = KXKEY(ctx->ntlm, ext_sec,
+                           (in_flags & NTLMSSP_NEGOTIATE_LM_KEY),
+                           (in_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY),
+                           server_chal, &ctx->cred.cred.user.lm_hash,
+                           &session_base_key, &lm_response, &key_exchange_key);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
         }
 
         key_exch = (in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH);

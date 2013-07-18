@@ -98,8 +98,23 @@ static int get_initial_creds(struct gssntlm_name *name,
                 goto done;
             }
             cred->cred.user.nt_hash.length = 16;
-            ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
 
+            ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
+            if (ret) goto done;
+
+            envvar = getenv("LM_COMPAT_LEVEL");
+            if (envvar != NULL) {
+                cred->lm_compatibility_level = atoi(envvar);
+            } else {
+                /* use most secure defaults for now, we can add options to
+                 * relax security later */
+                cred->lm_compatibility_level = SEC_LEVEL_MAX;
+            }
+
+            if (cred->lm_compatibility_level < 3) {
+                cred->cred.user.lm_hash.length = 16;
+                ret = LMOWFv1(pwd, &cred->cred.user.lm_hash);
+            }
             goto done;
         }
     }
