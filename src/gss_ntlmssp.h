@@ -37,6 +37,7 @@
                 NTLMSSP_NEGOTIATE_128 | \
                 NTLMSSP_NEGOTIATE_56 | \
                 NTLMSSP_NEGOTIATE_NTLM | \
+                NTLMSSP_REQUEST_TARGET | \
                 NTLMSSP_NEGOTIATE_UNICODE)
 
 struct gssntlm_name {
