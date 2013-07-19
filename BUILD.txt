@@ -1,8 +1,16 @@
 
-First off, run:
-# autoreconf -f -i
+BUILDING
+========
 
-Then the usual ./configure and make
+Usual tools of the trade:
+
+$ autoreconf -f -i
+$ ./configure
+$ make
+
+optionally (for easy installation on Fedora):
+$ make rpms
+
 
 In order to build gss-ntlmssp the following development packages are needed:
 
@@ -15,7 +23,7 @@ In order to build gss-ntlmssp the following development packages are needed:
     libtool
     libxml2
     libxslt
-    libunistring
+    libunistring-devel
     m4
     pkgconfig
-    openssl
+    openssl-devel
