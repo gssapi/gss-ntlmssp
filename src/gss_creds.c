@@ -62,7 +62,7 @@ static int get_initial_creds(struct gssntlm_name *name,
             pwd = p;
             strsep(&p, "\r\n");
 
-            /* if no name is specified user the first found */
+            /* if no name is specified use the first found */
             if (name == NULL) {
                 found = true;
                 break;
@@ -106,8 +106,7 @@ static int get_initial_creds(struct gssntlm_name *name,
             if (envvar != NULL) {
                 cred->lm_compatibility_level = atoi(envvar);
             } else {
-                /* use most secure defaults for now, we can add options to
-                 * relax security later */
+                /* use the most secure setting by default */
                 cred->lm_compatibility_level = SEC_LEVEL_MAX;
             }
 
