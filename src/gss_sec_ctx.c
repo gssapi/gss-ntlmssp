@@ -552,7 +552,7 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     *minor_status = 0;
 
     if (!context_handle) return GSS_S_CALL_INACCESSIBLE_READ;
-    if (*context_handle == NULL) return GSS_S_COMPLETE;
+    if (*context_handle == NULL) return GSS_S_NO_CONTEXT;
 
     ctx = (struct gssntlm_ctx *)*context_handle;
 
@@ -574,5 +574,27 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
         *minor_status = ret;
         return GSS_S_FAILURE;
     }
+    return GSS_S_COMPLETE;
+}
+
+uint32_t gssntlm_context_time(uint32_t *minor_status,
+                              gss_ctx_id_t context_handle,
+                              uint32_t *time_rec)
+{
+    struct gssntlm_ctx *ctx;
+    time_t now;
+    uint32_t retmaj;
+
+    *minor_status = 0;
+
+    if (context_handle == GSS_C_NO_CONTEXT) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    ctx = (struct gssntlm_ctx *)context_handle;
+    retmaj = gssntlm_context_is_valid(ctx, &now);
+    if (retmaj) return retmaj;
+
+    *time_rec = ctx->expiration_time - now;
     return GSS_S_COMPLETE;
 }

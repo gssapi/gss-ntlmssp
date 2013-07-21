@@ -133,3 +133,11 @@ OM_uint32 gss_release_name(OM_uint32 *minor_status,
     return gssntlm_release_name(minor_status,
                                 input_name);
 }
+
+OM_uint32 gss_context_time(OM_uint32 *minor_status,
+                           gss_ctx_id_t context_handle,
+                           OM_uint32 *time_rec)
+{
+    return gssntlm_context_time(minor_status, context_handle, time_rec);
+}
+

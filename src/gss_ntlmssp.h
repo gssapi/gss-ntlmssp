@@ -201,4 +201,8 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
                                     gss_buffer_t output_token);
 
 
+uint32_t gssntlm_context_time(uint32_t *minor_status,
+                              gss_ctx_id_t context_handle,
+                              uint32_t *time_rec);
+
 #endif /* _GSS_NTLMSSP_H_ */
