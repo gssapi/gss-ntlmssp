@@ -224,7 +224,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        if (msg_type != NTLMSSP_STAGE_CHALLENGE ||
+        if (msg_type != CHALLENGE_MESSAGE ||
                 ctx->stage != NTLMSSP_STAGE_NEGOTIATE) {
             retmaj = GSS_S_NO_CONTEXT;
             goto done;

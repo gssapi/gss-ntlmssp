@@ -308,10 +308,6 @@ static int ntlm_str_convert(iconv_t cd,
 }
 
 
-#define NEGOTIATE_MESSAGE       0x00000001
-#define CHALLENGE_MESSAGE       0x00000002
-#define AUTHENTICATE_MESSAGE    0x00000003
-
 uint8_t ntlmssp_sig[8] = {'N', 'T', 'L', 'M', 'S', 'S', 'P', 0};
 
 static void ntlm_encode_header(struct wire_msg_hdr *hdr, uint32_t msg_type)
