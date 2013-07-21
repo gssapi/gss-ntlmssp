@@ -21,6 +21,8 @@
 #include "ntlm.h"
 #include "crypto.h"
 
+#define MAX_CHALRESP_LIFETIME 36 * 60 * 60 /* 36 hours in seconds */
+
 #define SEC_LEVEL_MIN 0
 #define SEC_LEVEL_MAX 5
 
@@ -125,6 +127,8 @@ struct gssntlm_ctx {
     struct ntlm_key exported_session_key;
     struct gssntlm_signseal send;
     struct gssntlm_signseal recv;
+
+    time_t expiration_time;
 };
 
 uint8_t gssntlm_required_security(int security_level,

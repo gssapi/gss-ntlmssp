@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_ext.h>
@@ -336,6 +337,14 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             /* the server did not send the timestamp, use current time */
             if (srv_time == 0) {
                 srv_time = ntlm_timestamp_now();
+            } else {
+                long int tdiff;
+                tdiff = ntlm_timestamp_now() - srv_time;
+                if ((tdiff / 10000000) > MAX_CHALRESP_LIFETIME) {
+                    retmin = EINVAL;
+                    retmaj = GSS_S_CONTEXT_EXPIRED;
+                    goto done;
+                }
             }
 
             /* Random client challenge */
@@ -508,6 +517,9 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
         memcpy(output_token->value, ctx->auth_msg.data, ctx->auth_msg.length);
         output_token->length = ctx->auth_msg.length;
+
+        /* For now use the same as the challenge/response lifetime (36h) */
+        ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
 
         retmaj = GSS_S_COMPLETE;
     }
