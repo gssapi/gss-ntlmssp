@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_ext.h>
@@ -65,4 +66,17 @@ uint8_t gssntlm_required_security(int security_level,
     }
 
     return resp;
+}
+
+uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx, time_t *time_now)
+{
+    time_t now;
+
+    if (!ctx->established) return GSS_S_NO_CONTEXT;
+
+    now = time(NULL);
+    if (now > ctx->expiration_time) return GSS_S_CONTEXT_EXPIRED;
+
+    if (time_now) *time_now = now;
+    return GSS_S_COMPLETE;
 }

@@ -128,11 +128,16 @@ struct gssntlm_ctx {
     struct gssntlm_signseal send;
     struct gssntlm_signseal recv;
 
+    bool established;
     time_t expiration_time;
 };
 
 uint8_t gssntlm_required_security(int security_level,
                                   enum gssntlm_role role);
+
+uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,
+                                  time_t *time_now);
+
 void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);

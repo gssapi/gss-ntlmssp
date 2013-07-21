@@ -520,6 +520,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         /* For now use the same as the challenge/response lifetime (36h) */
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
+        ctx->established = true;
 
         retmaj = GSS_S_COMPLETE;
     }
