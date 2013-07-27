@@ -138,6 +138,7 @@ uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,
 
 int gssntlm_get_lm_compatibility_level(void);
 
+void gssntlm_int_release_name(struct gssntlm_name *name);
 void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);

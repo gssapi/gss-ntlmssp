@@ -238,25 +238,29 @@ uint32_t gssntlm_import_name(uint32_t *minor_status,
                                        output_name);
 }
 
-uint32_t gssntlm_release_name(uint32_t *minor_status,
-                              gss_name_t *input_name)
+void gssntlm_int_release_name(struct gssntlm_name *name)
 {
-    struct gssntlm_name *name;
+    if (!name) return;
 
-    if (!input_name) return GSS_S_CALL_INACCESSIBLE_READ;
-
-    name = (struct gssntlm_name *)*input_name;
     switch (name->type) {
     case GSSNTLM_NAME_ANON:
         break;
     case GSSNTLM_NAME_USER:
-        free(name->data.user.domain);
-        free(name->data.user.name);
+        safefree(name->data.user.domain);
+        safefree(name->data.user.name);
         break;
     case GSSNTLM_NAME_SERVER:
-        free(name->data.server.name);
+        safefree(name->data.server.name);
         break;
     }
+}
+
+uint32_t gssntlm_release_name(uint32_t *minor_status,
+                              gss_name_t *input_name)
+{
+    if (!input_name) return GSS_S_CALL_INACCESSIBLE_READ;
+
+    gssntlm_int_release_name((struct gssntlm_name *)*input_name);
 
     *input_name = GSS_C_NO_NAME;
     return GSS_S_COMPLETE;
