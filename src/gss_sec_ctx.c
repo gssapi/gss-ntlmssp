@@ -71,6 +71,10 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     if (ret_flags) *ret_flags = 0;
     if (time_rec) *time_rec = 0;
 
+    if (output_token == GSS_C_NO_BUFFER) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
     if (target_name) {
         server = (struct gssntlm_name *)target_name;
         if (server->type != GSSNTLM_NAME_SERVER) {
@@ -475,8 +479,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
 
         if (in_flags & (NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL)) {
-            retmin = ntlm_signseal_keys(in_flags,
-                                        (ctx->role == GSSNTLM_CLIENT),
+            retmin = ntlm_signseal_keys(in_flags, true,
                                         &ctx->exported_session_key,
                                         &ctx->send.sign_key,
                                         &ctx->recv.sign_key,
@@ -508,7 +511,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        ctx->stage = NTLMSSP_STAGE_AUTHENTICATE;
+        ctx->stage = NTLMSSP_STAGE_DONE;
 
         output_token->value = malloc(ctx->auth_msg.length);
         if (!output_token->value) {
@@ -598,4 +601,444 @@ uint32_t gssntlm_context_time(uint32_t *minor_status,
 
     *time_rec = ctx->expiration_time - now;
     return GSS_S_COMPLETE;
+}
+
+uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
+                                    gss_ctx_id_t *context_handle,
+                                    gss_cred_id_t acceptor_cred_handle,
+                                    gss_buffer_t input_token,
+                                    gss_channel_bindings_t input_chan_bindings,
+                                    gss_name_t *src_name,
+                                    gss_OID *mech_type,
+                                    gss_buffer_t output_token,
+                                    uint32_t *ret_flags,
+                                    uint32_t *time_rec,
+                                    gss_cred_id_t *delegated_cred_handle)
+{
+    struct gssntlm_ctx *ctx;
+    struct gssntlm_cred *cred;
+    int lm_compat_lvl = -1;
+    char *workstation = NULL;
+    char *domain = NULL;
+    struct ntlm_buffer challenge = { 0 };
+    struct gssntlm_name *server_name = NULL;
+    char *computer_name = NULL;
+    gss_buffer_desc tmpbuf;
+    uint64_t timestamp;
+    struct ntlm_buffer target_info = { 0 };
+    struct ntlm_buffer nt_chal_resp = { 0 };
+    struct ntlm_buffer lm_chal_resp = { 0 };
+    struct ntlm_buffer enc_sess_key = { 0 };
+    struct ntlm_key encrypted_random_session_key = { .length = 16 };
+    struct ntlm_key key_exchange_key = { .length = 16 };
+    uint8_t mic_data[16];
+    struct ntlm_buffer mic = { mic_data, 16 };
+    char *dom_name = NULL;
+    char *usr_name = NULL;
+    char *wks_name = NULL;
+    struct gssntlm_name *gss_usrname = NULL;
+    struct gssntlm_cred *usr_cred = NULL;
+    uint32_t retmin = 0;
+    uint32_t retmaj = 0;
+    uint32_t tmpmin;
+    uint32_t in_flags;
+    uint32_t msg_type;
+    uint8_t sec_req;
+    char *p;
+
+    if (context_handle == NULL) return GSS_S_CALL_INACCESSIBLE_READ;
+    if (input_token == GSS_C_NO_BUFFER) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+    if (output_token == GSS_C_NO_BUFFER) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
+    /* reset return values */
+    *minor_status = 0;
+    if (src_name) *src_name = GSS_C_NO_NAME;
+    if (mech_type) *mech_type = GSS_C_NO_OID;
+    if (ret_flags) *ret_flags = 0;
+    if (time_rec) *time_rec = 0;
+    if (delegated_cred_handle) *delegated_cred_handle = GSS_C_NO_CREDENTIAL;
+
+    if (*context_handle == GSS_C_NO_CONTEXT) {
+
+        /* first call */
+        ctx = calloc(1, sizeof(struct gssntlm_ctx));
+        if (!ctx) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        /* FIXME: add call to determine if we are any other type of
+         * server, including setting up callbacks to perform validation
+         * against a remote DC */
+        ctx->role = GSSNTLM_SERVER;
+
+        if (acceptor_cred_handle) {
+            cred = (struct gssntlm_cred *)acceptor_cred_handle;
+            if (cred->type != GSSNTLM_CRED_SERVER) {
+                retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+                goto done;
+            }
+            if (cred->cred.server.name.type != GSSNTLM_NAME_SERVER) {
+                retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+                goto done;
+            }
+            /* FIXME: duplicate */
+            retmaj = gssntlm_duplicate_name(&retmin,
+                                    (const gss_name_t)&cred->cred.server.name,
+                                    (gss_name_t *)&server_name);
+            if (retmaj) goto done;
+        }
+
+        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
+        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        if (sec_req == 0xff) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        ctx->neg_flags = NTLMSSP_DEFAULT_ALLOWED_SERVER_FLAGS;
+        /* Fixme: How do we allow anonymous negotition ? */
+
+        if ((sec_req & SEC_LM_OK) || (sec_req & SEC_DC_LM_OK)) {
+            ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_LM_KEY;
+        }
+        if (sec_req & SEC_EXT_SEC_OK) {
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
+        }
+
+        retmin = ntlm_init_ctx(&ctx->ntlm);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        ctx->nego_msg.data = malloc(input_token->length);
+        if (!ctx->nego_msg.data) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        memcpy(ctx->nego_msg.data, input_token->value, input_token->length);
+        ctx->nego_msg.length = input_token->length;
+
+        retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->nego_msg, &msg_type);
+        if (retmin || (msg_type != NEGOTIATE_MESSAGE)) {
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        retmin = ntlm_decode_neg_msg(ctx->ntlm, &ctx->nego_msg, &in_flags,
+                                     &domain, &workstation);
+        if (retmin) {
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        /* TODO: Support MS-NLMP ServerBlock ? */
+
+        /* leave only the crossing between requested and allowed flags */
+        ctx->neg_flags &= in_flags;
+
+        /* TODO: Check some minimum required flags ? */
+        /* TODO: Check MS-NLMP ServerRequire128bitEncryption */
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_UNICODE) {
+            /* Choose unicode in preferemce if both are set */
+            ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_OEM;
+        } else if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_OEM)) {
+            /* no agreement */
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
+            ctx->neg_flags &= ~NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
+            ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
+        }
+
+        /* TODO: support Domain type */
+        if (true) {
+            ctx->neg_flags |= NTLMSSP_TARGET_TYPE_SERVER;
+            ctx->neg_flags &= ~NTLMSSP_TARGET_TYPE_DOMAIN;
+        }
+
+        if (ctx->neg_flags & NTLMSSP_REQUEST_TARGET) {
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_TARGET_INFO;
+        }
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) {
+            ctx->gss_flags |= GSS_C_INTEG_FLAG;
+        }
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
+            ctx->gss_flags |= GSS_C_CONF_FLAG;
+        }
+
+        /* Random server challenge */
+        challenge.data = ctx->server_chal;
+        challenge.length = 8;
+        retmin = RAND_BUFFER(&challenge);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        /* acquire our own name */
+        if (!server_name) {
+            tmpbuf.value = "";
+            tmpbuf.length = 0;
+            retmaj = gssntlm_import_name_by_mech(&retmin,
+                                                 &gssntlm_oid,
+                                                 &tmpbuf,
+                                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                                 (gss_name_t *)&server_name);
+            if (retmaj) goto done;
+        }
+
+        computer_name = strdup(server_name->data.server.name);
+        if (!computer_name) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        if ((p = strchr(server_name->data.server.name, '.')) != NULL) {
+            /* we want only the non qualified computer name for now */
+            *p = '\0';
+        }
+
+        timestamp = ntlm_timestamp_now();
+
+        retmin = ntlm_encode_target_info(ctx->ntlm, computer_name, NULL,
+                                         NULL, NULL, NULL,
+                                         NULL, &timestamp,
+                                         NULL, computer_name, NULL,
+                                         &target_info);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        retmin = ntlm_encode_chal_msg(ctx->ntlm, ctx->neg_flags,
+                                      computer_name, &challenge,
+                                      &target_info, &ctx->chal_msg);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        ctx->stage = NTLMSSP_STAGE_CHALLENGE;
+
+        output_token->value = malloc(ctx->chal_msg.length);
+        if (!output_token->value) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        memcpy(output_token->value, ctx->chal_msg.data, ctx->chal_msg.length);
+        output_token->length = ctx->chal_msg.length;
+
+        retmaj = GSS_S_CONTINUE_NEEDED;
+
+    } else {
+        ctx = (struct gssntlm_ctx *)(*context_handle);
+
+        if (ctx->role != GSSNTLM_SERVER) {
+            retmaj = GSS_S_NO_CONTEXT;
+            goto done;
+        }
+
+        ctx->auth_msg.data = malloc(input_token->length);
+        if (!ctx->auth_msg.data) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        memcpy(ctx->auth_msg.data, input_token->value, input_token->length);
+        ctx->auth_msg.length = input_token->length;
+
+        retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->auth_msg, &msg_type);
+        if (retmin) {
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        if (msg_type != AUTHENTICATE_MESSAGE ||
+                ctx->stage != NTLMSSP_STAGE_CHALLENGE) {
+            retmaj = GSS_S_NO_CONTEXT;
+            goto done;
+        }
+
+        retmin = ntlm_decode_auth_msg(ctx->ntlm, &ctx->auth_msg,
+                                      ctx->neg_flags,
+                                      &lm_chal_resp, &nt_chal_resp,
+                                      &dom_name, &usr_name, &wks_name,
+                                      &enc_sess_key, &mic);
+        if (retmin) {
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
+        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        if (sec_req == 0xff) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        if (((usr_name == NULL) || (usr_name[0] == '\0')) &&
+            (nt_chal_resp.length == 0) &&
+            (((lm_chal_resp.length == 1) && (lm_chal_resp.data[0] == '\0')) ||
+             (lm_chal_resp.length == 0))) {
+            /* Anonymous auth */
+            /* FIXME: not supported for now */
+            retmin = EINVAL;
+            retmaj = GSS_S_FAILURE;
+
+        } else if (sec_req & SEC_V2_ONLY) {
+
+            /* ### NTLMv2 ### */
+            struct ntlm_key ntlmv2_key = { .length = 16 };
+            struct ntlm_buffer nt_proof = { 0 };
+            char useratdom[1024];
+            size_t ulen, dlen, uadlen;
+            gss_buffer_desc usrname;
+
+            ulen = strlen(usr_name);
+            dlen = strlen(dom_name);
+            if (ulen + dlen + 2 > 1024) {
+                retmin = EINVAL;
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+            strncpy(useratdom, usr_name, ulen);
+            uadlen = ulen;
+            if (dlen) {
+                useratdom[uadlen] = '@';
+                uadlen++;
+                strncpy(&useratdom[uadlen], dom_name, dlen);
+                uadlen += dlen;
+            }
+            useratdom[uadlen] = '\0';
+
+            usrname.value = useratdom;
+            usrname.length = uadlen;
+            retmaj = gssntlm_import_name(&retmin, &usrname,
+                                         GSS_C_NT_USER_NAME,
+                                         (gss_name_t *)&gss_usrname);
+            if (retmaj) goto done;
+
+            retmaj = gssntlm_acquire_cred(&retmin,
+                                          (gss_name_t)gss_usrname,
+                                          GSS_C_INDEFINITE,
+                                          GSS_C_NO_OID_SET,
+                                          GSS_C_INITIATE,
+                                          (gss_cred_id_t *)&usr_cred,
+                                          NULL, NULL);
+            if (retmaj) goto done;
+
+            /* NTLMv2 Key */
+            retmin = NTOWFv2(ctx->ntlm, &usr_cred->cred.user.nt_hash,
+                             usr_cred->cred.user.user.data.user.name,
+                             usr_cred->cred.user.user.data.user.domain,
+                             &ntlmv2_key);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            /* NTLMv2 Response */
+            retmin = ntlmv2_verify_nt_response(&nt_chal_resp, &ntlmv2_key,
+                                               ctx->server_chal);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            /* FIXME: retries using NULL as domain name in case of failure */
+
+            /* LMv2 Response */
+            retmin = ntlmv2_verify_lm_response(&lm_chal_resp, &ntlmv2_key,
+                                               ctx->server_chal);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            /* The NT proof is the first 16 bytes */
+            nt_proof.data = nt_chal_resp.data;
+            nt_proof.length = 16;
+
+            /* The Session Base Key */
+            /* In NTLMv2 the Key Exchange Key is the Session Base Key */
+            retmin = ntlmv2_session_base_key(&ntlmv2_key, &nt_proof,
+                                             &key_exchange_key);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            /* FIXME: Verify MIC if client sent it */
+
+        } else {
+            /* ### NTLMv1 ### */
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH) {
+            memcpy(encrypted_random_session_key.data, enc_sess_key.data, 16);
+            ctx->exported_session_key.length = 16;
+
+            retmin = ntlm_encrypted_session_key(&key_exchange_key,
+                                                &encrypted_random_session_key,
+                                                &ctx->exported_session_key);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+        } else {
+            ctx->exported_session_key = key_exchange_key;
+        }
+
+        if (ctx->neg_flags & (NTLMSSP_NEGOTIATE_SIGN |
+                                NTLMSSP_NEGOTIATE_SEAL)) {
+            retmin = ntlm_signseal_keys(ctx->neg_flags, false,
+                                        &ctx->exported_session_key,
+                                        &ctx->send.sign_key,
+                                        &ctx->recv.sign_key,
+                                        &ctx->send.seal_key,
+                                        &ctx->recv.seal_key,
+                                        &ctx->send.seal_handle,
+                                        &ctx->recv.seal_handle);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+        }
+
+        ctx->stage = NTLMSSP_STAGE_DONE;
+        ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
+        ctx->established = true;
+        retmaj = GSS_S_COMPLETE;
+    }
+
+done:
+
+    if ((retmaj != GSS_S_COMPLETE) &&
+        (retmaj != GSS_S_CONTINUE_NEEDED)) {
+        gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
+        *minor_status = retmin;
+    }
+    *context_handle = (gss_ctx_id_t)ctx;
+    gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
+    safefree(computer_name);
+    safefree(workstation);
+    safefree(domain);
+    ntlm_free_buffer_data(&target_info);
+    return retmaj;
 }

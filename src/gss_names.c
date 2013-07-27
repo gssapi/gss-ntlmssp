@@ -93,7 +93,7 @@ static uint32_t uid_to_name(uint32_t *retmin, uid_t uid, char **name)
 }
 
 uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
-                                     gss_OID mech_type,
+                                     gss_const_OID mech_type,
                                      gss_buffer_t input_name_buffer,
                                      gss_OID input_name_type,
                                      gss_name_t *output_name)

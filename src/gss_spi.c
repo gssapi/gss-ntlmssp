@@ -149,3 +149,28 @@ OM_uint32 gss_context_time(OM_uint32 *minor_status,
     return gssntlm_context_time(minor_status, context_handle, time_rec);
 }
 
+OM_uint32 gss_accept_sec_context(OM_uint32 *minor_status,
+                                 gss_ctx_id_t *context_handle,
+                                 gss_cred_id_t acceptor_cred_handle,
+                                 gss_buffer_t input_token_buffer,
+                                 gss_channel_bindings_t input_chan_bindings,
+                                 gss_name_t *src_name,
+                                 gss_OID *mech_type,
+                                 gss_buffer_t output_token,
+                                 OM_uint32 *ret_flags,
+                                 OM_uint32 *time_rec,
+                                 gss_cred_id_t *delegated_cred_handle)
+{
+    return gssntlm_accept_sec_context(minor_status,
+                                      context_handle,
+                                      acceptor_cred_handle,
+                                      input_token_buffer,
+                                      input_chan_bindings,
+                                      src_name,
+                                      mech_type,
+                                      output_token,
+                                      ret_flags,
+                                      time_rec,
+                                      delegated_cred_handle);
+}
+

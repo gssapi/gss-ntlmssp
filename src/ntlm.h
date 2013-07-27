@@ -268,7 +268,7 @@ int ntlm_exported_session_key(struct ntlm_key *key_exchange_key,
                               struct ntlm_key *exported_session_key);
 
 /**
- * @brief   Comutes the NTLM encrypted session key
+ * @brief   Encrypts or Decrypts the NTLM session key using RC4K
  *
  * @param key_exchange_key[16]          The Key Exchange Key
  * @param exported_session_key[16]      Resulting exported session key
@@ -276,9 +276,8 @@ int ntlm_exported_session_key(struct ntlm_key *key_exchange_key,
  *
  * @return 0 on success or error.
  */
-int ntlm_encrypted_session_key(struct ntlm_key *key_exchange_key,
-                               struct ntlm_key *exported_session_key,
-                               struct ntlm_key *encrypted_random_session_key);
+int ntlm_encrypted_session_key(struct ntlm_key *key,
+                               struct ntlm_key *in, struct ntlm_key *out);
 
 /**
  * @brief   Computes all the sign and seal keys from the session key
@@ -304,6 +303,31 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
                        struct ntlm_rc4_handle **seal_send_handle,
                        struct ntlm_rc4_handle **seal_recv_handle);
 
+/**
+ * @brief   Verifies a 16 bit NT Response
+ *
+ * @param nt_response       The NT Response buffer including client challenge
+ * @param ntlmv2_key        The NTLMv2 key
+ * @param server_chal[8]    The server challenge used to compute the response
+ *
+ * @return 0 on success, or an error
+ */
+int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
+                              struct ntlm_key *ntlmv2_key,
+                              uint8_t server_chal[8]);
+
+/**
+ * @brief   Verifies a 16 bit LM Response
+ *
+ * @param nt_response       The LM Response buffer including client challenge
+ * @param ntlmv2_key        The NTLMv2 key
+ * @param server_chal[8]    The server challenge used to compute the response
+ *
+ * @return 0 on success, or an error
+ */
+int ntlmv2_verify_lm_response(struct ntlm_buffer *nt_response,
+                              struct ntlm_key *ntlmv2_key,
+                              uint8_t server_chal[8]);
 
 /* ############## ENCODING / DECODING ############## */
 

@@ -1302,22 +1302,28 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
         payload_offs += sizeof(struct wire_version);
     }
 
-    /* this must be second as it pushes the payload further down */
+    /* Unconditionally copy 16 bytes for the MIC, if it was really
+     * added by the client it will be flagged in the AV_PAIR contained
+     * in the NT Response, that will be fully decoded later by the caller
+     * and the MIC checked otherwise these 16 bytes will just be ignored */
     if (mic) {
         if (mic->length < 16) return ERR_DECODE;
         /* mic is at payload_offs right now */
         if (buffer->length - payload_offs < 16) return ERR_DECODE;
         memcpy(mic->data, &buffer->data[payload_offs], 16);
-        payload_offs += 16;
+        /* NOTE: we do not push down the payload because we do not know that
+         * the MIC is actually present yet for real */
     }
 
     if (msg->lm_chalresp.len != 0 && lm_chalresp) {
         ret = ntlm_decode_field(&msg->lm_chalresp, buffer,
                                 payload_offs, lm_chalresp);
+        if (ret) goto done;
     }
     if (msg->nt_chalresp.len != 0 && nt_chalresp) {
         ret = ntlm_decode_field(&msg->nt_chalresp, buffer,
                                 payload_offs, nt_chalresp);
+        if (ret) goto done;
     }
     if (msg->domain_name.len != 0 && domain_name) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {

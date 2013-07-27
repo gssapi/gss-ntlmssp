@@ -25,7 +25,6 @@
 
 #include "gss_ntlmssp.h"
 
-
 static int get_user_file_creds(struct gssntlm_name *name,
                                struct gssntlm_cred *cred)
 {
@@ -196,7 +195,7 @@ static void gssntlm_copy_key(struct ntlm_key *dest, struct ntlm_key *src)
 
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out)
 {
-    char *dom = NULL, *usr = NULL;
+    char *dom = NULL, *usr = NULL, *srv = NULL;
     int ret = 0;
 
     out->type = GSSNTLM_CRED_NONE;
@@ -208,25 +207,18 @@ int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out)
         out->cred.anon.dummy = 1;
         break;
     case GSSNTLM_CRED_USER:
-        dom = strdup(in->cred.user.user.data.user.domain);
-        if (!dom) {
-            ret = ENOMEM;
-            goto done;
-        }
-        usr = strdup(in->cred.user.user.data.user.name);
-        if (!usr) {
-            ret = ENOMEM;
-            goto done;
-        }
-        out->cred.user.user.data.user.domain = dom;
-        out->cred.user.user.data.user.name = usr;
+        ret = gssntlm_copy_name(&in->cred.user.user,
+                                &out->cred.user.user);
+        if (ret) goto done;
         gssntlm_copy_key(&out->cred.user.nt_hash,
                          &in->cred.user.nt_hash);
         gssntlm_copy_key(&out->cred.user.lm_hash,
                          &in->cred.user.lm_hash);
         break;
     case GSSNTLM_CRED_SERVER:
-        out->cred.server.dummy = 1;
+        ret = gssntlm_copy_name(&in->cred.server.name,
+                                &out->cred.server.name);
+        if (ret) goto done;
         break;
     }
     out->type = in->type;
@@ -235,6 +227,7 @@ done:
     if (ret) {
         safefree(dom);
         safefree(usr);
+        safefree(srv);
     }
     return ret;
 }
@@ -250,15 +243,14 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred)
         cred->cred.anon.dummy = 0;
         break;
     case GSSNTLM_CRED_USER:
-        safefree(cred->cred.user.user.data.user.domain);
-        safefree(cred->cred.user.user.data.user.name);
+        gssntlm_int_release_name(&cred->cred.user.user);
         safezero(cred->cred.user.nt_hash.data, 16);
         cred->cred.user.nt_hash.length = 0;
         safezero(cred->cred.user.lm_hash.data, 16);
         cred->cred.user.lm_hash.length = 0;
         break;
     case GSSNTLM_CRED_SERVER:
-        cred->cred.server.dummy = 0;
+        gssntlm_int_release_name(&cred->cred.server.name);
         break;
     }
 }

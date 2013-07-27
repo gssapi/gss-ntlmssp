@@ -409,18 +409,14 @@ int ntlm_exported_session_key(struct ntlm_key *key_exchange_key,
     return RAND_BUFFER(&nonce);
 }
 
-int ntlm_encrypted_session_key(struct ntlm_key *key_exchange_key,
-                               struct ntlm_key *exported_session_key,
-                               struct ntlm_key *encrypted_random_session_key)
+int ntlm_encrypted_session_key(struct ntlm_key *key,
+                               struct ntlm_key *in, struct ntlm_key *out)
 {
-    struct ntlm_buffer key = { key_exchange_key->data,
-                               key_exchange_key->length };
-    struct ntlm_buffer nonce = { exported_session_key->data,
-                                  exported_session_key->length };
-    struct ntlm_buffer cipher = { encrypted_random_session_key->data,
-                                  encrypted_random_session_key->length };
+    struct ntlm_buffer _key = { key->data, key->length };
+    struct ntlm_buffer data = { in->data, in->length };
+    struct ntlm_buffer result = { out->data, out->length };
 
-    return RC4K(&key, NTLM_CIPHER_ENCRYPT, &nonce, &cipher);
+    return RC4K(&_key, NTLM_CIPHER_ENCRYPT, &data, &result);
 }
 
 static int ntlm_key_derivation_function(struct ntlm_key *key,
@@ -556,4 +552,70 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
     if (ret) return ret;
 
     return 0;
+}
+
+int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
+                              struct ntlm_key *ntlmv2_key,
+                              uint8_t server_chal[8])
+{
+    union wire_ntlm_response *nt_resp = NULL;
+    struct ntlm_buffer key = { ntlmv2_key->data, ntlmv2_key->length };
+    uint8_t proof[16];
+    struct ntlm_buffer nt_proof = { proof, 16 };
+    struct ntlm_buffer payload;
+    int ret;
+
+    if (nt_response->length < 24) return EINVAL;
+
+    nt_resp = (union wire_ntlm_response *)nt_response->data;
+
+    payload.length = 8;
+    payload.data = server_chal;
+
+    payload.length = nt_response->length - 8;
+    payload.data = malloc(payload.length);
+    if (!payload.data) return ENOMEM;
+    memcpy(payload.data, server_chal, 8);
+    memcpy(&payload.data[8], nt_resp->v2.cli_chal, payload.length - 8);
+
+    ret = HMAC_MD5(&key, &payload, &nt_proof);
+
+    if (ret) goto done;
+
+    ret = EINVAL;
+    if (memcmp(nt_resp->v2.resp, proof, 16) == 0) {
+        ret = 0;
+    }
+
+done:
+    safefree(payload.data);
+    return ret;
+}
+
+int ntlmv2_verify_lm_response(struct ntlm_buffer *lm_response,
+                              struct ntlm_key *ntlmv2_key,
+                              uint8_t server_chal[8])
+{
+    struct ntlm_buffer key = { ntlmv2_key->data, ntlmv2_key->length };
+    union wire_lm_response *lm_resp = NULL;
+    uint8_t payload_buf[16];
+    struct ntlm_buffer payload = { payload_buf, 16 };
+    uint8_t proof[16];
+    struct ntlm_buffer lm_proof = { proof, 16 };
+    int ret;
+
+    if (lm_response->length != 24) return EINVAL;
+
+    /* now caluclate the LM Proof */
+    lm_resp = (union wire_lm_response *)lm_response->data;
+
+    memcpy(payload.data, server_chal, 8);
+    memcpy(&payload.data[8], lm_resp->v2.cli_chal, 8);
+    ret = HMAC_MD5(&key, &payload, &lm_proof);
+
+    if (ret) return ret;
+
+    if (memcmp(lm_resp->v2.resp, proof, 16) == 0) return 0;
+
+    return EINVAL;
 }

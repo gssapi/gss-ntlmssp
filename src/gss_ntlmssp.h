@@ -42,6 +42,24 @@
                 NTLMSSP_REQUEST_TARGET | \
                 NTLMSSP_NEGOTIATE_UNICODE)
 
+#define NTLMSSP_DEFAULT_ALLOWED_SERVER_FLAGS ( \
+                NTLMSSP_NEGOTIATE_ALWAYS_SIGN | \
+                NTLMSSP_NEGOTIATE_56 | \
+                NTLMSSP_NEGOTIATE_KEY_EXCH | \
+                NTLMSSP_NEGOTIATE_128 | \
+                NTLMSSP_NEGOTIATE_VERSION | \
+                NTLMSSP_TARGET_TYPE_SERVER | \
+                NTLMSSP_TARGET_TYPE_DOMAIN | \
+                NTLMSSP_NEGOTIATE_ALWAYS_SIGN | \
+                NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED | \
+                NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED | \
+                NTLMSSP_NEGOTIATE_NTLM | \
+                NTLMSSP_NEGOTIATE_SEAL | \
+                NTLMSSP_NEGOTIATE_SIGN | \
+                NTLMSSP_REQUEST_TARGET | \
+                NTLMSSP_NEGOTIATE_OEM | \
+                NTLMSSP_NEGOTIATE_UNICODE)
+
 struct gssntlm_name {
     enum ntlm_name_type {
         GSSNTLM_NAME_ANON,
@@ -78,7 +96,7 @@ struct gssntlm_cred {
             struct ntlm_key lm_hash;
         } user;
         struct {
-            int dummy;
+            struct gssntlm_name name;
         } server;
     } cred;
 };
@@ -113,6 +131,8 @@ struct gssntlm_ctx {
     struct ntlm_buffer nego_msg;
     struct ntlm_buffer chal_msg;
     struct ntlm_buffer auth_msg;
+
+    uint8_t server_chal[8];
 
     /* requested gss fags */
     uint32_t gss_flags;
@@ -176,7 +196,7 @@ uint32_t gssntlm_import_name(uint32_t *minor_status,
                              gss_name_t *output_name);
 
 uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
-                                     gss_OID mech_type,
+                                     gss_const_OID mech_type,
                                      gss_buffer_t input_name_buffer,
                                      gss_OID input_name_type,
                                      gss_name_t *output_name);
@@ -210,5 +230,17 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
 uint32_t gssntlm_context_time(uint32_t *minor_status,
                               gss_ctx_id_t context_handle,
                               uint32_t *time_rec);
+
+uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
+                                    gss_ctx_id_t *context_handle,
+                                    gss_cred_id_t acceptor_cred_handle,
+                                    gss_buffer_t input_token_buffer,
+                                    gss_channel_bindings_t input_chan_bindings,
+                                    gss_name_t *src_name,
+                                    gss_OID *mech_type,
+                                    gss_buffer_t output_token,
+                                    uint32_t *ret_flags,
+                                    uint32_t *time_rec,
+                                    gss_cred_id_t *delegated_cred_handle);
 
 #endif /* _GSS_NTLMSSP_H_ */
