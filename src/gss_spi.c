@@ -127,6 +127,14 @@ OM_uint32 gssspi_import_name_by_mech(OM_uint32 *minor_status,
                                output_name);
 }
 
+OM_uint32 gss_duplicate_name(OM_uint32 *minor_status,
+                            const gss_name_t input_name,
+                            gss_name_t *dest_name)
+{
+    return gssntlm_duplicate_name(minor_status,
+                                  input_name, dest_name);
+}
+
 OM_uint32 gss_release_name(OM_uint32 *minor_status,
                            gss_name_t *input_name)
 {

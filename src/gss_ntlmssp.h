@@ -141,6 +141,7 @@ int gssntlm_get_lm_compatibility_level(void);
 void gssntlm_int_release_name(struct gssntlm_name *name);
 void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 
+int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst);
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 
 extern const gss_OID_desc gssntlm_oid;
@@ -179,6 +180,10 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
                                      gss_buffer_t input_name_buffer,
                                      gss_OID input_name_type,
                                      gss_name_t *output_name);
+
+uint32_t gssntlm_duplicate_name(uint32_t *minor_status,
+                                const gss_name_t input_name,
+                                gss_name_t *dest_name);
 
 uint32_t gssntlm_release_name(uint32_t *minor_status,
                               gss_name_t *input_name);

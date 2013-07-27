@@ -238,6 +238,85 @@ uint32_t gssntlm_import_name(uint32_t *minor_status,
                                        output_name);
 }
 
+int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
+{
+    char *dom = NULL, *usr = NULL, *srv = NULL;
+    int ret;
+    dst->type = src->type;
+    switch (src->type) {
+    case GSSNTLM_NAME_ANON:
+        break;
+    case GSSNTLM_NAME_USER:
+        if (src->data.user.domain) {
+            dom = strdup(src->data.user.domain);
+            if (!dom) {
+                ret = ENOMEM;
+                goto done;
+            }
+        }
+        if (src->data.user.name) {
+            usr = strdup(src->data.user.name);
+            if (!usr) {
+                ret = ENOMEM;
+                goto done;
+            }
+        }
+        dst->data.user.domain = dom;
+        dst->data.user.name = usr;
+        break;
+    case GSSNTLM_NAME_SERVER:
+        if (src->data.server.name) {
+            srv = strdup(src->data.server.name);
+            if (!srv) {
+                ret = ENOMEM;
+                goto done;
+            }
+        }
+        dst->data.server.name = srv;
+        break;
+    }
+
+    ret = 0;
+done:
+    if (ret) {
+        safefree(dom);
+        safefree(usr);
+        safefree(srv);
+    }
+    return ret;
+}
+
+uint32_t gssntlm_duplicate_name(uint32_t *minor_status,
+                                const gss_name_t input_name,
+                                gss_name_t *dest_name)
+{
+    struct gssntlm_name *in;
+    struct gssntlm_name *out;
+    uint32_t retmin;
+
+    *minor_status = 0;
+
+    if (input_name == GSS_C_NO_NAME || dest_name == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    in = (struct gssntlm_name *)input_name;
+
+    out = calloc(1, sizeof(struct gssntlm_name));
+    if (!out) {
+        *minor_status = ENOMEM;
+        return GSS_S_FAILURE;
+    }
+
+    retmin = gssntlm_copy_name(in, out);
+
+    *minor_status = retmin;
+    if (retmin) return GSS_S_FAILURE;
+
+    *dest_name = (gss_name_t)out;
+    return GSS_S_COMPLETE;
+}
+
 void gssntlm_int_release_name(struct gssntlm_name *name)
 {
     if (!name) return;
