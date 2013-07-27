@@ -105,6 +105,13 @@ static int get_user_file_creds(struct gssntlm_name *name,
     return 0;
 }
 
+static int get_server_creds(struct gssntlm_name *name,
+                            struct gssntlm_cred *cred)
+{
+    if (!name) return EINVAL;
+    cred->type = GSSNTLM_CRED_SERVER;
+    return gssntlm_copy_name(name, &cred->cred.server.name);
+}
 
 static int hex_to_key(const char *hex, struct ntlm_key *key)
 {
@@ -173,6 +180,10 @@ static int get_creds_from_store(struct gssntlm_name *name,
             if (ret) return ret;
         }
     }
+
+    /* TODO: should we call get_user_file_creds/get_server_creds if values are
+     * not found ?
+     */
 
     return 0;
 }
@@ -275,7 +286,20 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    if (cred_usage == GSS_C_BOTH || cred_usage == GSS_C_INITIATE) {
+    /* FIXME: should we split the cred union and allow GSS_C_BOTH ?
+     * It may be possible to specify get server name from env and/or
+     * user creds from cred store at the same time, etc .. */
+    if (cred_usage == GSS_C_BOTH) {
+        if (name->type == GSSNTLM_NAME_USER ||
+            name->type == GSSNTLM_NAME_ANON) {
+            cred_usage = GSS_C_INITIATE;
+        }
+        if (name->type == GSSNTLM_NAME_SERVER) {
+            cred_usage = GSS_C_ACCEPT;
+        }
+    }
+
+    if (cred_usage == GSS_C_INITIATE) {
         if (name != NULL && name->type != GSSNTLM_NAME_USER) {
             retmin = EINVAL;
             retmaj = GSS_S_CRED_UNAVAIL;
@@ -286,6 +310,21 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             retmin = get_creds_from_store(name, cred, cred_store);
         } else {
             retmin = get_user_file_creds(name, cred);
+        }
+        if (retmin) {
+            retmaj = GSS_S_CRED_UNAVAIL;
+        }
+    } else if (cred_usage == GSS_C_ACCEPT) {
+        if (name != NULL && name->type != GSSNTLM_NAME_SERVER) {
+            retmin = EINVAL;
+            retmaj = GSS_S_CRED_UNAVAIL;
+            goto done;
+        }
+
+        if (cred_store != GSS_C_NO_CRED_STORE) {
+            retmin = get_creds_from_store(name, cred, cred_store);
+        } else {
+            retmin = get_server_creds(name, cred);
         }
         if (retmin) {
             retmaj = GSS_S_CRED_UNAVAIL;
