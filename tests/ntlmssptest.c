@@ -24,7 +24,9 @@
 
 #include "config.h"
 
-#include "../src/ntlm.h"
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include "../src/gss_ntlmssp.h"
 
 const char *hex_to_str_8(uint8_t *d)
 {
@@ -872,6 +874,134 @@ int test_EncodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
     return ret;
 }
 
+#define TEST_USER_FILE "examples/test_user_file.txt"
+
+int test_gssapi_1(void)
+{
+    gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    const char *username = "testuser";
+    const char *srvname = "test@testserver";
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc nbuf;
+    uint32_t retmin, retmaj;
+    int ret;
+
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+
+    nbuf.value = discard_const(username);
+    nbuf.length = strlen(username);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_import_name(username) failed! (%d, %s)",
+                        retmin, strerror(retmin));
+        return EINVAL;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_username,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_INITIATE, &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_acquire_cred(username) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_import_name(srvname) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        return EINVAL;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_acquire_cred(srvname) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
+                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      GSS_C_NO_BUFFER, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        fprintf(stderr, "gssntlm_init_sec_context 1 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        fprintf(stderr, "gssntlm_accept_sec_context 1 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
+                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      &srv_token, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_init_sec_context 2 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_accept_sec_context 2 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    ret = 0;
+
+done:
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -951,6 +1081,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test encoding AuthenticateMessage v2\n");
     ret = test_EncodeAuthenticateMessageV2(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation\n");
+    ret = test_gssapi_1();
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
 done:

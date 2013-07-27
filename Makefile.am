@@ -99,13 +99,12 @@ gssntlmssp_la_LDFLAGS = \
     -module
 
 ntlmssptest_SOURCES = \
-    src/crypto.c \
-    src/ntlm_crypto.c \
-    src/ntlm.c \
+    $(GN_MECHGLUE_OBJ) \
     tests/ntlmssptest.c
 ntlmssptest_CFLAGS = \
     $(AM_FLAGS)
 ntlmssptest_LDADD = \
+    $(GSSAPI_LIBS) \
     $(CRYPTO_LIBS)
 
 dist_noinst_DATA += \
