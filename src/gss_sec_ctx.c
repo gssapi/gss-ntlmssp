@@ -58,6 +58,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     struct ntlm_buffer enc_sess_key = { 0 };
     struct ntlm_key encrypted_random_session_key = { .length = 16 };
     struct ntlm_key key_exchange_key = { .length = 16 };
+    int lm_compat_lvl;
     uint32_t tmpmin;
     uint32_t retmin = 0;
     uint32_t retmaj = 0;
@@ -162,8 +163,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             workstation = ctx->workstation;
         }
 
-        sec_req = gssntlm_required_security(cred->lm_compatibility_level,
-                                            ctx->role);
+        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
+        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
         if (sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -237,8 +238,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        sec_req = gssntlm_required_security(ctx->cred.lm_compatibility_level,
-                                            ctx->role);
+        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
+        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
         if (sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;

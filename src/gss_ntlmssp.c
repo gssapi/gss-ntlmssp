@@ -80,3 +80,16 @@ uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx, time_t *time_now)
     if (time_now) *time_now = now;
     return GSS_S_COMPLETE;
 }
+
+int gssntlm_get_lm_compatibility_level(void)
+{
+    const char *envvar;
+
+    envvar = getenv("LM_COMPAT_LEVEL");
+    if (envvar != NULL) {
+        return atoi(envvar);
+    }
+
+    /* use the most secure setting by default */
+    return SEC_LEVEL_MAX;
+}

@@ -81,8 +81,6 @@ struct gssntlm_cred {
             int dummy;
         } server;
     } cred;
-
-    int lm_compatibility_level;
 };
 
 struct gssntlm_signseal {
@@ -137,6 +135,8 @@ uint8_t gssntlm_required_security(int security_level,
 
 uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,
                                   time_t *time_now);
+
+int gssntlm_get_lm_compatibility_level(void);
 
 void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 

@@ -96,15 +96,7 @@ static int get_user_file_creds(struct gssntlm_name *name,
     ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
     if (ret) return ret;
 
-    envvar = getenv("LM_COMPAT_LEVEL");
-    if (envvar != NULL) {
-        cred->lm_compatibility_level = atoi(envvar);
-    } else {
-        /* use the most secure setting by default */
-        cred->lm_compatibility_level = SEC_LEVEL_MAX;
-    }
-
-    if (cred->lm_compatibility_level < 3) {
+    if (gssntlm_get_lm_compatibility_level() < 3) {
         cred->cred.user.lm_hash.length = 16;
         ret = LMOWFv1(pwd, &cred->cred.user.lm_hash);
         if (ret) return ret;
@@ -227,8 +219,6 @@ int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out)
         break;
     }
     out->type = in->type;
-
-    out->lm_compatibility_level = in->lm_compatibility_level;
 
 done:
     if (ret) {
