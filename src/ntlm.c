@@ -602,39 +602,39 @@ int ntlm_encode_target_info(struct ntlm_ctx *ctx, char *nb_computer_name,
 
     if (nb_computer_name) {
         nb_computer_name_len = strlen(nb_computer_name);
-        max_size += nb_computer_name_len * 2;
+        max_size += 4 + nb_computer_name_len * 2;
     }
     if (nb_domain_name) {
         nb_domain_name_len = strlen(nb_domain_name);
-        max_size += nb_domain_name_len * 2;
+        max_size += 4 + nb_domain_name_len * 2;
     }
     if (dns_computer_name) {
         dns_computer_name_len = strlen(dns_computer_name);
-        max_size += dns_computer_name_len * 2;
+        max_size += 4 + dns_computer_name_len * 2;
     }
     if (dns_domain_name) {
         dns_domain_name_len = strlen(dns_domain_name);
-        max_size += dns_domain_name_len * 2;
+        max_size += 4 + dns_domain_name_len * 2;
     }
     if (dns_tree_name) {
         dns_tree_name_len = strlen(dns_tree_name);
-        max_size += dns_tree_name_len * 2;
+        max_size += 4 + dns_tree_name_len * 2;
     }
     if (av_flags) {
-        max_size += 8;
+        max_size += 4 + 4;
     }
     if (av_timestamp) {
-        max_size += 12;
+        max_size += 4 + 8;
     }
     if (av_single_host) {
-        max_size += av_single_host->length;
+        max_size += 4 + av_single_host->length;
     }
     if (av_target_name) {
         av_target_name_len = strlen(av_target_name);
-        max_size += av_target_name_len * 2;
+        max_size += 4 + av_target_name_len * 2;
     }
     if (av_cb) {
-        max_size += av_cb->length;
+        max_size += 4 + av_cb->length;
     }
 
     data_offs = 0;
