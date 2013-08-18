@@ -619,3 +619,128 @@ int ntlmv2_verify_lm_response(struct ntlm_buffer *lm_response,
 
     return EINVAL;
 }
+
+static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
+                       struct ntlm_rc4_handle *handle, bool keyex,
+                       struct ntlm_buffer *message,
+                       struct ntlm_buffer *signature)
+{
+    uint32_t ver;
+    struct ntlm_buffer key = { sign_key->data, sign_key->length };
+    uint32_t le_seq;
+    uint8_t le8seq[8];
+    struct ntlm_buffer seq = { le8seq, 4 };
+    struct ntlm_buffer *data[2];
+    struct ntlm_iov iov;
+    uint8_t hmac_sig[16];
+    struct ntlm_buffer hmac = { hmac_sig, 16 };
+    struct ntlm_buffer rc4buf;
+    struct ntlm_buffer rc4res;
+    int ret;
+
+    if (signature->length != 16) {
+        return EINVAL;
+    }
+
+    le_seq = htole32(seq_num);
+    memcpy(seq.data, &le_seq, 4);
+    data[0] = &seq;
+    data[1] = message;
+    iov.data = data;
+    iov.num = 2;
+
+    ret = HMAC_MD5_IOV(&key, &iov, &hmac);
+    if (ret) return ret;
+
+    /* put version */
+    ver = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
+    memcpy(signature->data, &ver, 4);
+
+    /* put actual MAC */
+    if (keyex) {
+        /* encrypt truncated hmac */
+        rc4buf.data = hmac.data;
+        rc4buf.length = 8;
+        /* and put it in the middle of the output signature */
+        rc4res.data = &signature->data[4];
+        rc4res.length = 8;
+        ret = RC4_UPDATE(handle, &rc4buf, &rc4res);
+        if (ret) return ret;
+    } else {
+        memcpy(&signature->data[4], hmac.data, 8);
+    }
+
+    /* put used seq_num */
+    memcpy(&signature->data[12], seq.data, 4);
+
+    return 0;
+}
+
+int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
+              struct ntlm_rc4_handle *handle, uint32_t flags,
+              struct ntlm_buffer *message, struct ntlm_buffer *signature)
+{
+    if ((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
+        && (flags & NTLMSSP_NEGOTIATE_SIGN)) {
+        return ntlmv2_sign(sign_key, seq_num, handle,
+                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                           message, signature);
+    } else if (flags & NTLMSSP_NEGOTIATE_SIGN) {
+        /* FIXME: needs an implementation of CRC32 maybe use zlib ? */
+    } else if (flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN) {
+        uint32_t le_seq = htole32(seq_num);
+        memcpy(signature->data, &le_seq, 4);
+        memset(&signature->data[4], 0, 12);
+        return 0;
+    }
+
+    return ENOTSUP;
+}
+
+int ntlm_seal(struct ntlm_rc4_handle *handle, uint32_t flags,
+              struct ntlm_key *sign_key, uint32_t seq_num,
+              struct ntlm_buffer *message, struct ntlm_buffer *output,
+              struct ntlm_buffer *signature)
+{
+    int ret;
+
+    if (!((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
+        && (flags & NTLMSSP_NEGOTIATE_SEAL))) {
+        /* we only support v2 for now as we can't sign w/o session security
+         * anyway */
+        return ENOTSUP;
+    }
+
+    ret = RC4_UPDATE(handle, message, output);
+    if (ret) return ret;
+
+    return ntlmv2_sign(sign_key, seq_num, handle,
+                       (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                       message, signature);
+}
+
+int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
+                struct ntlm_key *sign_key, uint32_t seq_num,
+                struct ntlm_buffer *message, struct ntlm_buffer *output,
+                struct ntlm_buffer *signature)
+{
+    struct ntlm_buffer msg_buffer;
+    int ret;
+
+    if (!((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
+        && (flags & NTLMSSP_NEGOTIATE_SEAL))) {
+        /* we only support v2 for now as we can't sign w/o session security
+         * anyway */
+        return ENOTSUP;
+    }
+
+    msg_buffer = *message;
+    msg_buffer.length -= 16;
+
+    ret = RC4_UPDATE(handle, &msg_buffer, output);
+    if (ret) return ret;
+
+    return ntlmv2_sign(sign_key, seq_num, handle,
+                      (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                      output, signature);
+}

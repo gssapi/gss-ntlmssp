@@ -36,12 +36,13 @@ int RAND_BUFFER(struct ntlm_buffer *random)
     return 0;
 }
 
-int HMAC_MD5(struct ntlm_buffer *key,
-             struct ntlm_buffer *payload,
-             struct ntlm_buffer *result)
+int HMAC_MD5_IOV(struct ntlm_buffer *key,
+                 struct ntlm_iov *iov,
+                 struct ntlm_buffer *result)
 {
     HMAC_CTX hmac_ctx;
     unsigned int len;
+    size_t i;
     int ret = 0;
 
     if (result->length != 16) return EINVAL;
@@ -54,10 +55,12 @@ int HMAC_MD5(struct ntlm_buffer *key,
         goto done;
     }
 
-    ret = HMAC_Update(&hmac_ctx, payload->data, payload->length);
-    if (ret == 0) {
-        ret = ERR_CRYPTO;
-        goto done;
+    for (i = 0; i < iov->num; i++) {
+        ret = HMAC_Update(&hmac_ctx, iov->data[i]->data, iov->data[i]->length);
+        if (ret == 0) {
+            ret = ERR_CRYPTO;
+            goto done;
+        }
     }
 
     ret = HMAC_Final(&hmac_ctx, result->data, &len);
@@ -73,7 +76,16 @@ done:
     return ret;
 }
 
+int HMAC_MD5(struct ntlm_buffer *key,
+             struct ntlm_buffer *payload,
+             struct ntlm_buffer *result)
+{
+    struct ntlm_iov iov;
 
+    iov.num = 1;
+    iov.data = &payload;
+    return HMAC_MD5_IOV(key, &iov, result);
+}
 
 static int mdx_hash(const EVP_MD *type,
                     struct ntlm_buffer *payload,

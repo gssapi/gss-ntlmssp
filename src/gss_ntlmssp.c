@@ -72,6 +72,7 @@ uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx, time_t *time_now)
 {
     time_t now;
 
+    if (!ctx) return GSS_S_NO_CONTEXT;
     if (!ctx->established) return GSS_S_NO_CONTEXT;
 
     now = time(NULL);

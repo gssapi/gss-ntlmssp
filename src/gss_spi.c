@@ -174,3 +174,61 @@ OM_uint32 gss_accept_sec_context(OM_uint32 *minor_status,
                                       delegated_cred_handle);
 }
 
+OM_uint32 gss_get_mic(OM_uint32 *minor_status,
+                      gss_ctx_id_t context_handle,
+                      gss_qop_t qop_req,
+                      gss_buffer_t message_buffer,
+                      gss_buffer_t message_token)
+{
+    return gssntlm_get_mic(minor_status,
+                           context_handle,
+                           qop_req,
+                           message_buffer,
+                           message_token);
+}
+
+
+OM_uint32 gss_verify_mic(OM_uint32 *minor_status,
+                         gss_ctx_id_t context_handle,
+                         gss_buffer_t message_buffer,
+                         gss_buffer_t message_token,
+                         gss_qop_t *qop_state)
+{
+    return gssntlm_verify_mic(minor_status,
+                              context_handle,
+                              message_buffer,
+                              message_token,
+                              qop_state);
+}
+
+OM_uint32 gss_wrap(OM_uint32 *minor_status,
+                   gss_ctx_id_t context_handle,
+                   int conf_req_flag,
+                   gss_qop_t qop_req,
+                   gss_buffer_t input_message_buffer,
+                   int *conf_state,
+                   gss_buffer_t output_message_buffer)
+{
+    return gssntlm_wrap(minor_status,
+                        context_handle,
+                        conf_req_flag,
+                        qop_req,
+                        input_message_buffer,
+                        conf_state,
+                        output_message_buffer);
+}
+
+OM_uint32 gss_unwrap(OM_uint32 *minor_status,
+                     gss_ctx_id_t context_handle,
+                     gss_buffer_t input_message_buffer,
+                     gss_buffer_t output_message_buffer,
+                     int *conf_state,
+                     gss_qop_t *qop_state)
+{
+    return gssntlm_unwrap(minor_status,
+                          context_handle,
+                          input_message_buffer,
+                          output_message_buffer,
+                          conf_state,
+                          qop_state);
+}

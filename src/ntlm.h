@@ -69,6 +69,8 @@
 #define NTLMSSP_VERSION_BUILD 0
 #define NTLMSSP_VERSION_REV NTLMSSP_REVISION_W2K3
 
+#define NTLMSSP_MESSAGE_SIGNATURE_VERSION 0x00000001
+
 #define NEGOTIATE_MESSAGE       0x00000001
 #define CHALLENGE_MESSAGE       0x00000002
 #define AUTHENTICATE_MESSAGE    0x00000003
@@ -328,6 +330,58 @@ int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
 int ntlmv2_verify_lm_response(struct ntlm_buffer *nt_response,
                               struct ntlm_key *ntlmv2_key,
                               uint8_t server_chal[8]);
+
+/**
+ * @brief Create NTLM signature for the provided message
+ *
+ * @param sign_key      Signing key
+ * @param seq_num       Sequence number
+ * @param handle        Encryption handle
+ * @param flags         Negotiated flags
+ * @param message       Message buffer
+ * @param signature     Preallocated byffer of 16 bytes for signature
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
+              struct ntlm_rc4_handle *handle, uint32_t flags,
+              struct ntlm_buffer *message, struct ntlm_buffer *signature);
+
+/**
+ * @brief   NTLM seal the provided message
+ *
+ * @param handle        Encryption handle
+ * @param flags         Negotiated flags
+ * @param sign_key      Signing key
+ * @param seq_num       Sequence number
+ * @param message       Message buffer
+ * @param output        Output buffer
+ * @param signature     Signature
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_seal(struct ntlm_rc4_handle *handle, uint32_t flags,
+              struct ntlm_key *sign_key, uint32_t seq_num,
+              struct ntlm_buffer *message, struct ntlm_buffer *output,
+              struct ntlm_buffer *signature);
+
+/**
+ * @brief   NTLM unseal the provided message
+ *
+ * @param handle        Encryption handle
+ * @param flags         Negotiated flags
+ * @param sign_key      Signing key
+ * @param seq_num       Sequence number
+ * @param message       Message buffer
+ * @param output        Output buffer
+ * @param signature     Signature
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
+                struct ntlm_key *sign_key, uint32_t seq_num,
+                struct ntlm_buffer *message, struct ntlm_buffer *output,
+                struct ntlm_buffer *signature);
 
 /* ############## ENCODING / DECODING ############## */
 

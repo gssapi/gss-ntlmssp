@@ -44,6 +44,11 @@ struct ntlm_buffer {
     size_t length;
 };
 
+struct ntlm_iov {
+    struct ntlm_buffer **data;
+    size_t num;
+};
+
 struct ntlm_rc4_handle;
 
 enum ntlm_cipher_mode {

@@ -45,6 +45,19 @@ int HMAC_MD5(struct ntlm_buffer *key,
              struct ntlm_buffer *result);
 
 /**
+ * @brief HMAC-MD5 function that operats on multiple buffers
+ *
+ * @param key           The authentication key
+ * @param iov           The IOVec of the payloads to authenticate
+ * @param result        A preallocated 16 byte buffer
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int HMAC_MD5_IOV(struct ntlm_buffer *key,
+                 struct ntlm_iov *iov,
+                 struct ntlm_buffer *result);
+
+/**
  * @brief MD4 Hash Function
  *
  * @param payload   The payoad to hash

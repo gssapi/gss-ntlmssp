@@ -76,6 +76,7 @@ GN_MECHGLUE_OBJ = \
     src/gss_names.c \
     src/gss_creds.c \
     src/gss_sec_ctx.c \
+    src/gss_signseal.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \
