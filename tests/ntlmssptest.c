@@ -890,6 +890,8 @@ int test_gssapi_1(void)
     gss_name_t gss_srvname = NULL;
     gss_buffer_desc nbuf;
     uint32_t retmin, retmaj;
+    char *msg = "Sample, signature checking, message.";
+    gss_buffer_desc message = { strlen(msg), msg };
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
@@ -989,6 +991,71 @@ int test_gssapi_1(void)
     }
 
     gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_get_mic(&retmin, cli_ctx, 0, &message, &cli_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_get_mic(cli) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_verify_mic(&retmin, srv_ctx, &message, &cli_token, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_verify_mic(srv) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    retmaj = gssntlm_get_mic(&retmin, srv_ctx, 0, &message, &srv_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_get_mic(srv) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &srv_token, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_verify_mic(cli) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL, &cli_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_wrap(cli) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_unwrap(&retmin, srv_ctx,
+                            &cli_token, &srv_token, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_unwrap(srv) failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    if (memcmp(message.value, srv_token.value, srv_token.length) != 0) {
+        fprintf(stderr, "sealing and unsealing failed to return the "
+                        "same result (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
 
     ret = 0;
 
@@ -999,6 +1066,8 @@ done:
     gssntlm_release_name(&retmin, &gss_srvname);
     gssntlm_release_cred(&retmin, &cli_cred);
     gssntlm_release_cred(&retmin, &srv_cred);
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
     return ret;
 }
 
