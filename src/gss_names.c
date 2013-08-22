@@ -15,6 +15,8 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <limits.h>
 #include <pwd.h>
@@ -351,5 +353,72 @@ uint32_t gssntlm_release_name(uint32_t *minor_status,
     gssntlm_int_release_name((struct gssntlm_name *)*input_name);
 
     *input_name = GSS_C_NO_NAME;
+    return GSS_S_COMPLETE;
+}
+
+uint32_t gssntlm_display_name(uint32_t *minor_status,
+                              gss_name_t input_name,
+                              gss_buffer_t output_name_buffer,
+                              gss_OID *output_name_type)
+{
+    struct gssntlm_name *in;
+    gss_buffer_t out;
+    int ret;
+
+    *minor_status = 0;
+
+    if (input_name == GSS_C_NO_NAME || output_name_buffer == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    in = (struct gssntlm_name *)input_name;
+    out = output_name_buffer;
+
+    switch (in->type) {
+    case GSSNTLM_NAME_NULL:
+        return GSS_S_BAD_NAME;
+    case GSSNTLM_NAME_ANON:
+        out->value = strdup("NT AUTHORITY\\ANONYMOUS LOGON");
+        if (!out->value) {
+            *minor_status = ENOMEM;
+            return GSS_S_FAILURE;
+        }
+        out->length = strlen(out->value) + 1;
+        if (output_name_type) {
+            *output_name_type = GSS_C_NT_ANONYMOUS;
+        }
+        break;
+    case GSSNTLM_NAME_USER:
+        if (in->data.user.domain) {
+            ret = asprintf((char **)&out->value, "%s\\%s",
+                           in->data.user.domain, in->data.user.name);
+            if (ret == -1) {
+                out->value = NULL;
+            }
+        } else {
+            out->value = strdup(in->data.user.name);
+        }
+        if (!out->value) {
+            *minor_status = ENOMEM;
+            return GSS_S_FAILURE;
+        }
+        out->length = strlen(out->value) + 1;
+        if (output_name_type) {
+            *output_name_type = GSS_C_NT_USER_NAME;
+        }
+        break;
+    case GSSNTLM_NAME_SERVER:
+        out->value = strdup(in->data.server.name);
+        if (!out->value) {
+            *minor_status = ENOMEM;
+            return GSS_S_FAILURE;
+        }
+        out->length = strlen(out->value) + 1;
+        if (output_name_type) {
+            *output_name_type = GSS_C_NT_HOSTBASED_SERVICE;
+        }
+        break;
+    }
+
     return GSS_S_COMPLETE;
 }

@@ -283,4 +283,9 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
                                  uint32_t *ctx_flags,
                                  int *locally_initiated,
                                  int *open);
+
+uint32_t gssntlm_display_name(uint32_t *minor_status,
+                              gss_name_t input_name,
+                              gss_buffer_t output_name_buffer,
+                              gss_OID *output_name_type);
 #endif /* _GSS_NTLMSSP_H_ */
