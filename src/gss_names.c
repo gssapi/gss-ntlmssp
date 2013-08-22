@@ -244,6 +244,7 @@ int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
     int ret;
     dst->type = src->type;
     switch (src->type) {
+    case GSSNTLM_NAME_NULL:
     case GSSNTLM_NAME_ANON:
         break;
     case GSSNTLM_NAME_USER:
@@ -302,6 +303,11 @@ uint32_t gssntlm_duplicate_name(uint32_t *minor_status,
 
     in = (struct gssntlm_name *)input_name;
 
+    if (in->type == GSSNTLM_NAME_NULL) {
+        *dest_name = GSS_C_NO_NAME;
+        return GSS_S_COMPLETE;
+    }
+
     out = calloc(1, sizeof(struct gssntlm_name));
     if (!out) {
         *minor_status = ENOMEM;
@@ -322,6 +328,8 @@ void gssntlm_int_release_name(struct gssntlm_name *name)
     if (!name) return;
 
     switch (name->type) {
+    case GSSNTLM_NAME_NULL:
+        return;
     case GSSNTLM_NAME_ANON:
         break;
     case GSSNTLM_NAME_USER:
@@ -332,6 +340,7 @@ void gssntlm_int_release_name(struct gssntlm_name *name)
         safefree(name->data.server.name);
         break;
     }
+    name->type = GSSNTLM_NAME_NULL;
 }
 
 uint32_t gssntlm_release_name(uint32_t *minor_status,

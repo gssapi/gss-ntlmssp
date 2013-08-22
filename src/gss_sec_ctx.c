@@ -114,12 +114,33 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
         } else {
             cred = (struct gssntlm_cred *)claimant_cred_handle;
+            if ((cred->type != GSSNTLM_CRED_ANON)
+                && (cred->type != GSSNTLM_CRED_USER)) {
+                retmin = EINVAL;
+                retmaj = GSS_S_BAD_NAMETYPE;
+                goto done;
+            }
         }
 
         retmin = gssntlm_copy_creds(cred, &ctx->cred);
         if (retmin != 0) {
             retmaj = GSS_S_FAILURE;
             goto done;
+        }
+
+        retmin = gssntlm_copy_name(&ctx->cred.cred.user.user,
+                                   &ctx->source_name);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        if (server) {
+            retmin = gssntlm_copy_name(server, &ctx->target_name);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
         }
 
         ctx->gss_flags = req_flags;
@@ -572,6 +593,9 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     ctx->chal_msg.length = 0;
     ctx->auth_msg.length = 0;
 
+    gssntlm_int_release_name(&ctx->source_name);
+    gssntlm_int_release_name(&ctx->target_name);
+
     safefree(*context_handle);
 
     if (ret) {
@@ -800,6 +824,12 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             if (retmaj) goto done;
         }
 
+        retmin = gssntlm_copy_name(server_name, &ctx->target_name);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
         computer_name = strdup(server_name->data.server.name);
         if (!computer_name) {
             retmin = ENOMEM;
@@ -941,6 +971,12 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                           NULL, NULL);
             if (retmaj) goto done;
 
+            retmin = gssntlm_copy_name(gss_usrname, &ctx->source_name);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
             /* NTLMv2 Key */
             retmin = NTOWFv2(ctx->ntlm, &usr_cred->cred.user.nt_hash,
                              usr_cred->cred.user.user.data.user.name,
@@ -1041,4 +1077,78 @@ done:
     safefree(domain);
     ntlm_free_buffer_data(&target_info);
     return retmaj;
+}
+
+uint32_t gssntlm_inquire_context(uint32_t *minor_status,
+                                 gss_ctx_id_t context_handle,
+                                 gss_name_t *src_name,
+                                 gss_name_t *targ_name,
+                                 uint32_t *lifetime_rec,
+                                 gss_OID *mech_type,
+                                 uint32_t *ctx_flags,
+                                 int *locally_initiated,
+                                 int *open)
+{
+    struct gssntlm_ctx *ctx;
+    uint32_t retmaj;
+    uint32_t retmin;
+    time_t now;
+
+    *minor_status = 0;
+
+    ctx = (struct gssntlm_ctx *)context_handle;
+    if (!ctx) return GSS_S_NO_CONTEXT;
+
+    if (src_name) {
+        retmaj = gssntlm_duplicate_name(&retmin,
+                                        (gss_name_t)&ctx->source_name,
+                                        src_name);
+        if (retmaj) return retmaj;
+    }
+
+    if (targ_name) {
+        retmaj = gssntlm_duplicate_name(&retmin,
+                                        (gss_name_t)&ctx->target_name,
+                                        targ_name);
+        if (retmaj) return retmaj;
+    }
+
+    if (mech_type) {
+        *mech_type = discard_const(&gssntlm_oid);
+    }
+
+    if (ctx_flags) {
+        *ctx_flags = ctx->gss_flags;
+    }
+
+    if (locally_initiated) {
+        if (ctx->role == GSSNTLM_CLIENT) {
+            *locally_initiated = 1;
+        } else {
+            *locally_initiated = 0;
+        }
+    }
+
+    if (ctx->established) {
+        if (lifetime_rec) {
+            now = time(NULL);
+            if (ctx->expiration_time > now) {
+                *lifetime_rec = 0;
+            } else {
+                *lifetime_rec = ctx->expiration_time - now;
+            }
+        }
+        if (open) {
+            *open = 1;
+        }
+    } else {
+        if (lifetime_rec) {
+            *lifetime_rec = 0;
+        }
+        if (open) {
+            *open = 0;
+        }
+    }
+
+    return GSS_S_COMPLETE;
 }

@@ -62,6 +62,7 @@
 
 struct gssntlm_name {
     enum ntlm_name_type {
+        GSSNTLM_NAME_NULL,
         GSSNTLM_NAME_ANON,
         GSSNTLM_NAME_USER,
         GSSNTLM_NAME_SERVER
@@ -131,6 +132,9 @@ struct gssntlm_ctx {
     struct ntlm_buffer nego_msg;
     struct ntlm_buffer chal_msg;
     struct ntlm_buffer auth_msg;
+
+    struct gssntlm_name source_name;
+    struct gssntlm_name target_name;
 
     uint8_t server_chal[8];
 
@@ -269,4 +273,14 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
                         gss_buffer_t output_message_buffer,
                         int *conf_state,
                         gss_qop_t *qop_state);
+
+uint32_t gssntlm_inquire_context(uint32_t *minor_status,
+                                 gss_ctx_id_t context_handle,
+                                 gss_name_t *src_name,
+                                 gss_name_t *targ_name,
+                                 uint32_t *lifetime_rec,
+                                 gss_OID *mech_type,
+                                 uint32_t *ctx_flags,
+                                 int *locally_initiated,
+                                 int *open);
 #endif /* _GSS_NTLMSSP_H_ */
