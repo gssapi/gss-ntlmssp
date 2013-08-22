@@ -1057,6 +1057,36 @@ int test_gssapi_1(void)
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
 
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+
+    retmaj = gssntlm_inquire_context(&retmin, srv_ctx,
+                                     &gss_username, &gss_srvname,
+                                     NULL, NULL, NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_inquire_context failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_display_name(&retmin, gss_username, &nbuf, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_display_name failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+
+    if (strcmp(nbuf.value, "TESTDOM\\testuser") != 0) {
+        fprintf(stderr, "Expected username of [%s] but got [%s] instead!\n",
+                        "TESTDOM\\testuser", (char *)nbuf.value);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &nbuf);
+
     ret = 0;
 
 done:
