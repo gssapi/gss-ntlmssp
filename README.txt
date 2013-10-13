@@ -32,7 +32,7 @@ be set right.
 
 1. The gss configruation file.
 
-In orde to load the mechanism into gssapy copy the content of the file
+In order to load the mechanism into GSSAPI copy the content of the file
 examples/mech.ntlmssp into /etc/gss/mech
 If you are installing in a non standard path check that the location
 of the shared object matches where you installed it in your system
