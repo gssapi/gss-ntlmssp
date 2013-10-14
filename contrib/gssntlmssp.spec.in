@@ -5,8 +5,8 @@ Summary:	GSSAPI NTLMSSP Mechanism
 
 Group:		System Environment/Libraries
 License:	MIT
-URL:		http://ssimo.org/gss-ntlm
-Source0:	http://ssimo.org/gss-ntlm/%{name}-%{version}.tar.gz
+URL:		http://ssimo.org/code/gss-ntlmssp
+Source0:	http://ssimo.org/code/gss-ntlmssp/%{name}-%{version}.tar.gz
 BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 ### Patches ###
