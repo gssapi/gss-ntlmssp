@@ -155,6 +155,32 @@ static int get_creds_from_store(struct gssntlm_name *name,
     uint32_t i;
     int ret;
 
+    cred->type = GSSNTLM_CRED_NONE;
+
+    if (name) {
+        switch (name->type) {
+        case GSSNTLM_NAME_NULL:
+            cred->type = GSSNTLM_CRED_NONE;
+            break;
+        case GSSNTLM_NAME_ANON:
+            cred->type = GSSNTLM_CRED_ANON;
+            break;
+        case GSSNTLM_NAME_USER:
+            cred->type = GSSNTLM_CRED_USER;
+            ret = gssntlm_copy_name(name, &cred->cred.user.user);
+            break;
+        case GSSNTLM_NAME_SERVER:
+            cred->type = GSSNTLM_CRED_SERVER;
+            ret = gssntlm_copy_name(name, &cred->cred.server.name);
+            break;
+        default:
+            return EINVAL;
+        }
+    }
+
+    /* so far only user options can be defined in the cred_store */
+    if (cred->type != GSSNTLM_CRED_USER) return 0;
+
     for (i = 0; i < cred_store->count; i++) {
         if (strcmp(cred_store->elements[i].key, NTLM_CS_DOMAIN) == 0) {
             /* ignore duplicates */
