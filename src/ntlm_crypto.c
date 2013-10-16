@@ -276,16 +276,11 @@ int NTOWFv2(struct ntlm_ctx *ctx, struct ntlm_key *nt_hash,
     if (!retstr) return ERR_CRYPTO;
     offs = out;
 
-    len = strlen(domain);
-    /*
-    out = MAX_USER_DOM_LEN - offs;
-    retstr = u8_toupper((const uint8_t *)domain, len,
-                        NULL, NULL, &upcased[offs], &out);
-    if (!retstr) return ERR_CRYPTO;
-    offs += out;
-    */
-    memcpy(&upcased[offs], domain, len);
-    offs += len;
+    if (domain) {
+        len = strlen(domain);
+        memcpy(&upcased[offs], domain, len);
+        offs += len;
+    }
 
     retstr = (uint8_t *)u8_conv_to_encoding("UCS-2LE", iconveh_error,
                                             upcased, offs, NULL, NULL, &out);

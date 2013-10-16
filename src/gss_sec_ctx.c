@@ -938,6 +938,15 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             size_t ulen, dlen, uadlen;
             gss_buffer_desc usrname;
 
+            if (!dom_name) {
+                dom_name = strdup("");
+                if (!dom_name) {
+                    retmin = ENOMEM;
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                }
+            }
+
             ulen = strlen(usr_name);
             dlen = strlen(dom_name);
             if (ulen + dlen + 2 > 1024) {
@@ -1075,6 +1084,9 @@ done:
     safefree(computer_name);
     safefree(workstation);
     safefree(domain);
+    safefree(usr_name);
+    safefree(dom_name);
+    safefree(wks_name);
     ntlm_free_buffer_data(&target_info);
     return retmaj;
 }
