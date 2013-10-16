@@ -20,15 +20,12 @@
 #include <string.h>
 #include <time.h>
 
-#include <gssapi/gssapi.h>
-#include <gssapi/gssapi_ext.h>
-
+#include "gssapi_ntlmssp.h"
 #include "gss_ntlmssp.h"
 
-/* 1.3.6.1.4.1.311.2.2.10 */
 const gss_OID_desc gssntlm_oid = {
-    .length = 10,
-    .elements = "\x2b\x06\x01\x04\x01\x82\x37\x02\x02\x0a"
+    .length = GSS_NTLMSSP_OID_LENGTH,
+    .elements = GSS_NTLMSSP_OID_STRING
 };
 
 uint8_t gssntlm_required_security(int security_level,

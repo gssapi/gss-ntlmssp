@@ -24,9 +24,17 @@ BuildRequires: krb5-devel >= 1.11.2
 BuildRequires: libunistring-devel
 BuildRequires: openssl-devel
 
-
 %description
 A GSSAPI Mechanism that implements NTLMSSP
+
+%package devel
+Summary: Development header for GSSAPI NTLMSSP
+Group: Development/Libraries
+License: LGPLv3+
+
+%description devel
+Adds a header file with definition for custom GSSAPI extensions for NTLMSSP
+
 
 %prep
 %setup -q
@@ -53,6 +61,9 @@ make test_gssntlmssp
 %{_libdir}/gssntlmssp/
 %{_mandir}/man8/gssntlmssp.8*
 %doc COPYING
+
+%files devel
+%{_includedir}/gssapi/gssapi_ntlmssp.h
 
 %changelog
 * Sat Jun 22 2013 Simo Sorce <simo@samba.org> - @PACKAGE_VERSION@-0@PRERELEASE_VERSION@

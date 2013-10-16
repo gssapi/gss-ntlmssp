@@ -85,6 +85,10 @@ dist_noinst_HEADERS = \
     src/ntlm.h \
     src/gss_ntlmssp.h
 
+gssapidir = $(includedir)/gssapi
+dist_gssapi_HEADERS = \
+    src/gssapi_ntlmssp.h
+
 ####################
 # Program Binaries #
 ####################
