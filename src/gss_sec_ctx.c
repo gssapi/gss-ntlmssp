@@ -20,9 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#include <gssapi/gssapi.h>
-#include <gssapi/gssapi_ext.h>
-
+#include "gssapi_ntlmssp.h"
 #include "gss_ntlmssp.h"
 
 
@@ -86,11 +84,9 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
     }
 
-    if (*context_handle == GSS_C_NO_CONTEXT) {
+    ctx = (struct gssntlm_ctx *)(*context_handle);
 
-        if (input_token && input_token->length != 0) {
-            return GSS_S_DEFECTIVE_TOKEN;
-        }
+    if (ctx == NULL) {
 
         /* first call */
         ctx = calloc(1, sizeof(struct gssntlm_ctx));
@@ -177,6 +173,10 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         if (req_flags & GSS_C_IDENTIFY_FLAG) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_IDENTIFY;
         }
+        if (req_flags & GSS_C_DATAGRAM_FLAG) {
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_DATAGRAM |
+                              NTLMSSP_NEGOTIATE_KEY_EXCH;
+        }
 
         if (ctx->cred.type == GSSNTLM_CRED_USER &&
                 ctx->cred.cred.user.user.data.user.domain) {
@@ -207,28 +207,64 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        retmin = ntlm_encode_neg_msg(ctx->ntlm, ctx->neg_flags,
-                                     domain, workstation, &ctx->nego_msg);
-        if (retmin) {
-            retmaj = GSS_S_FAILURE;
+        /* only in connecionless mode we may receive an input buffer
+         * on the the first call, if DATAGRAM is not selected and
+         * we have a buffer here, somethings wrong */
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) {
+
+            if ((input_token == GSS_C_NO_BUFFER) ||
+                (input_token->length == 0)) {
+                /* in connectionless mode we return an empty buffer here:
+                 * see MS-NLMP 1.3.1.3 and 1.7 */
+                output_token->value = NULL;
+                output_token->length = 0;
+
+                /* and return the ball */
+                ctx->stage = NTLMSSP_STAGE_NEGOTIATE;
+                retmaj = GSS_S_CONTINUE_NEEDED;
+                goto done;
+            }
+        } else {
+
+            if (input_token && input_token->length != 0) {
+                retmin = EINVAL;
+                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                goto done;
+            }
+
+            retmin = ntlm_encode_neg_msg(ctx->ntlm, ctx->neg_flags,
+                                         domain, workstation, &ctx->nego_msg);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+
+            output_token->value = malloc(ctx->nego_msg.length);
+            if (!output_token->value) {
+                retmin = ENOMEM;
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+            memcpy(output_token->value, ctx->nego_msg.data, ctx->nego_msg.length);
+            output_token->length = ctx->nego_msg.length;
+
+            ctx->stage = NTLMSSP_STAGE_NEGOTIATE;
+            retmaj = GSS_S_CONTINUE_NEEDED;
             goto done;
         }
 
+        /* If we get here we are in connectionless mode and where called
+         * with a chalenge message in the input buffer */
         ctx->stage = NTLMSSP_STAGE_NEGOTIATE;
+    }
 
-        output_token->value = malloc(ctx->nego_msg.length);
-        if (!output_token->value) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-        memcpy(output_token->value, ctx->nego_msg.data, ctx->nego_msg.length);
-        output_token->length = ctx->nego_msg.length;
-
-        retmaj = GSS_S_CONTINUE_NEEDED;
+    if (ctx == NULL) {
+        /* this should not happen */
+        retmin = EFAULT;
+        retmaj = GSS_S_FAILURE;
+        goto done;
 
     } else {
-        ctx = (struct gssntlm_ctx *)(*context_handle);
 
         if (ctx->role != GSSNTLM_CLIENT) {
             retmaj = GSS_S_NO_CONTEXT;
@@ -307,6 +343,21 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             /* no common understanding */
             retmaj = GSS_S_FAILURE;
             goto done;
+        }
+
+        if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+            if (!(in_flags & NTLMSSP_NEGOTIATE_DATAGRAM)) {
+                /* no common understanding */
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+            if (!(in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
+                /* no common understanding */
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+        } else {
+            in_flags &= ~NTLMSSP_NEGOTIATE_DATAGRAM;
         }
 
         if (ctx->gss_flags & GSS_C_ANON_FLAG) {
@@ -671,9 +722,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     char *p;
 
     if (context_handle == NULL) return GSS_S_CALL_INACCESSIBLE_READ;
-    if (input_token == GSS_C_NO_BUFFER) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
-    }
     if (output_token == GSS_C_NO_BUFFER) {
         return GSS_S_CALL_INACCESSIBLE_WRITE;
     }
@@ -742,32 +790,38 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        ctx->nego_msg.data = malloc(input_token->length);
-        if (!ctx->nego_msg.data) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-        memcpy(ctx->nego_msg.data, input_token->value, input_token->length);
-        ctx->nego_msg.length = input_token->length;
+        if (input_token && input_token->length != 0) {
+            ctx->nego_msg.data = malloc(input_token->length);
+            if (!ctx->nego_msg.data) {
+                retmin = ENOMEM;
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+            memcpy(ctx->nego_msg.data, input_token->value, input_token->length);
+            ctx->nego_msg.length = input_token->length;
 
-        retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->nego_msg, &msg_type);
-        if (retmin || (msg_type != NEGOTIATE_MESSAGE)) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
-            goto done;
-        }
+            retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->nego_msg, &msg_type);
+            if (retmin || (msg_type != NEGOTIATE_MESSAGE)) {
+                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                goto done;
+            }
 
-        retmin = ntlm_decode_neg_msg(ctx->ntlm, &ctx->nego_msg, &in_flags,
-                                     &domain, &workstation);
-        if (retmin) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
-            goto done;
+            retmin = ntlm_decode_neg_msg(ctx->ntlm, &ctx->nego_msg, &in_flags,
+                                         &domain, &workstation);
+            if (retmin) {
+                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                goto done;
+            }
+
+            /* leave only the crossing between requested and allowed flags */
+            ctx->neg_flags &= in_flags;
+        } else {
+            /* If there is no negotiate message set datagram mode */
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_DATAGRAM | \
+                              NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
 
         /* TODO: Support MS-NLMP ServerBlock ? */
-
-        /* leave only the crossing between requested and allowed flags */
-        ctx->neg_flags &= in_flags;
 
         /* TODO: Check some minimum required flags ? */
         /* TODO: Check MS-NLMP ServerRequire128bitEncryption */
@@ -801,6 +855,9 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         }
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
             ctx->gss_flags |= GSS_C_CONF_FLAG;
+        }
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) {
+            ctx->gss_flags |= GSS_C_DATAGRAM_FLAG;
         }
 
         /* Random server challenge */
@@ -882,6 +939,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        if ((input_token == GSS_C_NO_BUFFER) ||
+            (input_token->length == 0)) {
+            retmin = EINVAL;
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
         ctx->auth_msg.data = malloc(input_token->length);
         if (!ctx->auth_msg.data) {
             retmin = ENOMEM;
@@ -909,6 +973,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                       &dom_name, &usr_name, &wks_name,
                                       &enc_sess_key, &mic);
         if (retmin) {
+            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) &&
+            !(ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
+            retmin = EINVAL;
             retmaj = GSS_S_DEFECTIVE_TOKEN;
             goto done;
         }
