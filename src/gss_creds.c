@@ -396,3 +396,32 @@ uint32_t gssntlm_release_cred(uint32_t *minor_status,
     return GSS_S_COMPLETE;
 }
 
+uint32_t gssntlm_acquire_cred_with_password(uint32_t *minor_status,
+                                            gss_name_t desired_name,
+                                            gss_buffer_t password,
+                                            uint32_t time_req,
+                                            gss_OID_set desired_mechs,
+                                            gss_cred_usage_t cred_usage,
+                                            gss_cred_id_t *output_cred_handle,
+                                            gss_OID_set *actual_mechs,
+                                            uint32_t *time_rec)
+{
+    gss_key_value_element_desc element;
+    gss_key_value_set_desc cred_store;
+
+    element.key = GENERIC_CS_PASSWORD;
+    element.value = (const char *)password->value;
+
+    cred_store.count = 1;
+    cred_store.elements = &element;
+
+    return gssntlm_acquire_cred_from(minor_status,
+                                     desired_name,
+                                     time_req,
+                                     desired_mechs,
+                                     cred_usage,
+                                     &cred_store,
+                                     output_cred_handle,
+                                     actual_mechs,
+                                     time_rec);
+}

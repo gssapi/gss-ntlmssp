@@ -191,6 +191,16 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
                                    gss_OID_set *actual_mechs,
                                    uint32_t *time_rec);
 
+uint32_t gssntlm_acquire_cred_with_password(uint32_t *minor_status,
+                                            gss_name_t desired_name,
+                                            gss_buffer_t password,
+                                            uint32_t time_req,
+                                            gss_OID_set desired_mechs,
+                                            gss_cred_usage_t cred_usage,
+                                            gss_cred_id_t *output_cred_handle,
+                                            gss_OID_set *actual_mechs,
+                                            uint32_t *time_rec);
+
 uint32_t gssntlm_release_cred(uint32_t *minor_status,
                               gss_cred_id_t *cred_handle);
 
