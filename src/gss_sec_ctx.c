@@ -1235,3 +1235,51 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
 
     return GSS_S_COMPLETE;
 }
+
+gss_OID_desc set_seq_num_oid = {
+    GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH,
+    GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING
+};
+
+uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
+                                        gss_ctx_id_t *context_handle,
+                                        const gss_OID desired_object,
+                                        const gss_buffer_t value)
+{
+    struct gssntlm_ctx *ctx;
+
+    if (minor_status == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+    if (context_handle == NULL || *context_handle == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+    if (desired_object == GSS_C_NO_OID) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    ctx = (struct gssntlm_ctx *)*context_handle;
+
+    *minor_status = 0;
+
+    /* set seq num */
+    if (gss_oid_equal(desired_object, &set_seq_num_oid)) {
+        if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+
+            if (value->length != 4) {
+                *minor_status = EINVAL;
+                return GSS_S_FAILURE;
+            }
+
+            memcpy(&ctx->recv.seq_num, value->value, value->length);
+            ctx->send.seq_num = ctx->recv.seq_num;
+            return GSS_S_COMPLETE;
+        } else {
+            *minor_status = EACCES;
+            return GSS_S_UNAUTHORIZED;
+        }
+    }
+
+    *minor_status = EINVAL;
+    return GSS_S_UNAVAILABLE;
+}

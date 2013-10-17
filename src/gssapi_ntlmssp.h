@@ -34,6 +34,19 @@ extern "C" {
  * oriented connections and has a ISC_REQ_DATAGRAM flag for that */
 #define GSS_C_DATAGRAM_FLAG 0x10000
 
+
+/* OID space kindly donated by Samba Project: 1.3.6.1.4.1.7165.655.1 */
+#define GSS_NTLMSSP_BASE_OID_STRING "\x2b\x06\x01\x04\x01\xb7\x7d\x85\x0f\x01"
+#define GSS_NTLMSSP_BASE_OID_LENGTH 10
+
+/* Set Seq Num OID
+ * OID to be used to be used with gss_set_sec_context_option()
+ * the value buffer is a uint32_t in host order and is used
+ * to force a specific sequence number. This operation is allowed
+ * only if GSS_C_DATAGRAM_FLAG was used. */
+#define GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x01"
+#define GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

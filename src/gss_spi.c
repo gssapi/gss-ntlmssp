@@ -285,3 +285,14 @@ OM_uint32 gss_display_name(OM_uint32 *minor_status,
                                 output_name_buffer,
                                 output_name_type);
 }
+
+OM_uint32 gss_set_sec_context_option(OM_uint32 *minor_status,
+                                     gss_ctx_id_t *context_handle,
+                                     const gss_OID desired_object,
+                                     const gss_buffer_t value)
+{
+    return gssntlm_set_sec_context_option(minor_status,
+                                          context_handle,
+                                          desired_object,
+                                          value);
+}

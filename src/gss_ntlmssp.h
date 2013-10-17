@@ -257,6 +257,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                     uint32_t *time_rec,
                                     gss_cred_id_t *delegated_cred_handle);
 
+uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
+                                        gss_ctx_id_t *context_handle,
+                                        const gss_OID desired_object,
+                                        const gss_buffer_t value);
+
 uint32_t gssntlm_get_mic(uint32_t *minor_status,
                          gss_ctx_id_t context_handle,
                          gss_qop_t qop_req,
