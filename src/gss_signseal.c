@@ -20,9 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#include <gssapi/gssapi.h>
-#include <gssapi/gssapi_ext.h>
-
+#include "gssapi_ntlmssp.h"
 #include "gss_ntlmssp.h"
 
 uint32_t gssntlm_get_mic(uint32_t *minor_status,
@@ -50,6 +48,17 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
         return GSS_S_CALL_INACCESSIBLE_READ;
     }
 
+    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+        /* must regenerate seal key */
+        retmin = ntlm_seal_regen(&ctx->send.seal_key,
+                                 &ctx->send.seal_handle,
+                                 ctx->send.seq_num);
+        if (retmin) {
+            *minor_status = retmin;
+            return GSS_S_FAILURE;
+        }
+    }
+
     message_token->value = malloc(16);
     if (!message_token->value) {
         *minor_status = ENOMEM;
@@ -70,8 +79,10 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    /* increment seq_num upon succesful signature */
-    ctx->send.seq_num++;
+    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
+        /* increment seq_num upon succesful signature */
+        ctx->send.seq_num++;
+    }
 
     return GSS_S_COMPLETE;
 }
@@ -102,6 +113,17 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         *qop_state = GSS_C_QOP_DEFAULT;
     }
 
+    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+        /* must regenerate seal key */
+        retmin = ntlm_seal_regen(&ctx->recv.seal_key,
+                                 &ctx->recv.seal_handle,
+                                 ctx->send.seq_num);
+        if (retmin) {
+            *minor_status = retmin;
+            return GSS_S_FAILURE;
+        }
+    }
+
     message.data = message_buffer->value;
     message.length = message_buffer->length;
     retmin = ntlm_sign(&ctx->recv.sign_key, ctx->recv.seq_num,
@@ -116,8 +138,10 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         return GSS_S_BAD_SIG;
     }
 
-    /* increment seq_num upon succesful signature */
-    ctx->recv.seq_num++;
+    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
+        /* increment seq_num upon succesful signature */
+        ctx->recv.seq_num++;
+    }
 
     return GSS_S_COMPLETE;
 }
@@ -157,6 +181,17 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         /* ignore, always seal */
     }
 
+    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+        /* must regenerate seal key */
+        retmin = ntlm_seal_regen(&ctx->send.seal_key,
+                                 &ctx->send.seal_handle,
+                                 ctx->send.seq_num);
+        if (retmin) {
+            *minor_status = retmin;
+            return GSS_S_FAILURE;
+        }
+    }
+
     output_message_buffer->value = malloc(input_message_buffer->length + 16);
     if (!output_message_buffer->value) {
         *minor_status = ENOMEM;
@@ -179,8 +214,10 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    /* increment seq_num upon succesful signature */
-    ctx->send.seq_num++;
+    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
+        /* increment seq_num upon succesful encryption */
+        ctx->send.seq_num++;
+    }
     return GSS_S_COMPLETE;
 }
 
@@ -215,6 +252,17 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         *qop_state = GSS_C_QOP_DEFAULT;
     }
 
+    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+        /* must regenerate seal key */
+        retmin = ntlm_seal_regen(&ctx->recv.seal_key,
+                                 &ctx->recv.seal_handle,
+                                 ctx->send.seq_num);
+        if (retmin) {
+            *minor_status = retmin;
+            return GSS_S_FAILURE;
+        }
+    }
+
     output_message_buffer->value = malloc(input_message_buffer->length - 16);
     if (!output_message_buffer->value) {
         *minor_status = ENOMEM;
@@ -240,7 +288,9 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSS_S_BAD_SIG;
     }
 
-    /* increment seq_num upon succesful signature */
-    ctx->send.seq_num++;
+    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
+        /* increment seq_num upon succesful encryption */
+        ctx->recv.seq_num++;
+    }
     return GSS_S_COMPLETE;
 }

@@ -306,6 +306,20 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
                        struct ntlm_rc4_handle **seal_recv_handle);
 
 /**
+ * @brief   Regens the NTLM Seal key.
+ *          Used only in connectionless mode. See MS-NLMP 3.4
+ *
+ * @param seal_key      The current sealing key
+ * @param seal_handle   The current sealing handle
+ * @param seq_num       The current (application provided) sequence number
+ *
+ * @return 0 on success or error.
+ */
+int ntlm_seal_regen(struct ntlm_key *seal_key,
+                    struct ntlm_rc4_handle **seal_handle,
+                    uint32_t seq_num);
+
+/**
  * @brief   Verifies a 16 bit NT Response
  *
  * @param nt_response       The NT Response buffer including client challenge

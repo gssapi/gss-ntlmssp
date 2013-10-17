@@ -549,6 +549,35 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
     return 0;
 }
 
+int ntlm_seal_regen(struct ntlm_key *seal_key,
+                    struct ntlm_rc4_handle **seal_handle,
+                    uint32_t seq_num)
+{
+    struct ntlm_buffer payload;
+    struct ntlm_buffer result;
+    uint8_t inbuf[20];
+    uint8_t outbuf[16];
+    uint32_t le;
+    int ret;
+
+    RC4_FREE(seal_handle);
+
+    memcpy(inbuf, seal_key->data, seal_key->length);
+    le = htole32(seq_num);
+    memcpy(&inbuf[16], &le, 4);
+
+    payload.data = inbuf;
+    payload.length = 20;
+    result.data = outbuf;
+    result.length = 16;
+
+    ret = MD5_HASH(&payload, &result);
+    if (ret) return ret;
+
+    ret = RC4_INIT(&result, NTLM_CIPHER_ENCRYPT, seal_handle);
+    return ret;
+}
+
 int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
                               struct ntlm_key *ntlmv2_key,
                               uint8_t server_chal[8])
