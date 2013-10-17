@@ -209,7 +209,7 @@ int RC4_UPDATE(struct ntlm_rc4_handle *handle,
 
 void RC4_FREE(struct ntlm_rc4_handle **handle)
 {
-    if (!handle) return;
+    if (!handle || !*handle) return;
     EVP_CIPHER_CTX_cleanup(&(*handle)->ctx);
     safefree(*handle);
 }
