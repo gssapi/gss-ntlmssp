@@ -876,7 +876,7 @@ int test_EncodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
 
 #define TEST_USER_FILE "examples/test_user_file.txt"
 
-int test_gssapi_1(void)
+int test_gssapi_1(bool user_env_file)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
     gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
@@ -884,10 +884,12 @@ int test_gssapi_1(void)
     gss_buffer_desc srv_token = { 0 };
     gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
     gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
-    const char *username = "testuser";
+    const char *username;
+    const char *password = "testpassword";
     const char *srvname = "test@testserver";
     gss_name_t gss_username = NULL;
     gss_name_t gss_srvname = NULL;
+    gss_buffer_desc pwbuf;
     gss_buffer_desc nbuf;
     uint32_t retmin, retmaj;
     char *msg = "Sample, signature checking, message.";
@@ -895,6 +897,12 @@ int test_gssapi_1(void)
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+
+    if (user_env_file) {
+        username = "testuser";
+    } else {
+        username = "TESTDOM\\testuser";
+    }
 
     nbuf.value = discard_const(username);
     nbuf.length = strlen(username);
@@ -907,14 +915,26 @@ int test_gssapi_1(void)
         return EINVAL;
     }
 
-    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_username,
-                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-                                  GSS_C_INITIATE, &cli_cred, NULL, NULL);
-    if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_acquire_cred(username) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
-        ret = EINVAL;
-        goto done;
+    if (user_env_file) {
+        retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_username,
+                                      GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                      GSS_C_INITIATE, &cli_cred, NULL, NULL);
+        if (retmaj != GSS_S_COMPLETE) {
+            fprintf(stderr, "gssntlm_acquire_cred(username) failed! (%d/%d, %s)",
+                            retmaj, retmin, strerror(retmin));
+            ret = EINVAL;
+            goto done;
+        }
+    } else {
+        pwbuf.value = discard_const(password);
+        pwbuf.length = strlen(password);
+        retmaj = gssntlm_acquire_cred_with_password(&retmin,
+                                                    (gss_name_t)gss_username,
+                                                    (gss_buffer_t)&pwbuf,
+                                                    GSS_C_INDEFINITE,
+                                                    GSS_C_NO_OID_SET,
+                                                    GSS_C_INITIATE,
+                                                    &cli_cred, NULL, NULL);
     }
 
     nbuf.value = discard_const(srvname);
@@ -1182,8 +1202,12 @@ int main(int argc, const char *argv[])
     ret = test_EncodeAuthenticateMessageV2(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
-    fprintf(stdout, "Test GSSAPI conversation\n");
-    ret = test_gssapi_1();
+    fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
+    ret = test_gssapi_1(true);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation (with password)\n");
+    ret = test_gssapi_1(false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
 done:
