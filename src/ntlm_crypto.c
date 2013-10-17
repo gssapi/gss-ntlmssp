@@ -425,7 +425,7 @@ static int ntlm_key_derivation_function(struct ntlm_key *key,
     int ret;
 
     if (key->length > 16) return ERR_CRYPTO;
-    len = strlen(magic_constant);
+    len = strlen(magic_constant) + 1;
     if (len > 64) return ERR_CRYPTO;
 
     payload.length = key->length;
