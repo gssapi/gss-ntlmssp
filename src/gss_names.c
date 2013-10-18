@@ -118,10 +118,13 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
+    /* treat null OID like NT_USER_NAME */
     if (input_name_type == GSS_C_NULL_OID) {
-        retmaj = GSS_S_BAD_NAMETYPE;
-    } else if (gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE) ||
-               gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE_X)) {
+        input_name_type = GSS_C_NT_USER_NAME;
+    }
+
+    if (gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE) ||
+        gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE_X)) {
 
         name->type = GSSNTLM_NAME_SERVER;
 
