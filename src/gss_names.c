@@ -77,6 +77,38 @@ done:
     return retmaj;
 }
 
+#define MAX_NAME_LEN 1024
+static uint32_t get_enterprise_name(uint32_t *retmin,
+                                    const char *str, size_t len,
+                                    char **username)
+{
+    char *buf;
+    char *e;
+
+    if (len > MAX_NAME_LEN) {
+        *retmin = EINVAL;
+        return GSS_S_BAD_NAME;
+    }
+    buf = alloca(len + 1);
+
+    memcpy(buf, str, len);
+    buf[len] = '\0';
+
+    e = strstr(buf, "\\@");
+    if (!e) return GSS_S_UNAVAILABLE;
+
+    /* remove escape */
+    memmove(e, e + 1, len - (e - buf));
+
+    *username = strdup(buf);
+    if (NULL == *username) {
+        *retmin = ENOMEM;
+        return GSS_S_FAILURE;
+    }
+
+    return GSS_S_COMPLETE;
+}
+
 static uint32_t uid_to_name(uint32_t *retmin, uid_t uid, char **name)
 {
     struct passwd *pw;
@@ -155,7 +187,17 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_USER_NAME)) {
 
         name->type = GSSNTLM_NAME_USER;
+        name->data.user.domain = NULL;
 
+        /* Check if enterprise name first */
+        retmaj = get_enterprise_name(&retmin,
+                                     input_name_buffer->value,
+                                     input_name_buffer->length,
+                                     &name->data.user.name);
+        if ((retmaj == GSS_S_COMPLETE) ||
+            (retmaj != GSS_S_UNAVAILABLE)) {
+            goto done;
+        }
         /* Check if in classic DOMAIN\User windows format */
         retmaj = string_split(&retmin, '\\',
                               input_name_buffer->value,
@@ -177,7 +219,6 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
             goto done;
         }
         /* finally, take string as simple user name */
-        name->data.user.domain = NULL;
         name->data.user.name = strndup(input_name_buffer->value,
                                        input_name_buffer->length);
         if (!name->data.user.name) {
