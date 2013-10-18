@@ -95,7 +95,7 @@ gssntlmssp_la_CFLAGS = \
     $(AM_FLAGS)
 gssntlmssp_la_LDFLAGS = \
     $(GN_MECHGLUE_LIBS) \
-    -export-symbols-regex '^gss_' \
+    -export-symbols-regex '^gss(spi|)_' \
     -avoid-version \
     -module
 
