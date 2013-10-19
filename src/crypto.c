@@ -22,6 +22,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
+#include <zlib.h>
 
 #include "crypto.h"
 
@@ -298,4 +299,9 @@ int DESL(struct ntlm_buffer *key,
     WEAK_DES(&key7, payload, &res8);
 
     return 0;
+}
+
+uint32_t CRC32(uint32_t crc, struct ntlm_buffer *payload)
+{
+    return crc32(crc, payload->data, payload->length);
 }

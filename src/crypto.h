@@ -153,4 +153,14 @@ int DESL(struct ntlm_buffer *key,
          struct ntlm_buffer *payload,
          struct ntlm_buffer *result);
 
+/**
+ * @brief The CRC32 checksum
+ *
+ * @param crc       Initial crc, usually 0
+ * @param payload   The data to checksum
+ *
+ * @return          The resulting CRC.
+ */
+uint32_t CRC32(uint32_t crc, struct ntlm_buffer *payload);
+
 #endif /* _SRC_CRYPTO_H_ */
