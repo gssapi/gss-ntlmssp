@@ -367,6 +367,45 @@ struct t_gsswrapex_data {
     struct ntlm_buffer Signature;
 };
 
+/* Basic GSS_WrapEx V1 Test Data */
+struct t_gsswrapex_data T_GSSWRAPv1noESS = {
+    (
+      NTLMSSP_NEGOTIATE_56 |
+      NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL
+    ),
+    0,
+    {
+      .data = (uint8_t *)"\x50\x00\x6c\x00\x61\x00\x69\x00"
+                 "\x6e\x00\x74\x00\x65\x00\x78\x00\x74\x00",
+      .length = 18
+    },
+    {
+      .data = {
+        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55
+      },
+      .length = 16
+    },
+    {
+      .data = { 0 },
+      .length = 0
+    },
+    {
+      .data = { 0 },
+      .length = 0
+    },
+    {
+      .data = (uint8_t *)"\x56\xfe\x04\xd8\x61\xf9\x31\x9a"
+                 "\xf0\xd7\x23\x8a\x2e\x3b\x4d\x45\x7f\xb8",
+      .length = 18
+    },
+    {
+      .data = (uint8_t *)"\x01\x00\x00\x00\x00\x00\x00\x00"
+                         "\x09\xdc\xd1\xdf\x2e\x45\x9d\x36",
+      .length = 16
+    },
+};
+
 /* GSS_WrapEx V1 Extended Session Security Test Data */
 struct t_gsswrapex_data T_GSSWRAPEXv1 = {
     (
@@ -996,22 +1035,30 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
                              &seal_send_handle, &seal_recv_handle);
     if (ret) return ret;
 
-    if (memcmp(seal_send_key.data, data->ClientSealKey.data, 16) != 0) {
-        fprintf(stderr, "Client Sealing Keys differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(data->ClientSealKey.data, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(seal_send_key.data, sign_send_key.length));
-        ret = EINVAL;
+    if (data->ClientSealKey.length) {
+        if (memcmp(seal_send_key.data, data->ClientSealKey.data,
+                                       data->ClientSealKey.length) != 0) {
+            fprintf(stderr, "Client Sealing Keys differ!\n");
+            fprintf(stderr, "expected:\n%s",
+                    hex_to_dump(data->ClientSealKey.data,
+                                data->ClientSealKey.length));
+            fprintf(stderr, "obtained:\n%s",
+                    hex_to_dump(seal_send_key.data, sign_send_key.length));
+            ret = EINVAL;
+        }
     }
 
-    if (memcmp(sign_send_key.data, data->ClientSignKey.data, 16) != 0) {
-        fprintf(stderr, "Client Signing Keys differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(data->ClientSignKey.data, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(sign_send_key.data, sign_send_key.length));
-        ret = EINVAL;
+    if (data->ClientSignKey.length) {
+        if (memcmp(sign_send_key.data, data->ClientSignKey.data,
+                                       data->ClientSignKey.length) != 0) {
+            fprintf(stderr, "Client Signing Keys differ!\n");
+            fprintf(stderr, "expected:\n%s",
+                    hex_to_dump(data->ClientSignKey.data,
+                                data->ClientSignKey.length));
+            fprintf(stderr, "obtained:\n%s",
+                    hex_to_dump(sign_send_key.data, sign_send_key.length));
+            ret = EINVAL;
+        }
     }
 
     if (ret) return ret;
@@ -1602,6 +1649,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test encoding AuthenticateMessage v2\n");
     ret = test_EncodeAuthenticateMessageV2(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test sealing a Message with No Extended Security\n");
+    ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPv1noESS);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test sealing a Message with NTLMv1 Extended Security\n");

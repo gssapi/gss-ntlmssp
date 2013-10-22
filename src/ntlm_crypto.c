@@ -75,6 +75,23 @@ struct wire_ntlmv2_cli_chal {
 };
 #pragma pack(pop)
 
+/* signature structure, v1 or v2 */
+#pragma pack(push, 1)
+union wire_msg_signature {
+    struct {
+        uint32_t version;
+        uint32_t random_pad;
+        uint32_t checksum;
+        uint32_t seq_num;
+    } v1;
+    struct {
+        uint32_t version;
+        uint64_t checksum;
+        uint32_t seq_num;
+    } v2;
+};
+#pragma pack(pop)
+
 /* the max username is 20 chars, max NB domain len is 15, so 128 should be
  * plenty including conversion to UTF8 using max lenght for each code point
  */
@@ -649,8 +666,8 @@ static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
                        struct ntlm_buffer *message,
                        struct ntlm_buffer *signature)
 {
-    uint32_t ver;
     struct ntlm_buffer key = { sign_key->data, sign_key->length };
+    union wire_msg_signature *msg_sig;
     uint32_t le_seq;
     uint8_t le8seq[8];
     struct ntlm_buffer seq = { le8seq, 4 };
@@ -662,6 +679,7 @@ static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
     struct ntlm_buffer rc4res;
     int ret;
 
+    msg_sig = (union wire_msg_signature *)signature->data;
     if (signature->length != 16) {
         return EINVAL;
     }
@@ -677,8 +695,7 @@ static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
     if (ret) return ret;
 
     /* put version */
-    ver = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
-    memcpy(signature->data, &ver, 4);
+    msg_sig->v2.version = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
 
     /* put actual MAC */
     if (keyex) {
@@ -686,16 +703,49 @@ static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
         rc4buf.data = hmac.data;
         rc4buf.length = 8;
         /* and put it in the middle of the output signature */
-        rc4res.data = &signature->data[4];
+        rc4res.data = (uint8_t *)&msg_sig->v2.checksum;
         rc4res.length = 8;
         ret = RC4_UPDATE(handle, &rc4buf, &rc4res);
         if (ret) return ret;
     } else {
-        memcpy(&signature->data[4], hmac.data, 8);
+        memcpy(&msg_sig->v2.checksum, hmac.data, 8);
     }
 
     /* put used seq_num */
-    memcpy(&signature->data[12], seq.data, 4);
+    msg_sig->v2.seq_num = le_seq;
+
+    return 0;
+}
+
+static int ntlmv1_sign(struct ntlm_rc4_handle *handle,
+                       uint32_t random_pad, uint32_t seq_num,
+                       struct ntlm_buffer *message,
+                       struct ntlm_buffer *signature)
+{
+    union wire_msg_signature *msg_sig;
+    uint32_t rc4buf[3];
+    struct ntlm_buffer payload;
+    struct ntlm_buffer result;
+    int ret;
+
+    msg_sig = (union wire_msg_signature *)signature->data;
+    if (signature->length != 16) {
+        return EINVAL;
+    }
+
+    rc4buf[0] = 0;
+    rc4buf[1] = htole32(CRC32(0, message));
+    rc4buf[2] = htole32(seq_num);
+
+    payload.data = (uint8_t *)rc4buf;
+    payload.length = 12;
+    result.data = (uint8_t *)&msg_sig->v1.random_pad;
+    result.length = 12;
+    ret = RC4_UPDATE(handle, &payload, &result);
+    if (ret) return ret;
+
+    msg_sig->v1.version = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
+    msg_sig->v1.random_pad = random_pad;
 
     return 0;
 }
@@ -710,7 +760,7 @@ int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
                            (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
                            message, signature);
     } else if (flags & NTLMSSP_NEGOTIATE_SIGN) {
-        /* FIXME: needs an implementation of CRC32 maybe use zlib ? */
+        return ntlmv1_sign(handle, 0, seq_num, message, signature);
     } else if (flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN) {
         uint32_t le_seq = htole32(seq_num);
         memcpy(signature->data, &le_seq, 4);
@@ -728,19 +778,20 @@ int ntlm_seal(struct ntlm_rc4_handle *handle, uint32_t flags,
 {
     int ret;
 
-    if (!((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
-        && (flags & NTLMSSP_NEGOTIATE_SEAL))) {
-        /* we only support v2 for now as we can't sign w/o session security
-         * anyway */
-        return ENOTSUP;
+    if (flags & NTLMSSP_NEGOTIATE_SEAL) {
+        ret = RC4_UPDATE(handle, message, output);
+        if (ret) return ret;
+
+        if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
+            return ntlmv2_sign(sign_key, seq_num, handle,
+                               (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                               message, signature);
+        } else {
+            return ntlmv1_sign(handle, 0, seq_num, message, signature);
+        }
     }
 
-    ret = RC4_UPDATE(handle, message, output);
-    if (ret) return ret;
-
-    return ntlmv2_sign(sign_key, seq_num, handle,
-                       (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                       message, signature);
+    return ENOTSUP;
 }
 
 int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,

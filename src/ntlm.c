@@ -142,23 +142,6 @@ struct wire_ntlm_cli_chal {
 };
 #pragma pack(pop)
 
-/* signature structure, v1 or v2 */
-#pragma pack(push, 1)
-union wire_msg_signature {
-    struct {
-        uint32_t version;
-        uint8_t random_pad[4];
-        uint8_t checksum[4];
-        uint32_t seq_num;
-    } v1;
-    struct {
-        uint32_t version;
-        uint8_t checksum[8];
-        uint32_t seq_num;
-    } v2;
-};
-#pragma pack(pop)
-
 /* Version information.
  * Used only for debugging and usually placed as the head of the payload when
  * used */
