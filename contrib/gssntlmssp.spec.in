@@ -5,8 +5,8 @@ Summary:	GSSAPI NTLMSSP Mechanism
 
 Group:		System Environment/Libraries
 License:	LGPLv3+
-URL:		http://ssimo.org/code/gss-ntlmssp
-Source0:	http://ssimo.org/code/gss-ntlmssp/%{name}-%{version}.tar.gz
+URL:		https://fedorahosted.org/gss-ntlmssp
+Source0:	https://fedorahosted.org/released/gss-ntlmssp/%{name}-%{version}.tar.gz
 
 Requires: krb5-libs.%{?_isa} >= 1.11.2
 
