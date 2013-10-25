@@ -296,3 +296,35 @@ OM_uint32 gss_set_sec_context_option(OM_uint32 *minor_status,
                                           desired_object,
                                           value);
 }
+
+OM_uint32 gss_inquire_cred(OM_uint32 *minor_status,
+                           gss_cred_id_t cred_handle,
+                           gss_name_t *name,
+                           OM_uint32 *lifetime,
+                           gss_cred_usage_t *cred_usage,
+                           gss_OID_set *mechanisms)
+{
+    return gssntlm_inquire_cred(minor_status,
+                                cred_handle,
+                                name,
+                                lifetime,
+                                cred_usage,
+                                mechanisms);
+}
+
+OM_uint32 gss_inquire_cred_by_mech(OM_uint32 *minor_status,
+                                   gss_cred_id_t cred_handle,
+                                   gss_OID mech_type,
+                                   gss_name_t *name,
+                                   OM_uint32 *initiator_lifetime,
+                                   OM_uint32 *acceptor_lifetime,
+                                   gss_cred_usage_t *cred_usage)
+{
+    return gssntlm_inquire_cred_by_mech(minor_status,
+                                        cred_handle,
+                                        mech_type,
+                                        name,
+                                        initiator_lifetime,
+                                        acceptor_lifetime,
+                                        cred_usage);
+}

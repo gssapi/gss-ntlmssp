@@ -303,4 +303,19 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
                               gss_name_t input_name,
                               gss_buffer_t output_name_buffer,
                               gss_OID *output_name_type);
+
+uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
+                              gss_cred_id_t cred_handle,
+                              gss_name_t *name,
+                              uint32_t *lifetime,
+                              gss_cred_usage_t *cred_usage,
+                              gss_OID_set *mechanisms);
+
+uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
+                                      gss_cred_id_t cred_handle,
+                                      gss_OID mech_type,
+                                      gss_name_t *name,
+                                      uint32_t *initiator_lifetime,
+                                      uint32_t *acceptor_lifetime,
+                                      gss_cred_usage_t *cred_usage);
 #endif /* _GSS_NTLMSSP_H_ */

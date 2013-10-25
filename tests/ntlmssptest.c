@@ -1164,6 +1164,14 @@ int test_gssapi_1(bool user_env_file)
         }
     }
 
+    retmaj = gssntlm_inquire_cred_by_mech(&retmin, cli_cred, GSS_C_NO_OID,
+                                          NULL, NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_import_cred_by_mech failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        return EINVAL;
+    }
+
     nbuf.value = discard_const(srvname);
     nbuf.length = strlen(srvname);
     retmaj = gssntlm_import_name(&retmin, &nbuf,

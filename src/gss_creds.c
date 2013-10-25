@@ -358,6 +358,7 @@ done:
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     } else {
         *output_cred_handle = (gss_cred_id_t)cred;
+        if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
     *minor_status = retmin;
     return retmaj;
@@ -424,4 +425,113 @@ uint32_t gssntlm_acquire_cred_with_password(uint32_t *minor_status,
                                      output_cred_handle,
                                      actual_mechs,
                                      time_rec);
+}
+
+uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
+                              gss_cred_id_t cred_handle,
+                              gss_name_t *name,
+                              uint32_t *lifetime,
+                              gss_cred_usage_t *cred_usage,
+                              gss_OID_set *mechanisms)
+{
+    struct gssntlm_cred *cred;
+    uint32_t maj, min;
+
+    if (minor_status == NULL)
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    *minor_status = 0;
+
+    if (cred_handle == GSS_C_NO_CREDENTIAL)
+        return GSS_S_NO_CRED;
+
+    cred = (struct gssntlm_cred *)cred_handle;
+
+    if (cred->type == GSSNTLM_CRED_NONE)
+        return GSS_S_NO_CRED;
+
+    if (name) {
+        switch (cred->type) {
+        case GSSNTLM_CRED_NONE:
+        case GSSNTLM_CRED_ANON:
+            *name = GSS_C_NO_NAME;
+            break;
+        case GSSNTLM_CRED_USER:
+            maj = gssntlm_duplicate_name(minor_status,
+                                         (gss_name_t)&cred->cred.user.user,
+                                         name);
+            if (maj != GSS_S_COMPLETE) return maj;
+            break;
+        case GSSNTLM_CRED_SERVER:
+            maj = gssntlm_duplicate_name(minor_status,
+                                         (gss_name_t)&cred->cred.server.name,
+                                         name);
+            if (maj != GSS_S_COMPLETE) return maj;
+            break;
+        }
+    }
+
+    if (lifetime) *lifetime = GSS_C_INDEFINITE;
+    if (cred_usage) {
+        if (cred->type == GSSNTLM_CRED_SERVER) {
+            *cred_usage = GSS_C_ACCEPT;
+        } else {
+            *cred_usage = GSS_C_INITIATE;
+        }
+    }
+
+    if (mechanisms) {
+        maj = gss_create_empty_oid_set(minor_status, mechanisms);
+        if (maj != GSS_S_COMPLETE) {
+            gss_release_name(&min, name);
+            return maj;
+        }
+        maj = gss_add_oid_set_member(minor_status,
+                                     discard_const(&gssntlm_oid),
+                                     mechanisms);
+        if (maj != GSS_S_COMPLETE) {
+            gss_release_oid_set(&min, mechanisms);
+            gss_release_name(&min, name);
+            return maj;
+        }
+    }
+
+    return GSS_S_COMPLETE;
+}
+
+uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
+                                      gss_cred_id_t cred_handle,
+                                      gss_OID mech_type,
+                                      gss_name_t *name,
+                                      uint32_t *initiator_lifetime,
+                                      uint32_t *acceptor_lifetime,
+                                      gss_cred_usage_t *cred_usage)
+{
+    gss_cred_usage_t usage;
+    uint32_t lifetime;
+    uint32_t maj;
+
+    maj = gssntlm_inquire_cred(minor_status, cred_handle, name,
+                               &lifetime, &usage, NULL);
+    if (maj != GSS_S_COMPLETE) return maj;
+
+    switch (usage) {
+    case GSS_C_INITIATE:
+        if (initiator_lifetime) *initiator_lifetime = lifetime;
+        if (acceptor_lifetime) *acceptor_lifetime = 0;
+        break;
+    case GSS_C_ACCEPT:
+        if (initiator_lifetime) *initiator_lifetime = 0;
+        if (acceptor_lifetime) *acceptor_lifetime = lifetime;
+        break;
+    case GSS_C_BOTH:
+        if (initiator_lifetime) *initiator_lifetime = lifetime;
+        if (acceptor_lifetime) *acceptor_lifetime = lifetime;
+        break;
+    default:
+        *minor_status = EINVAL;
+        return GSS_S_FAILURE;
+    }
+
+    if (cred_usage) *cred_usage = usage;
+    return GSS_S_COMPLETE;
 }
