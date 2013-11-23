@@ -8,7 +8,7 @@ License:	LGPLv3+
 URL:		https://fedorahosted.org/gss-ntlmssp
 Source0:	https://fedorahosted.org/released/gss-ntlmssp/%{name}-%{version}.tar.gz
 
-Requires: krb5-libs.%{?_isa} >= 1.11.2
+Requires: krb5-libs%{?_isa} >= 1.11.2
 
 BuildRequires: autoconf
 BuildRequires: automake
