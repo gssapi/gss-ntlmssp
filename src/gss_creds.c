@@ -140,9 +140,9 @@ static int hex_to_key(const char *hex, struct ntlm_key *key)
     return 0;
 }
 
-#define NTLM_CS_DOMAIN "ntlm:domain"
-#define NTLM_CS_NTHASH "ntlm:nthash"
-#define NTLM_CS_PASSWORD "ntlm:password"
+#define NTLM_CS_DOMAIN "ntlmssp_domain"
+#define NTLM_CS_NTHASH "ntlmssp_nthash"
+#define NTLM_CS_PASSWORD "ntlmssp_password"
 #define GENERIC_CS_PASSWORD "password"
 /* To support in future, RC4 Key is NT hash */
 #define KRB5_CS_CLI_KEYTAB_URN "client_keytab"
