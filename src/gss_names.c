@@ -396,7 +396,7 @@ uint32_t gssntlm_release_name(uint32_t *minor_status,
 
     gssntlm_int_release_name((struct gssntlm_name *)*input_name);
 
-    *input_name = GSS_C_NO_NAME;
+    safefree(*input_name);
     return GSS_S_COMPLETE;
 }
 
