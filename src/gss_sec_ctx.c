@@ -45,7 +45,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     const char *domain = NULL;
     uint32_t in_flags;
     uint32_t msg_type;
-    char *trgt_name;
+    char *trgt_name = NULL;
     uint8_t server_chal[8];
     struct ntlm_buffer challenge = { server_chal, 8 };
     struct ntlm_buffer target_info = { 0 };
@@ -612,6 +612,8 @@ done:
         /* we copy creds around, so always free if not passed in */
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     }
+    safefree(trgt_name);
+    safefree(trginfo_name);
     ntlm_free_buffer_data(&target_info);
     ntlm_free_buffer_data(&nt_chal_resp);
     ntlm_free_buffer_data(&lm_chal_resp);
