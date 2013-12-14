@@ -176,6 +176,42 @@ void RC4_FREE(struct ntlm_rc4_handle **handle)
     safefree(*handle);
 }
 
+int RC4_EXPORT(struct ntlm_rc4_handle *handle, struct ntlm_buffer *out)
+{
+    int i;
+
+    if (out->length < 258) return EAGAIN;
+
+    out->data[0] = (uint8_t)(handle->key.x & 0xff);
+    out->data[1] = (uint8_t)(handle->key.y & 0xff);
+    for (i = 0; i < 256; i++) {
+        out->data[i + 2] = (uint8_t)(handle->key.data[i] & 0xff);
+    }
+
+    out->length = 258;
+    return 0;
+}
+
+int RC4_IMPORT(struct ntlm_rc4_handle **_handle, struct ntlm_buffer *in)
+{
+    struct ntlm_rc4_handle *handle;
+    int i;
+
+    if (in->length != 258) return EINVAL;
+
+    handle = malloc(sizeof(struct ntlm_rc4_handle));
+    if (!handle) return ENOMEM;
+
+    handle->key.x = in->data[0];
+    handle->key.y = in->data[1];
+    for (i = 0; i < 256; i++) {
+        handle->key.data[i] = in->data[i + 2];
+    }
+
+    *_handle = handle;
+    return 0;
+}
+
 int RC4K(struct ntlm_buffer *key,
          enum ntlm_cipher_mode mode,
          struct ntlm_buffer *payload,

@@ -113,6 +113,26 @@ int RC4_UPDATE(struct ntlm_rc4_handle *handle,
 void RC4_FREE(struct ntlm_rc4_handle **handle);
 
 /**
+ * @brief Exports the RC4 state
+ *
+ * @param handle    The RC4 handle to export from
+ * @param out       A buffer at least 258 bytes long
+ *
+ * @return  0 on success or EAGAIN if the buffer is too small
+ */
+int RC4_EXPORT(struct ntlm_rc4_handle *handle, struct ntlm_buffer *out);
+
+/**
+ * @brief Import an RC4 state
+ *
+ * @param handle    A new ntlm_rc4_handle on success
+ * @param in        A buffer containing an exported state
+ *
+ * @return 0 on success or EINVAL if the buffer is not an exported state
+ */
+int RC4_IMPORT(struct ntlm_rc4_handle **handle, struct ntlm_buffer *in);
+
+/**
  * @brief RC4 encryption/decryption all in one
  *
  * @param key       The encryption/decryption key
