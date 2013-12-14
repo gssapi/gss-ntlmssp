@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include <openssl/des.h>
+#include <openssl/rc4.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -137,7 +138,7 @@ int MD5_HASH(struct ntlm_buffer *payload,
 }
 
 struct ntlm_rc4_handle {
-    EVP_CIPHER_CTX ctx;
+    RC4_KEY key;
 };
 
 int RC4_INIT(struct ntlm_buffer *rc4_key,
@@ -145,73 +146,33 @@ int RC4_INIT(struct ntlm_buffer *rc4_key,
              struct ntlm_rc4_handle **out)
 {
     struct ntlm_rc4_handle *handle;
-    int enc;
-    int ret;
 
     handle = malloc(sizeof(struct ntlm_rc4_handle));
     if (!handle) return ENOMEM;
 
-    switch (mode) {
-    case NTLM_CIPHER_ENCRYPT:
-        enc = 1;
-        break;
-    case NTLM_CIPHER_DECRYPT:
-        enc = 0;
-        break;
-    default:
-        enc = -1;
-    }
+    RC4_set_key(&handle->key, rc4_key->length, rc4_key->data);
 
-    EVP_CIPHER_CTX_init(&handle->ctx);
-    ret = EVP_CipherInit_ex(&handle->ctx, EVP_rc4(), NULL, NULL, NULL, enc);
-    if (ret == 0) {
-        ret = ERR_CRYPTO;
-        goto done;
-    }
-    ret = EVP_CIPHER_CTX_set_key_length(&handle->ctx, rc4_key->length);
-    if (ret == 0) {
-        ret = ERR_CRYPTO;
-        goto done;
-    }
-    ret = EVP_CipherInit_ex(&handle->ctx, NULL, NULL, rc4_key->data, NULL, -1);
-    if (ret == 0) {
-        ret = ERR_CRYPTO;
-        goto done;
-    }
-
-    ret = 0;
-
-done:
-    if (ret) {
-        EVP_CIPHER_CTX_cleanup(&handle->ctx);
-        safefree(handle);
-    }
     *out = handle;
-    return ret;
+    return 0;
 }
 
 int RC4_UPDATE(struct ntlm_rc4_handle *handle,
                struct ntlm_buffer *in, struct ntlm_buffer *out)
 {
-    int outl = 0;
-    int ret = 0;
-    int err;
-
     if (out->length < in->length) return EINVAL;
 
-    err = EVP_CipherUpdate(&handle->ctx,
-                           out->data, &outl, in->data, in->length);
-    if (err != 1) ret = ERR_CRYPTO;
-    if (outl > out->length) ret = ERR_CRYPTO;
+    if (in->length > 0) {
+        RC4(&handle->key, in->length, in->data, out->data);
+    }
 
-    out->length = outl;
-    return ret;
+    out->length = in->length;
+    return 0;
 }
 
 void RC4_FREE(struct ntlm_rc4_handle **handle)
 {
     if (!handle || !*handle) return;
-    EVP_CIPHER_CTX_cleanup(&(*handle)->ctx);
+    safezero((uint8_t *)(&((*handle)->key)), sizeof(RC4_KEY));
     safefree(*handle);
 }
 
