@@ -125,7 +125,6 @@ struct gssntlm_ctx {
         NTLMSSP_STAGE_DONE
     } stage;
 
-    struct gssntlm_cred cred;
     char *workstation;
 
     struct ntlm_ctx *ntlm;

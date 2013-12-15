@@ -84,6 +84,27 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
     }
 
+    if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
+        if (req_flags & GSS_C_ANON_FLAG) {
+            retmaj = GSS_S_UNAVAILABLE;
+            goto done;
+        } else {
+            retmaj = gssntlm_acquire_cred(&retmin,
+                                           NULL, time_req,
+                                           NULL, GSS_C_INITIATE,
+                                           (gss_cred_id_t *)&cred,
+                                           NULL, time_rec);
+            if (retmaj) goto done;
+        }
+    } else {
+        cred = (struct gssntlm_cred *)claimant_cred_handle;
+        if (cred->type != GSSNTLM_CRED_USER) {
+            retmin = EINVAL;
+            retmaj = GSS_S_CRED_UNAVAIL;
+            goto done;
+        }
+    }
+
     ctx = (struct gssntlm_ctx *)(*context_handle);
 
     if (ctx == NULL) {
@@ -96,35 +117,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
-            if (req_flags & GSS_C_ANON_FLAG) {
-                ctx->cred.type = GSSNTLM_CRED_ANON;
-                ctx->cred.cred.anon.dummy = 1;
-            } else {
-                retmaj = gssntlm_acquire_cred(&retmin,
-                                               NULL, time_req,
-                                               NULL, GSS_C_INITIATE,
-                                               (gss_cred_id_t *)&cred,
-                                               NULL, time_rec);
-                if (retmaj) goto done;
-            }
-        } else {
-            cred = (struct gssntlm_cred *)claimant_cred_handle;
-            if ((cred->type != GSSNTLM_CRED_ANON)
-                && (cred->type != GSSNTLM_CRED_USER)) {
-                retmin = EINVAL;
-                retmaj = GSS_S_BAD_NAMETYPE;
-                goto done;
-            }
-        }
-
-        retmin = gssntlm_copy_creds(cred, &ctx->cred);
-        if (retmin != 0) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
-        retmin = gssntlm_copy_name(&ctx->cred.cred.user.user,
+        retmin = gssntlm_copy_name(&cred->cred.user.user,
                                    &ctx->source_name);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
@@ -178,10 +171,10 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                               NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
 
-        if (ctx->cred.type == GSSNTLM_CRED_USER &&
-                ctx->cred.cred.user.user.data.user.domain) {
+        if (cred->type == GSSNTLM_CRED_USER &&
+            cred->cred.user.user.data.user.domain) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED;
-            domain = ctx->cred.cred.user.user.data.user.domain;
+            domain = cred->cred.user.user.data.user.domain;
         }
         if (ctx->workstation) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
@@ -432,9 +425,9 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
 
             /* NTLMv2 Key */
-            retmin = NTOWFv2(ctx->ntlm, &ctx->cred.cred.user.nt_hash,
-                             ctx->cred.cred.user.user.data.user.name,
-                             ctx->cred.cred.user.user.data.user.domain,
+            retmin = NTOWFv2(ctx->ntlm, &cred->cred.user.nt_hash,
+                             cred->cred.user.user.data.user.name,
+                             cred->cred.user.user.data.user.domain,
                              &ntlmv2_key);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
@@ -493,7 +486,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
             ext_sec = (in_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
 
-            retmin = ntlm_compute_nt_response(&ctx->cred.cred.user.nt_hash,
+            retmin = ntlm_compute_nt_response(&cred->cred.user.nt_hash,
                                               ext_sec, server_chal,
                                               client_chal, &nt_response);
             if (retmin) {
@@ -504,7 +497,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             if (!ext_sec && NoLMResponseNTLMv1) {
                 memcpy(lm_response.data, nt_response.data, 24);
             } else {
-                retmin = ntlm_compute_lm_response(&ctx->cred.cred.user.lm_hash,
+                retmin = ntlm_compute_lm_response(&cred->cred.user.lm_hash,
                                                   ext_sec, server_chal,
                                                   client_chal, &lm_response);
                 if (retmin) {
@@ -513,7 +506,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 }
             }
 
-            retmin = ntlm_session_base_key(&ctx->cred.cred.user.nt_hash,
+            retmin = ntlm_session_base_key(&cred->cred.user.nt_hash,
                                            &session_base_key);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
@@ -523,7 +516,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             retmin = KXKEY(ctx->ntlm, ext_sec,
                            (in_flags & NTLMSSP_NEGOTIATE_LM_KEY),
                            (in_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY),
-                           server_chal, &ctx->cred.cred.user.lm_hash,
+                           server_chal, &cred->cred.user.lm_hash,
                            &session_base_key, &lm_response, &key_exchange_key);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
@@ -574,8 +567,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         retmin = ntlm_encode_auth_msg(ctx->ntlm, ctx->neg_flags,
                                       &lm_chal_resp,  &nt_chal_resp,
-                                      ctx->cred.cred.user.user.data.user.domain,
-                                      ctx->cred.cred.user.user.data.user.name,
+                                      cred->cred.user.user.data.user.domain,
+                                      cred->cred.user.user.data.user.name,
                                       ctx->workstation, &enc_sess_key, NULL,
                                       &ctx->auth_msg);
         if (retmin) {
@@ -609,7 +602,7 @@ done:
     }
     *context_handle = (gss_ctx_id_t)ctx;
     if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
-        /* we copy creds around, so always free if not passed in */
+        /* do not leak it, if not passed in */
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     }
     safefree(trgt_name);
@@ -633,9 +626,6 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     if (*context_handle == NULL) return GSS_S_NO_CONTEXT;
 
     ctx = (struct gssntlm_ctx *)*context_handle;
-
-    gssntlm_int_release_cred(&ctx->cred);
-    ctx->cred.type = GSSNTLM_CRED_NONE;
 
     ret = ntlm_free_ctx(&ctx->ntlm);
 
@@ -736,6 +726,22 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     if (time_rec) *time_rec = 0;
     if (delegated_cred_handle) *delegated_cred_handle = GSS_C_NO_CREDENTIAL;
 
+    if (acceptor_cred_handle) {
+        cred = (struct gssntlm_cred *)acceptor_cred_handle;
+        if (cred->type != GSSNTLM_CRED_SERVER) {
+            retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+            goto done;
+        }
+        if (cred->cred.server.name.type != GSSNTLM_NAME_SERVER) {
+            retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+            goto done;
+        }
+        retmaj = gssntlm_duplicate_name(&retmin,
+                                (const gss_name_t)&cred->cred.server.name,
+                                (gss_name_t *)&server_name);
+        if (retmaj) goto done;
+    }
+
     if (*context_handle == GSS_C_NO_CONTEXT) {
 
         /* first call */
@@ -750,23 +756,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
          * server, including setting up callbacks to perform validation
          * against a remote DC */
         ctx->role = GSSNTLM_SERVER;
-
-        if (acceptor_cred_handle) {
-            cred = (struct gssntlm_cred *)acceptor_cred_handle;
-            if (cred->type != GSSNTLM_CRED_SERVER) {
-                retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
-                goto done;
-            }
-            if (cred->cred.server.name.type != GSSNTLM_NAME_SERVER) {
-                retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
-                goto done;
-            }
-            /* FIXME: duplicate */
-            retmaj = gssntlm_duplicate_name(&retmin,
-                                    (const gss_name_t)&cred->cred.server.name,
-                                    (gss_name_t *)&server_name);
-            if (retmaj) goto done;
-        }
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
