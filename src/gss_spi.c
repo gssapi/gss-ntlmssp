@@ -328,3 +328,21 @@ OM_uint32 gss_inquire_cred_by_mech(OM_uint32 *minor_status,
                                         acceptor_lifetime,
                                         cred_usage);
 }
+
+OM_uint32 gss_export_sec_context(OM_uint32 *minor_status,
+                                 gss_ctx_id_t *context_handle,
+                                 gss_buffer_t interprocess_token)
+{
+    return gssntlm_export_sec_context(minor_status,
+                                      context_handle,
+                                      interprocess_token);
+}
+
+OM_uint32 gss_import_sec_context(OM_uint32 *minor_status,
+                                 gss_buffer_t interprocess_token,
+                                 gss_ctx_id_t *context_handle)
+{
+    return gssntlm_import_sec_context(minor_status,
+                                      interprocess_token,
+                                      context_handle);
+}

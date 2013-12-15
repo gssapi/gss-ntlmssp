@@ -317,4 +317,12 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
                                       uint32_t *initiator_lifetime,
                                       uint32_t *acceptor_lifetime,
                                       gss_cred_usage_t *cred_usage);
+
+uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
+                                    gss_ctx_id_t *context_handle,
+                                    gss_buffer_t interprocess_token);
+
+uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
+                                    gss_buffer_t interprocess_token,
+                                    gss_ctx_id_t *context_handle);
 #endif /* _GSS_NTLMSSP_H_ */

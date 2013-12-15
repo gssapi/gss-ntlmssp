@@ -644,7 +644,7 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     RC4_FREE(&ctx->send.seal_handle);
     RC4_FREE(&ctx->recv.seal_handle);
 
-    safezero(*context_handle, sizeof(struct gssntlm_ctx));
+    safezero((uint8_t *)ctx, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
 
     if (ret) {
