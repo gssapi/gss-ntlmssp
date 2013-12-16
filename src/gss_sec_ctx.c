@@ -627,6 +627,8 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
 
     ctx = (struct gssntlm_ctx *)*context_handle;
 
+    safefree(ctx->workstation);
+
     ret = ntlm_free_ctx(&ctx->ntlm);
 
     safefree(ctx->nego_msg.data);
@@ -639,6 +641,10 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     gssntlm_int_release_name(&ctx->source_name);
     gssntlm_int_release_name(&ctx->target_name);
 
+    RC4_FREE(&ctx->send.seal_handle);
+    RC4_FREE(&ctx->recv.seal_handle);
+
+    safezero(*context_handle, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
 
     if (ret) {
