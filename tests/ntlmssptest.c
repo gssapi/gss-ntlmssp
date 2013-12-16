@@ -1115,6 +1115,7 @@ int test_gssapi_1(bool user_env_file)
     uint32_t retmin, retmaj;
     char *msg = "Sample, signature checking, message.";
     gss_buffer_desc message = { strlen(msg), msg };
+    gss_buffer_desc ctx_token;
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
@@ -1219,6 +1220,23 @@ int test_gssapi_1(bool user_env_file)
 
     gss_release_buffer(&retmin, &cli_token);
 
+    /* test importing and exporting context before it is fully estabished */
+    retmaj = gssntlm_export_sec_context(&retmin, &srv_ctx, &ctx_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_export_sec_context 1 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+    retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &srv_ctx);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_import_sec_context 1 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+    gss_release_buffer(&retmin, &ctx_token);
+
     retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
                                       gss_srvname, GSS_C_NO_OID,
                                       GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
@@ -1247,6 +1265,23 @@ int test_gssapi_1(bool user_env_file)
 
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
+
+    /* test importing and exporting context after it is fully estabished */
+    retmaj = gssntlm_export_sec_context(&retmin, &cli_ctx, &ctx_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_export_sec_context 2 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+    retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &cli_ctx);
+    if (retmaj != GSS_S_COMPLETE) {
+        fprintf(stderr, "gssntlm_import_sec_context 2 failed! (%d/%d, %s)",
+                        retmaj, retmin, strerror(retmin));
+        ret = EINVAL;
+        goto done;
+    }
+    gss_release_buffer(&retmin, &ctx_token);
 
     retmaj = gssntlm_get_mic(&retmin, cli_ctx, 0, &message, &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
