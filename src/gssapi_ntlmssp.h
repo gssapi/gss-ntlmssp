@@ -47,6 +47,10 @@ extern "C" {
 #define GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x01"
 #define GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
+#define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
+#define GSS_NTLMSSP_CS_NTHASH "ntlmssp_nthash"
+#define GSS_NTLMSSP_CS_PASSWORD "ntlmssp_password"
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

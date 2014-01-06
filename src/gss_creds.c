@@ -140,9 +140,6 @@ static int hex_to_key(const char *hex, struct ntlm_key *key)
     return 0;
 }
 
-#define NTLM_CS_DOMAIN "ntlmssp_domain"
-#define NTLM_CS_NTHASH "ntlmssp_nthash"
-#define NTLM_CS_PASSWORD "ntlmssp_password"
 #define GENERIC_CS_PASSWORD "password"
 /* To support in future, RC4 Key is NT hash */
 #define KRB5_CS_CLI_KEYTAB_URN "client_keytab"
@@ -182,21 +179,21 @@ static int get_creds_from_store(struct gssntlm_name *name,
     if (cred->type != GSSNTLM_CRED_USER) return 0;
 
     for (i = 0; i < cred_store->count; i++) {
-        if (strcmp(cred_store->elements[i].key, NTLM_CS_DOMAIN) == 0) {
+        if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_DOMAIN) == 0) {
             /* ignore duplicates */
             if (cred->cred.user.user.data.user.domain) continue;
             cred->cred.user.user.data.user.domain =
                                     strdup(cred_store->elements[i].value);
             if (!cred->cred.user.user.data.user.domain) return ENOMEM;
         }
-        if (strcmp(cred_store->elements[i].key, NTLM_CS_NTHASH) == 0) {
+        if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_NTHASH) == 0) {
             /* ignore duplicates */
             if (cred->cred.user.nt_hash.length) continue;
             ret = hex_to_key(cred_store->elements[i].value,
                              &cred->cred.user.nt_hash);
             if (ret) return ret;
         }
-        if ((strcmp(cred_store->elements[i].key, NTLM_CS_PASSWORD) == 0) ||
+        if ((strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_PASSWORD) == 0) ||
             (strcmp(cred_store->elements[i].key, GENERIC_CS_PASSWORD) == 0)) {
             if (cred->cred.user.nt_hash.length) continue;
             cred->cred.user.nt_hash.length = 16;
