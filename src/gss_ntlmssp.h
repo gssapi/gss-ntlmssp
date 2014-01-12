@@ -326,4 +326,12 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
 uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
                                     gss_buffer_t interprocess_token,
                                     gss_ctx_id_t *context_handle);
+
+uint32_t gssntlm_export_cred(uint32_t *minor_status,
+                             gss_cred_id_t cred_handle,
+                             gss_buffer_t token);
+
+uint32_t gssntlm_import_cred(uint32_t *minor_status,
+                             gss_buffer_t token,
+                             gss_cred_id_t *cred_handle);
 #endif /* _GSS_NTLMSSP_H_ */

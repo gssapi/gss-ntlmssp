@@ -346,3 +346,17 @@ OM_uint32 gss_import_sec_context(OM_uint32 *minor_status,
                                       interprocess_token,
                                       context_handle);
 }
+
+OM_uint32 gss_export_cred(OM_uint32 *minor_status,
+                          gss_cred_id_t cred_handle,
+                          gss_buffer_t token)
+{
+    return gssntlm_export_cred(minor_status, cred_handle, token);
+}
+
+OM_uint32 gss_import_cred(OM_uint32 *minor_status,
+                          gss_buffer_t token,
+                          gss_cred_id_t *cred_handle)
+{
+    return gssntlm_import_cred(minor_status, token, cred_handle);
+}

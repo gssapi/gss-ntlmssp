@@ -723,3 +723,197 @@ done:
     }
     return maj;
 }
+
+#pragma pack(push, 1)
+struct export_cred {
+    uint16_t version;    /* 0x00 0x01 */
+    uint16_t type;
+
+    struct export_name name;    /* user or server name */
+    struct relmem nt_hash;      /* empty for dummy or server */
+    struct relmem lm_hash;      /* empty for dummy or server */
+
+    uint8_t data[];
+};
+#pragma pack(pop)
+
+#define EXP_CRED_NONE 0
+#define EXP_CRED_ANON 1
+#define EXP_CRED_USER 2
+#define EXP_CRED_SERVER 3
+
+uint32_t gssntlm_export_cred(uint32_t *minor_status,
+                             gss_cred_id_t cred_handle,
+                             gss_buffer_t token)
+{
+    struct gssntlm_cred *cred;
+    struct export_state state;
+    struct export_cred *ecred;
+    int ret;
+
+    if (token == NULL || minor_status == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
+    *minor_status = 0;
+
+    cred = (struct gssntlm_cred *)cred_handle;
+    if (cred_handle == NULL) {
+        return GSS_S_NO_CRED;
+    }
+
+    state.exp_size = NEW_SIZE(0, sizeof(struct export_cred));
+    state.exp_struct = calloc(1, state.exp_size);
+    if (!state.exp_struct) {
+        *minor_status = ENOMEM;
+        return GSS_S_FAILURE;
+    }
+    ecred = (struct export_cred *)state.exp_struct;
+    state.exp_data = (void *)ecred->data - (void *)ecred;
+    state.exp_len = state.exp_data;
+    state.exp_ptr = 0;
+
+    ecred->version = htole16(1);
+
+    switch (cred->type) {
+    case GSSNTLM_CRED_NONE:
+        ecred->type = EXP_CRED_NONE;
+        break;
+    case GSSNTLM_CRED_ANON:
+        ecred->type = EXP_CRED_ANON;
+        break;
+    case GSSNTLM_CRED_USER:
+        ecred->type = EXP_CRED_USER;
+
+        ret = export_name(&state, &cred->cred.user.user, &ecred->name);
+        if (ret) goto done;
+
+        ret = export_data_buffer(&state,
+                                 cred->cred.user.nt_hash.data,
+                                 cred->cred.user.nt_hash.length,
+                                 &ecred->nt_hash);
+        if (ret) goto done;
+
+        ret = export_data_buffer(&state,
+                                 cred->cred.user.lm_hash.data,
+                                 cred->cred.user.lm_hash.length,
+                                 &ecred->lm_hash);
+        if (ret) goto done;
+        break;
+    case GSSNTLM_CRED_SERVER:
+        ecred->type = EXP_CRED_SERVER;
+
+        ret = export_name(&state, &cred->cred.server.name, &ecred->name);
+        if (ret) goto done;
+        break;
+    }
+
+    ret = 0;
+
+done:
+    if (ret) {
+        *minor_status = ret;
+        free(state.exp_struct);
+        return GSS_S_FAILURE;
+    } else {
+        token->value = state.exp_struct;
+        token->length = state.exp_len;
+        return GSS_S_COMPLETE;
+    }
+}
+
+uint32_t gssntlm_import_cred(uint32_t *minor_status,
+                             gss_buffer_t token,
+                             gss_cred_id_t *cred_handle)
+{
+    struct gssntlm_cred *cred;
+    struct export_state state;
+    struct export_cred *ecred;
+    uint32_t maj;
+
+    if (minor_status == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+    *minor_status = 0;
+
+    if (token == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    if (token->length < sizeof(struct export_cred)) {
+        return GSS_S_DEFECTIVE_TOKEN;
+    }
+
+    if (cred_handle == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
+    cred = calloc(1, sizeof(struct gssntlm_cred));
+    if (!cred) {
+        *minor_status = ENOMEM;
+        return GSS_S_FAILURE;
+    }
+
+    state.exp_struct = token->value;
+    state.exp_len = token->length;
+    ecred = (struct export_cred *)state.exp_struct;
+    state.exp_data = (void *)ecred->data - (void *)ecred;
+    state.exp_ptr = 0;
+
+    if (ecred->version != le16toh(1)) {
+        maj = GSS_S_DEFECTIVE_TOKEN;
+        goto done;
+    }
+
+    switch (ecred->type) {
+    case EXP_CRED_NONE:
+        cred->type = GSSNTLM_CRED_NONE;
+        break;
+    case EXP_CRED_ANON:
+        cred->type = GSSNTLM_CRED_ANON;
+        break;
+    case EXP_CRED_USER:
+        cred->type = GSSNTLM_CRED_USER;
+        maj = import_name(minor_status, &state, &ecred->name,
+                          &cred->cred.user.user);
+        if (maj != GSS_S_COMPLETE) goto done;
+
+        if (ecred->nt_hash.len > 16 || ecred->lm_hash.len > 16) {
+            maj = GSS_S_DEFECTIVE_TOKEN;
+            goto done;
+        }
+
+        maj = import_data_buffer(minor_status, &state,
+                                 (uint8_t **)&cred->cred.user.nt_hash.data,
+                                 &cred->cred.user.nt_hash.length,
+                                 false, &ecred->nt_hash, false);
+        if (maj != GSS_S_COMPLETE) goto done;
+
+        maj = import_data_buffer(minor_status, &state,
+                                 (uint8_t **)&cred->cred.user.lm_hash.data,
+                                 &cred->cred.user.lm_hash.length,
+                                 false, &ecred->lm_hash, false);
+        if (maj != GSS_S_COMPLETE) goto done;
+        break;
+    case EXP_CRED_SERVER:
+        cred->type = GSSNTLM_CRED_SERVER;
+        maj = import_name(minor_status, &state, &ecred->name,
+                          &cred->cred.server.name);
+        if (maj != GSS_S_COMPLETE) goto done;
+        break;
+    default:
+        maj = GSS_S_DEFECTIVE_TOKEN;
+        break;
+    }
+
+    maj = GSS_S_COMPLETE;
+
+done:
+    if (maj == GSS_S_COMPLETE) {
+        *cred_handle = (gss_cred_id_t)cred;
+    } else {
+        uint32_t min;
+        gssntlm_release_cred(&min, (gss_cred_id_t *)&cred);
+    }
+    return maj;
+}
