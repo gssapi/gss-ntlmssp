@@ -63,6 +63,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     uint8_t sec_req;
     bool key_exch;
 
+    ctx = (struct gssntlm_ctx *)(*context_handle);
+
     /* reset return values */
     *minor_status = 0;
     if (actual_mech_type) *actual_mech_type = NULL;
@@ -104,8 +106,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
     }
-
-    ctx = (struct gssntlm_ctx *)(*context_handle);
 
     if (ctx == NULL) {
 

@@ -193,12 +193,17 @@ int ntlm_free_ctx(struct ntlm_ctx **ctx)
 
     if (!ctx || !*ctx) return 0;
 
-    ret = iconv_close((*ctx)->from_oem);
-    if (ret) ret = errno;
+    if ((*ctx)->from_oem) {
+        ret = iconv_close((*ctx)->from_oem);
+        if (ret) goto done;
+    }
 
-    ret = iconv_close((*ctx)->to_oem);
-    if (ret) ret = errno;
+    if ((*ctx)->to_oem) {
+        ret = iconv_close((*ctx)->to_oem);
+    }
 
+done:
+    if (ret) ret = errno;
     safefree(*ctx);
     return ret;
 }
