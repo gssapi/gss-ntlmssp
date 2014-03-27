@@ -839,3 +839,30 @@ int ntlm_verify_mic(struct ntlm_key *key,
 
     return 0;
 }
+
+int ntlm_hash_channel_bindings(struct ntlm_buffer *unhashed,
+                               struct ntlm_buffer *signature)
+{
+    struct ntlm_buffer input;
+    uint32_t ulen;
+    int ret;
+
+    /* The channel bindings are calculated according to RFC4121, 4.1.1.2,
+     * with a all initiator and acceptor fields zeroed, so we need 4 zeroed
+     * 32bit fields, and one little endian length field to include in the
+     * MD5 calculation */
+    input.length = sizeof(uint32_t) * 5 + unhashed->length;
+    input.data = malloc(input.length);
+    if (!input.data) return EINVAL;
+
+    memset(input.data, 0, sizeof(uint32_t) * 4);
+    ulen = unhashed->length;
+    ulen = htole32(ulen);
+    memcpy(&input.data[sizeof(uint32_t) * 4], &ulen, sizeof(uint32_t));
+    memcpy(&input.data[sizeof(uint32_t) * 5], unhashed->data, unhashed->length);
+
+    ret = MD5_HASH(&input, signature);
+
+    safefree(input.data);
+    return ret;
+}

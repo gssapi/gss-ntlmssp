@@ -450,6 +450,18 @@ int ntlm_verify_mic(struct ntlm_key *key,
                     struct ntlm_buffer *authenticate_message,
                     struct ntlm_buffer *mic);
 
+/**
+ * @brief   NTLM hash client channel binding unhashed data
+ *
+ * @param unhashed      The unhashed channel bindings data
+ * @param signature     The MD5 signature
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_hash_channel_bindings(struct ntlm_buffer *unhashed,
+                               struct ntlm_buffer *signature);
+
+
 /* ############## ENCODING / DECODING ############## */
 
 /**
