@@ -766,6 +766,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     uint32_t in_flags;
     uint32_t msg_type;
     uint32_t av_flags = 0;
+    struct ntlm_buffer unhashed_cb = { 0 };
+    struct ntlm_buffer av_cb = { 0 };
     uint8_t sec_req;
     char *p;
 
@@ -1028,7 +1030,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             retmin = ntlm_decode_target_info(ctx->ntlm, &target_info,
                                              NULL, NULL, NULL, NULL,
                                              NULL, NULL, &av_flags,
-                                             NULL, NULL, NULL);
+                                             NULL, NULL, &av_cb);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
@@ -1196,6 +1198,27 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             retmin = ntlm_verify_mic(&ctx->exported_session_key,
                                      &ctx->nego_msg, &ctx->chal_msg,
                                      &ctx->auth_msg, &mic);
+            if (retmin) {
+                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                goto done;
+            }
+        }
+
+        if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
+            if (input_chan_bindings->initiator_addrtype != 0 ||
+                input_chan_bindings->initiator_address.length != 0 ||
+                input_chan_bindings->acceptor_addrtype != 0 ||
+                input_chan_bindings->acceptor_address.length != 0 ||
+                input_chan_bindings->application_data.length == 0) {
+                retmin = EINVAL;
+                retmaj = GSS_S_BAD_BINDINGS;
+                goto done;
+            }
+            unhashed_cb.length = input_chan_bindings->application_data.length;
+            unhashed_cb.data = input_chan_bindings->application_data.value;
+
+            /* TODO: optionally allow to ignore CBT if av_cb is null ? */
+            retmin = ntlm_verify_channel_bindings(&unhashed_cb, &av_cb);
             if (retmin) {
                 retmaj = GSS_S_DEFECTIVE_TOKEN;
                 goto done;
