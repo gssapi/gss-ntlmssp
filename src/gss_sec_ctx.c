@@ -49,7 +49,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     uint8_t server_chal[8];
     struct ntlm_buffer challenge = { server_chal, 8 };
     struct ntlm_buffer target_info = { 0 };
-    char *trginfo_name = NULL;
+    struct ntlm_buffer client_target_info = { 0 };
+    const char *server_name = NULL;
     uint64_t srv_time = 0;
     struct ntlm_buffer nt_chal_resp = { 0 };
     struct ntlm_buffer lm_chal_resp = { 0 };
@@ -62,6 +63,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     uint32_t retmaj = 0;
     uint8_t sec_req;
     bool key_exch;
+    bool add_mic = false;
 
     ctx = (struct gssntlm_ctx *)(*context_handle);
 
@@ -380,47 +382,39 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             struct ntlm_key ntlmv2_key = { .length = 16 };
             struct ntlm_buffer nt_proof = { 0 };
 
-            if (target_info.length == 0) {
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+            if (target_info.length == 0 &&
+                input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
+                retmaj = GSS_S_UNAVAILABLE;
                 goto done;
             }
 
-            /* TODO: check that returned netbios/dns names match ? */
-            /* TODO: support SingleHost and ChannelBindings buffers */
-            /* NOTE: target_info should be re-encoded in the client to
-             * augment it with correct client av_flags, but we skip that
-             * for now, this means we never set the MIC flag either */
-            retmin = ntlm_decode_target_info(ctx->ntlm, &target_info,
-                                             NULL, NULL, NULL, NULL, NULL,
-                                             &trginfo_name, NULL,
-                                             &srv_time, NULL, NULL);
-            if (retmin) {
-                if (retmin == ERR_DECODE) {
-                    retmaj = GSS_S_DEFECTIVE_TOKEN;
-                } else {
-                    retmaj = GSS_S_FAILURE;
-                }
-                goto done;
+            if (server) {
+                server_name = server->data.server.name;
             }
 
-            if (server && trginfo_name) {
-                if (strcasecmp(server->data.server.name, trginfo_name) != 0) {
-                    retmin = EINVAL;
-                    retmaj = GSS_S_FAILURE;
+            if (target_info.length > 0) {
+                retmin = ntlm_process_target_info(ctx->ntlm,
+                                                  &target_info,
+                                                  server_name,
+                                                  &client_target_info,
+                                                  &srv_time, &add_mic);
+                if (retmin) {
+                    if (retmin == ERR_DECODE) {
+                        retmaj = GSS_S_DEFECTIVE_TOKEN;
+                    } else {
+                        retmaj = GSS_S_FAILURE;
+                    }
                     goto done;
                 }
-            }
 
-            /* the server did not send the timestamp, use current time */
-            if (srv_time == 0) {
-                srv_time = ntlm_timestamp_now();
-            } else {
-                long int tdiff;
-                tdiff = ntlm_timestamp_now() - srv_time;
-                if ((tdiff / 10000000) > MAX_CHALRESP_LIFETIME) {
-                    retmin = EINVAL;
-                    retmaj = GSS_S_CONTEXT_EXPIRED;
-                    goto done;
+                if (srv_time != 0) {
+                    long int tdiff;
+                    tdiff = ntlm_timestamp_now() - srv_time;
+                    if ((tdiff / 10000000) > MAX_CHALRESP_LIFETIME) {
+                        retmin = EINVAL;
+                        retmaj = GSS_S_CONTEXT_EXPIRED;
+                        goto done;
+                    }
                 }
             }
 
@@ -444,7 +438,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             /* NTLMv2 Response */
             retmin = ntlmv2_compute_nt_response(&ntlmv2_key,
                                                 server_chal, client_chal,
-                                                srv_time, &target_info,
+                                                srv_time, &client_target_info,
                                                 &nt_chal_resp);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
@@ -627,7 +621,7 @@ done:
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     }
     safefree(trgt_name);
-    safefree(trginfo_name);
+    ntlm_free_buffer_data(&client_target_info);
     ntlm_free_buffer_data(&target_info);
     ntlm_free_buffer_data(&nt_chal_resp);
     ntlm_free_buffer_data(&lm_chal_resp);
