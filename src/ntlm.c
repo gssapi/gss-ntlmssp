@@ -1231,7 +1231,10 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
 
     /* this must be second as it pushes the payload further down */
     if (mic) {
-        memcpy(&buffer.data[data_offs], mic->data, mic->length);
+        memset(&buffer.data[data_offs], 0, mic->length);
+        /* return the actual pointer back in the mic, as it will
+         * be backfilled later by the caller */
+        mic->data = &buffer.data[data_offs];
         data_offs += mic->length;
     }
 

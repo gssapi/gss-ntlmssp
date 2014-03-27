@@ -57,6 +57,9 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     struct ntlm_buffer enc_sess_key = { 0 };
     struct ntlm_key encrypted_random_session_key = { .length = 16 };
     struct ntlm_key key_exchange_key = { .length = 16 };
+    struct ntlm_buffer auth_mic = { NULL, 16 };
+    uint8_t micbuf[16];
+    struct ntlm_buffer mic = { micbuf, 16 };
     int lm_compat_lvl;
     uint32_t tmpmin;
     uint32_t retmin = 0;
@@ -562,8 +565,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
         }
 
-        /* TODO: Compute MIC if necessary */
-
         /* in_flags all verified, assign as current flags */
         ctx->neg_flags |= in_flags;
 
@@ -581,11 +582,27 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                                       &lm_chal_resp,  &nt_chal_resp,
                                       cred->cred.user.user.data.user.domain,
                                       cred->cred.user.user.data.user.name,
-                                      ctx->workstation, &enc_sess_key, NULL,
+                                      ctx->workstation, &enc_sess_key,
+                                      add_mic ? &auth_mic : NULL,
                                       &ctx->auth_msg);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
             goto done;
+        }
+
+        /* Now we need to calculate the MIC, because the MIC is part of the
+         * message it protects, ntlm_encode_auth_msg() always add a zeroeth
+         * buffer, however it returns in data_mic the pointer to the actual
+         * area in the auth_msg that points at the mic, so we can backfill */
+        if (add_mic) {
+            retmin = ntlm_mic(&ctx->exported_session_key, &ctx->nego_msg,
+                              &ctx->chal_msg, &ctx->auth_msg, &mic);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+            /* now that we have the mic, copy it into the auth message */
+            memcpy(auth_mic.data, mic.data, 16);
         }
 
         ctx->stage = NTLMSSP_STAGE_DONE;
