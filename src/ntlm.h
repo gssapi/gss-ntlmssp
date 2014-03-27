@@ -413,6 +413,23 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
                 struct ntlm_buffer *message, struct ntlm_buffer *output,
                 struct ntlm_buffer *signature);
 
+/**
+ * @brief   Creates a NTLM MIC
+ *
+ * @param exported_session_key      The Exported Session Key
+ * @param negotiate_message         The NTLM Negotiate Message (or empty)
+ * @param challenge_message         The NTLM Challenge Message
+ * @param authenticate_message      The NTLM Authenticate Message
+ * @param mic                       Preallocated byffer of 16 bytes
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_mic(struct ntlm_key *exported_session_key,
+             struct ntlm_buffer *negotiate_message,
+             struct ntlm_buffer *challenge_message,
+             struct ntlm_buffer *authenticate_message,
+             struct ntlm_buffer *mic);
+
 /* ############## ENCODING / DECODING ############## */
 
 /**

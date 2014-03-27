@@ -805,3 +805,28 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
                       (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
                       output, signature);
 }
+
+int ntlm_mic(struct ntlm_key *exported_session_key,
+             struct ntlm_buffer *negotiate_message,
+             struct ntlm_buffer *challenge_message,
+             struct ntlm_buffer *authenticate_message,
+             struct ntlm_buffer *mic)
+{
+    struct ntlm_buffer key = { exported_session_key->data,
+                               exported_session_key->length };
+    struct ntlm_buffer *data[3] = { negotiate_message,
+                                    challenge_message,
+                                    authenticate_message };
+    struct ntlm_iov iov;
+
+    if (negotiate_message->length == 0) {
+        /* connectionless case */
+        iov.data = &data[1];
+        iov.num = 2;
+    } else {
+        iov.data = data;
+        iov.num = 3;
+    }
+
+    return HMAC_MD5_IOV(&key, &iov, mic);
+}
