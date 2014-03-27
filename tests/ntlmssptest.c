@@ -21,6 +21,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include "config.h"
 
@@ -324,6 +326,195 @@ struct {
         0xc5, 0xda, 0xd2, 0x54, 0x4f, 0xc9, 0x79, 0x90,
         0x94, 0xce, 0x1c, 0xe9, 0x0b, 0xc9, 0xd0, 0x3e
     }
+};
+
+/* NTLMv2 Auth with Channel Bindings Test Data */
+struct {
+    uint32_t ChallengeFlags;
+    const char *User;
+    const char *Password;
+    const char *Domain;
+    const char *Workstation;
+    const char *Server;
+    const char *DnsDomain;
+    const char *DnsServer;
+    const char *Forest;
+    uint64_t ServerTime;
+    uint8_t ServerChallenge[8];
+    struct ntlm_key NTLMHash;
+    uint8_t TargetInfo[0xb6];
+    uint8_t ChallengeMessage[0xfe];
+    uint8_t AuthenticateMessage[0x228];
+    uint8_t MIC[16];
+    uint8_t CBSum[16];
+} T_NTLMv2_CBT = {
+    (
+      NTLMSSP_NEGOTIATE_56 |
+      NTLMSSP_NEGOTIATE_128 |
+      NTLMSSP_NEGOTIATE_VERSION |
+      NTLMSSP_NEGOTIATE_TARGET_INFO |
+      NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY |
+      NTLMSSP_TARGET_TYPE_DOMAIN |
+      NTLMSSP_NEGOTIATE_ALWAYS_SIGN |
+      NTLMSSP_NEGOTIATE_NTLM |
+      NTLMSSP_REQUEST_TARGET |
+      NTLMSSP_NEGOTIATE_UNICODE
+    ),
+    "Administrator",
+    "P@ssw0rd",
+    "WS2008R2",
+    "WIN7-2-PC",
+    "DC-WS2008R2",
+    "ws2008r2.local",
+    "DC-ws2008r2.ws2008r2.local",
+    "ws2008r2.local",
+    0x01cdde0bc33fe77b,
+    { 0xa2, 0xc5, 0xe8, 0xca, 0x30, 0x84, 0xaa, 0x72 },
+    {
+      .data = {
+        0xe1, 0x9c, 0xcf, 0x75, 0xee, 0x54, 0xe0, 0x6b,
+        0x06, 0xa5, 0x90, 0x7a, 0xf1, 0x3c, 0xef, 0x42
+      },
+      .length = 16
+    },
+    {
+        0x02, 0x00, 0x10, 0x00, 0x57, 0x00, 0x53, 0x00,
+        0x32, 0x00, 0x30, 0x00, 0x30, 0x00, 0x38, 0x00,
+        0x52, 0x00, 0x32, 0x00, 0x01, 0x00, 0x16, 0x00,
+        0x44, 0x00, 0x43, 0x00, 0x2d, 0x00, 0x57, 0x00,
+        0x53, 0x00, 0x32, 0x00, 0x30, 0x00, 0x30, 0x00,
+        0x38, 0x00, 0x52, 0x00, 0x32, 0x00, 0x04, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x03, 0x00,
+        0x34, 0x00, 0x44, 0x00, 0x43, 0x00, 0x2d, 0x00,
+        0x77, 0x00, 0x73, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x72, 0x00, 0x32, 0x00,
+        0x2e, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x05, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x07, 0x00,
+        0x08, 0x00, 0x7b, 0xe7, 0x3f, 0xc3, 0x0b, 0xde,
+        0xcd, 0x01, 0x00, 0x00, 0x00, 0x00
+    },
+    {
+        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00,
+        0x38, 0x00, 0x00, 0x00, 0x05, 0x82, 0x89, 0xa2,
+        0xa2, 0xc5, 0xe8, 0xca, 0x30, 0x84, 0xaa, 0x72,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xb6, 0x00, 0xb6, 0x00, 0x48, 0x00, 0x00, 0x00,
+        0x06, 0x01, 0xb0, 0x1d, 0x00, 0x00, 0x00, 0x0f,
+        0x57, 0x00, 0x53, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x52, 0x00, 0x32, 0x00,
+        0x02, 0x00, 0x10, 0x00, 0x57, 0x00, 0x53, 0x00,
+        0x32, 0x00, 0x30, 0x00, 0x30, 0x00, 0x38, 0x00,
+        0x52, 0x00, 0x32, 0x00, 0x01, 0x00, 0x16, 0x00,
+        0x44, 0x00, 0x43, 0x00, 0x2d, 0x00, 0x57, 0x00,
+        0x53, 0x00, 0x32, 0x00, 0x30, 0x00, 0x30, 0x00,
+        0x38, 0x00, 0x52, 0x00, 0x32, 0x00, 0x04, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x03, 0x00,
+        0x34, 0x00, 0x44, 0x00, 0x43, 0x00, 0x2d, 0x00,
+        0x77, 0x00, 0x73, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x72, 0x00, 0x32, 0x00,
+        0x2e, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x05, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x07, 0x00,
+        0x08, 0x00, 0x7b, 0xe7, 0x3f, 0xc3, 0x0b, 0xde,
+        0xcd, 0x01, 0x00, 0x00, 0x00, 0x00
+    },
+    {
+        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
+        0x03, 0x00, 0x00, 0x00, 0x18, 0x00, 0x18, 0x00,
+        0x94, 0x00, 0x00, 0x00, 0x7c, 0x01, 0x7c, 0x01,
+        0xac, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00,
+        0x58, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x1a, 0x00,
+        0x68, 0x00, 0x00, 0x00, 0x12, 0x00, 0x12, 0x00,
+        0x82, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x28, 0x02, 0x00, 0x00, 0x05, 0x82, 0x88, 0xa2,
+        0x06, 0x01, 0xb0, 0x1d, 0x00, 0x00, 0x00, 0x0f,
+        0xf0, 0x54, 0xa5, 0x42, 0xb0, 0x90, 0xb6, 0x6c,
+        0x1f, 0xea, 0x1a, 0x2c, 0xc8, 0x2e, 0x93, 0x0b,
+        0x57, 0x00, 0x53, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x52, 0x00, 0x32, 0x00,
+        0x41, 0x00, 0x64, 0x00, 0x6d, 0x00, 0x69, 0x00,
+        0x6e, 0x00, 0x69, 0x00, 0x73, 0x00, 0x74, 0x00,
+        0x72, 0x00, 0x61, 0x00, 0x74, 0x00, 0x6f, 0x00,
+        0x72, 0x00, 0x57, 0x00, 0x49, 0x00, 0x4e, 0x00,
+        0x37, 0x00, 0x2d, 0x00, 0x32, 0x00, 0x2d, 0x00,
+        0x50, 0x00, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x5a, 0x6a, 0x21, 0xae,
+        0x1a, 0x44, 0xc0, 0x44, 0x69, 0x3e, 0xee, 0x59,
+        0xfc, 0x5d, 0x81, 0xe0, 0x01, 0x01, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x7b, 0xe7, 0x3f, 0xc3,
+        0x0b, 0xde, 0xcd, 0x01, 0x27, 0xfc, 0x11, 0x80,
+        0x82, 0xc2, 0xfb, 0xdd, 0x00, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x10, 0x00, 0x57, 0x00, 0x53, 0x00,
+        0x32, 0x00, 0x30, 0x00, 0x30, 0x00, 0x38, 0x00,
+        0x52, 0x00, 0x32, 0x00, 0x01, 0x00, 0x16, 0x00,
+        0x44, 0x00, 0x43, 0x00, 0x2d, 0x00, 0x57, 0x00,
+        0x53, 0x00, 0x32, 0x00, 0x30, 0x00, 0x30, 0x00,
+        0x38, 0x00, 0x52, 0x00, 0x32, 0x00, 0x04, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x03, 0x00,
+        0x34, 0x00, 0x44, 0x00, 0x43, 0x00, 0x2d, 0x00,
+        0x77, 0x00, 0x73, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x72, 0x00, 0x32, 0x00,
+        0x2e, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x05, 0x00,
+        0x1c, 0x00, 0x77, 0x00, 0x73, 0x00, 0x32, 0x00,
+        0x30, 0x00, 0x30, 0x00, 0x38, 0x00, 0x72, 0x00,
+        0x32, 0x00, 0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00,
+        0x63, 0x00, 0x61, 0x00, 0x6c, 0x00, 0x07, 0x00,
+        0x08, 0x00, 0x7b, 0xe7, 0x3f, 0xc3, 0x0b, 0xde,
+        0xcd, 0x01, 0x06, 0x00, 0x04, 0x00, 0x02, 0x00,
+        0x00, 0x00, 0x08, 0x00, 0x30, 0x00, 0x30, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+        0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x4d, 0x6b,
+        0x0d, 0x27, 0x54, 0x10, 0x22, 0xf5, 0xff, 0xa6,
+        0x73, 0xda, 0x2b, 0xfc, 0xfd, 0xf1, 0x94, 0x2f,
+        0x25, 0x7b, 0xe1, 0x1a, 0x49, 0xc9, 0x54, 0x19,
+        0x7a, 0xca, 0x8a, 0xaf, 0x2e, 0xaf, 0x0a, 0x00,
+        0x10, 0x00, 0x65, 0x86, 0xe9, 0x9d, 0x81, 0xc2,
+        0xfc, 0x98, 0x4e, 0x47, 0x17, 0x2f, 0xd4, 0xdd,
+        0x03, 0x10, 0x09, 0x00, 0x3e, 0x00, 0x48, 0x00,
+        0x54, 0x00, 0x54, 0x00, 0x50, 0x00, 0x2f, 0x00,
+        0x64, 0x00, 0x63, 0x00, 0x2d, 0x00, 0x77, 0x00,
+        0x73, 0x00, 0x32, 0x00, 0x30, 0x00, 0x30, 0x00,
+        0x38, 0x00, 0x72, 0x00, 0x32, 0x00, 0x2e, 0x00,
+        0x77, 0x00, 0x73, 0x00, 0x32, 0x00, 0x30, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x72, 0x00, 0x32, 0x00,
+        0x2e, 0x00, 0x6c, 0x00, 0x6f, 0x00, 0x63, 0x00,
+        0x61, 0x00, 0x6c, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    },
+    {
+        0xf0, 0x54, 0xa5, 0x42, 0xb0, 0x90, 0xb6, 0x6c,
+        0x1f, 0xea, 0x1a, 0x2c, 0xc8, 0x2e, 0x93, 0x0b
+    },
+    {
+        0x65, 0x86, 0xE9, 0x9D, 0x81, 0xC2, 0xFC, 0x98,
+        0x4E, 0x47, 0x17, 0x2F, 0xD4, 0xDD, 0x03, 0x10
+    },
 };
 
 struct t_gsswrapex_data {
@@ -989,6 +1180,214 @@ int test_EncodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
     return ret;
 }
 
+int test_DecodeChallengeMessageV2CBT(struct ntlm_ctx *ctx)
+
+{
+    struct ntlm_buffer chal_msg = { T_NTLMv2_CBT.ChallengeMessage,
+                                    sizeof(T_NTLMv2_CBT.ChallengeMessage) };
+    uint32_t type;
+    uint32_t flags;
+    char *target_name = NULL;
+    uint8_t chal[8];
+    struct ntlm_buffer challenge = { chal, 8 };
+    struct ntlm_buffer target_info = { 0 };
+    int ret;
+
+    ret = ntlm_decode_msg_type(ctx, &chal_msg, &type);
+    if (ret) return ret;
+    if (type != 2) return EINVAL;
+
+    ret = ntlm_decode_chal_msg(ctx, &chal_msg, &flags, &target_name,
+                               &challenge, &target_info);
+    if (ret) return ret;
+
+    if (flags != T_NTLMv2_CBT.ChallengeFlags) {
+        fprintf(stderr, "flags differ!\n");
+        fprintf(stderr, "expected 0x%x\n", T_NTLMv2_CBT.ChallengeFlags);
+        fprintf(stderr, "obtained 0x%x\n", flags);
+        ret = EINVAL;
+    }
+
+    if (strcmp(target_name, T_NTLMv2_CBT.Domain) != 0) {
+        fprintf(stderr, "Target Names differ!\n");
+        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Server);
+        fprintf(stderr, "obtained %s\n", target_name);
+        ret = EINVAL;
+    }
+
+    if (memcmp(chal, T_NTLMv2_CBT.ServerChallenge, 8) != 0) {
+        fprintf(stderr, "Challenges differ!\n");
+        fprintf(stderr, "expected %s\n",
+                        hex_to_str_8(T_NTLMv2_CBT.ServerChallenge));
+        fprintf(stderr, "obtained %s\n", hex_to_str_8(chal));
+        ret = EINVAL;
+    }
+
+    if ((target_info.length != sizeof(T_NTLMv2_CBT.TargetInfo)) ||
+        (memcmp(target_info.data, T_NTLMv2_CBT.TargetInfo,
+                                  sizeof(T_NTLMv2_CBT.TargetInfo)) != 0)) {
+        fprintf(stderr, "Target Infos differ!\n");
+        fprintf(stderr, "expected:\n%s",
+                        hex_to_dump(T_NTLMv2_CBT.TargetInfo,
+                                    sizeof(T_NTLMv2_CBT.TargetInfo)));
+        fprintf(stderr, "obtained:\n%s",
+                        hex_to_dump(target_info.data, target_info.length));
+        ret = EINVAL;
+    }
+
+    free(target_name);
+    free(target_info.data);
+    return ret;
+}
+
+int test_EncodeChallengeMessageV2CBT(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer challenge = { T_NTLMv2_CBT.ServerChallenge, 8 };
+    struct ntlm_buffer target_info = { T_NTLMv2_CBT.TargetInfo,
+                                       sizeof(T_NTLMv2_CBT.TargetInfo) };
+    struct ntlm_buffer message = { 0 };
+    int ret;
+
+    ret = ntlm_encode_chal_msg(ctx, T_NTLMv2_CBT.ChallengeFlags,
+                               T_NTLMv2_CBT.Domain, &challenge,
+                               &target_info, &message);
+    if (ret) return ret;
+
+    if ((message.length != sizeof(T_NTLMv2_CBT.ChallengeMessage)) ||
+        (memcmp(message.data, T_NTLMv2_CBT.ChallengeMessage,
+                              sizeof(T_NTLMv2_CBT.ChallengeMessage)) != 0)) {
+        fprintf(stderr, "Challenge Messages differ!\n");
+        fprintf(stderr, "expected:\n%s",
+                        hex_to_dump(T_NTLMv2_CBT.ChallengeMessage,
+                                    sizeof(T_NTLMv2_CBT.ChallengeMessage)));
+        fprintf(stderr, "obtained:\n%s",
+                        hex_to_dump(message.data, message.length));
+        ret = EINVAL;
+    }
+
+    free(message.data);
+    return ret;
+}
+
+int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer auth_msg = { T_NTLMv2_CBT.AuthenticateMessage,
+                                    sizeof(T_NTLMv2_CBT.AuthenticateMessage) };
+    uint32_t type;
+    struct ntlm_buffer lm_chalresp = { 0 };
+    struct ntlm_buffer nt_chalresp = { 0 };
+    char *dom = NULL;
+    char *usr = NULL;
+    char *wks = NULL;
+    struct ntlm_buffer enc_sess_key = { 0 };
+    uint8_t micdata[16];
+    struct ntlm_buffer mic = { micdata, 16 };
+    struct ntlm_key ntlmv2_key = { .length = 16 };
+    struct ntlm_buffer target_info = { 0 };
+    struct ntlm_buffer cb = { 0 };
+    int ret, c;
+
+    ret = ntlm_decode_msg_type(ctx, &auth_msg, &type);
+    if (ret) return ret;
+    if (type != 3) return EINVAL;
+
+    ret = ntlm_decode_auth_msg(ctx, &auth_msg, T_NTLMv2_CBT.ChallengeFlags,
+                               &lm_chalresp, &nt_chalresp,
+                               &dom, &usr, &wks,
+                               &enc_sess_key, &target_info, &mic);
+    if (ret) return ret;
+
+    for (c = 1; lm_chalresp.length > c; c++) {
+        lm_chalresp.data[0] |= lm_chalresp.data[c];
+    }
+    if ((lm_chalresp.length != 24) || (lm_chalresp.data[0] != 0)) {
+        fprintf(stderr, "LM Challenge too short[%zd] or not all zeros!\n",
+                        lm_chalresp.length);
+        ret = EINVAL;
+    }
+
+    if (strcmp(dom, T_NTLMv2_CBT.Domain) != 0) {
+        fprintf(stderr, "Domain Names differ!\n");
+        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Domain);
+        fprintf(stderr, "obtained %s\n", dom);
+        ret = EINVAL;
+    }
+
+    if (strcmp(usr, T_NTLMv2_CBT.User) != 0) {
+        fprintf(stderr, "User Names differ!\n");
+        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.User);
+        fprintf(stderr, "obtained %s\n", usr);
+        ret = EINVAL;
+    }
+
+    if (strcmp(wks, T_NTLMv2_CBT.Workstation) != 0) {
+        fprintf(stderr, "Workstation Names differ!\n");
+        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Workstation);
+        fprintf(stderr, "obtained %s\n", wks);
+        ret = EINVAL;
+    }
+
+    if (enc_sess_key.length != 0) {
+        fprintf(stderr, "Encrypted Random Session Key not null (%zd)!\n",
+                        enc_sess_key.length);
+        ret = EINVAL;
+    }
+
+    if ((mic.length != 16) ||
+        (memcmp(mic.data, T_NTLMv2_CBT.MIC, 16) != 0)) {
+
+        fprintf(stderr, "MIC differs!\n");
+        fprintf(stderr, "expected:\n%s",
+                        hex_to_dump(T_NTLMv2_CBT.MIC, 16));
+        fprintf(stderr, "obtained:\n%s",
+                        hex_to_dump(mic.data, mic.length));
+        ret = EINVAL;
+    }
+
+    ret = NTOWFv2(ctx, &T_NTLMv2_CBT.NTLMHash,
+                  T_NTLMv2_CBT.User, T_NTLMv2_CBT.Domain,
+                  &ntlmv2_key);
+    if (ret) {
+        fprintf(stderr, "NTLMv2 key generation failed!\n");
+        goto done;
+    }
+
+    ret = ntlmv2_verify_nt_response(&nt_chalresp, &ntlmv2_key,
+                                    T_NTLMv2_CBT.ServerChallenge);
+    if (ret) {
+        fprintf(stderr, "NTLMv2 Verification failed!\n");
+    }
+
+    ret = ntlm_decode_target_info(ctx, &target_info,
+                                  NULL, NULL, NULL, NULL,
+                                  NULL, NULL, NULL, NULL,
+                                  NULL, &cb);
+    if (ret) {
+        fprintf(stderr, "NTLMv2 ifailed to decode target info!\n");
+    }
+
+    if ((cb.length != 16) ||
+        (memcmp(cb.data, T_NTLMv2_CBT.CBSum, 16) != 0)) {
+        fprintf(stderr, "CBTs differs!\n");
+        fprintf(stderr, "expected:\n%s",
+                        hex_to_dump(T_NTLMv2_CBT.CBSum, 16));
+        fprintf(stderr, "obtained:\n%s",
+                        hex_to_dump(cb.data, cb.length));
+        ret = EINVAL;
+    }
+
+done:
+    free(lm_chalresp.data);
+    free(nt_chalresp.data);
+    free(dom);
+    free(usr);
+    free(wks);
+    free(enc_sess_key.data);
+    free(target_info.data);
+    return ret;
+}
+
+
 int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
 {
     struct ntlm_key sign_send_key;
@@ -1072,7 +1471,35 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
 
 #define TEST_USER_FILE "examples/test_user_file.txt"
 
-int test_gssapi_1(bool user_env_file)
+long seed = 0;
+static size_t repeatable_rand(uint8_t *buf, size_t max)
+{
+    char *env_seed;
+    size_t len;
+    int i;
+
+    if (seed == 0) {
+        env_seed = getenv("NTLMSSPTEST_SEED");
+        if (env_seed) {
+            seed = strtol(env_seed, NULL, 0);
+        } else {
+            seed = time(NULL);
+            fprintf(stdout, "repeatable_rand seed = %ld\n", seed);
+        }
+        srandom(seed);
+    }
+
+    len = random() % max;
+    if (len < 5) len = 5;
+
+    for (i = 0; i < len; i++) {
+        buf[i] = random();
+    }
+
+    return len;
+}
+
+int test_gssapi_1(bool user_env_file, bool use_cb)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
     gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
@@ -1091,6 +1518,9 @@ int test_gssapi_1(bool user_env_file)
     char *msg = "Sample, signature checking, message.";
     gss_buffer_desc message = { strlen(msg), msg };
     gss_buffer_desc ctx_token;
+    uint8_t rand_cb[128];
+    struct gss_channel_bindings_struct cbts = { 0 };
+    gss_channel_bindings_t cbt = GSS_C_NO_CHANNEL_BINDINGS;
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
@@ -1169,10 +1599,17 @@ int test_gssapi_1(bool user_env_file)
         goto done;
     }
 
+    if (use_cb) {
+        /* generate random cb */
+        cbts.application_data.length = repeatable_rand(rand_cb, 128);
+        cbts.application_data.value = rand_cb;
+        cbt = &cbts;
+    }
+
     retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
                                       gss_srvname, GSS_C_NO_OID,
                                       GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
-                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      0, cbt,
                                       GSS_C_NO_BUFFER, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
@@ -1183,7 +1620,7 @@ int test_gssapi_1(bool user_env_file)
     }
 
     retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
-                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        &cli_token, cbt,
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
@@ -1215,7 +1652,7 @@ int test_gssapi_1(bool user_env_file)
     retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
                                       gss_srvname, GSS_C_NO_OID,
                                       GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
-                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      0, cbt,
                                       &srv_token, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
@@ -1228,7 +1665,7 @@ int test_gssapi_1(bool user_env_file)
     gss_release_buffer(&retmin, &srv_token);
 
     retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
-                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        &cli_token, cbt,
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
@@ -1480,6 +1917,8 @@ int test_gssapi_cl(void)
         goto done;
     }
 
+    /* TODO: again with channel bindings */
+
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
 
@@ -1675,6 +2114,21 @@ int main(int argc, const char *argv[])
     ret = test_EncodeAuthenticateMessageV2(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
+    /* override internal version for CBT test vector */
+    ntlm_internal_set_version(6, 1, 7600, 15);
+
+    fprintf(stdout, "Test decoding ChallengeMessage v2 with CBT\n");
+    ret = test_DecodeChallengeMessageV2CBT(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test encoding ChallengeMessage v2 with CBT\n");
+    ret = test_EncodeChallengeMessageV2CBT(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test decoding AuthenticateMessage v2 with CBT\n");
+    ret = test_DecodeAuthenticateMessageV2CBT(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
     fprintf(stdout, "Test sealing a Message with No Extended Security\n");
     ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPv1noESS);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
@@ -1688,11 +2142,15 @@ int main(int argc, const char *argv[])
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
-    ret = test_gssapi_1(true);
+    ret = test_gssapi_1(true, false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test GSSAPI conversation (with password)\n");
-    ret = test_gssapi_1(false);
+    ret = test_gssapi_1(false, false);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation (with CB)\n");
+    ret = test_gssapi_1(false, true);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test Connectionless exchange\n");
