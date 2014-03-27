@@ -75,6 +75,10 @@
 #define CHALLENGE_MESSAGE       0x00000002
 #define AUTHENTICATE_MESSAGE    0x00000003
 
+#define MSVAVFLAGS_AUTH_CONSTRAINED 0x01
+#define MSVAVFLAGS_MIC_PRESENT      0x02
+#define MSVAVFLAGS_UNVERIFIED_SPN   0x04
+
 
 struct ntlm_ctx;
 
@@ -468,6 +472,25 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
                             uint32_t *av_flags, uint64_t *av_timestamp,
                             struct ntlm_buffer *av_single_host,
                             struct ntlm_buffer *av_cb);
+
+/**
+ * @brief   A utility function to process a target_info structure
+ *
+ * @param ctx                   The ntlm context
+ * @param in                    A ntlm_buffer containing the received info
+ * @param server                The Client Supplied Server Name if available
+ * @param out                   The processed target_info buffer
+ * @param out_srv_time          A 64 bit FILETIME timestamp
+ * @param add_mic               Whether the caller should generate a MIC
+ *
+ * @return      0 if everyting parses correctly, or an error code
+ */
+int ntlm_process_target_info(struct ntlm_ctx *ctx,
+                             struct ntlm_buffer *in,
+                             const char *server,
+                             struct ntlm_buffer *out,
+                             uint64_t *out_srv_time,
+                             bool *add_mic);
 
 /**
  * @brief Verifies the message signature is valid and the message

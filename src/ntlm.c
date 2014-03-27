@@ -842,6 +842,74 @@ done:
     return ret;
 }
 
+int ntlm_process_target_info(struct ntlm_ctx *ctx,
+                             struct ntlm_buffer *in,
+                             const char *server,
+                             struct ntlm_buffer *out,
+                             uint64_t *out_srv_time,
+                             bool *add_mic)
+{
+    char *nb_computer_name = NULL;
+    char *nb_domain_name = NULL;
+    char *dns_computer_name = NULL;
+    char *dns_domain_name = NULL;
+    char *dns_tree_name = NULL;
+    char *av_target_name = NULL;
+    uint32_t av_flags = 0;
+    uint64_t srv_time = 0;
+    int ret = 0;
+
+    /* TODO: check that returned netbios/dns names match ? */
+    /* TODO: support SingleHost buffers */
+    ret = ntlm_decode_target_info(ctx, in,
+                                  &nb_computer_name, &nb_domain_name,
+                                  &dns_computer_name, &dns_domain_name,
+                                  &dns_tree_name, &av_target_name,
+                                  &av_flags, &srv_time, NULL, NULL);
+    if (ret) goto done;
+
+    if (server && av_target_name) {
+        if (strcasecmp(server, av_target_name) != 0) {
+            ret = EINVAL;
+            goto done;
+        }
+    }
+
+    /* the server did not send the timestamp, use current time */
+    if (srv_time == 0) {
+        srv_time = ntlm_timestamp_now();
+    } else {
+        av_flags |= MSVAVFLAGS_MIC_PRESENT;
+        *add_mic = true;
+    }
+
+    if (!av_target_name && server) {
+        av_target_name = strdup(server);
+        if (!av_target_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+    /* TODO: add way to tell if the target name is verified o not,
+     * if not set av_flags |= MSVAVFLAGS_UNVERIFIED_SPN; */
+
+    ret = ntlm_encode_target_info(ctx,
+                                  nb_computer_name, nb_domain_name,
+                                  dns_computer_name, dns_domain_name,
+                                  dns_tree_name, &av_flags, &srv_time,
+                                  NULL, av_target_name, NULL, out);
+
+done:
+    safefree(nb_computer_name);
+    safefree(nb_domain_name);
+    safefree(dns_computer_name);
+    safefree(dns_domain_name);
+    safefree(dns_tree_name);
+    safefree(av_target_name);
+    *out_srv_time = srv_time;
+    return ret;
+}
+
 int ntlm_decode_msg_type(struct ntlm_ctx *ctx,
                          struct ntlm_buffer *buffer,
                          uint32_t *type)
