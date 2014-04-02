@@ -111,8 +111,6 @@ struct {
     struct ntlm_key EncryptedSessionKey3;
     uint32_t ChallengeFlags;
     uint8_t ChallengeMessage[0x44];
-    /* Version field differs from the one MS DOCS generated */
-    uint8_t EncChallengeMessage[0x44];
     uint8_t AuthenticateMessage[0xAC];
 } T_NTLMv1 = {
     {
@@ -195,17 +193,6 @@ struct {
     },
     {
         0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
-        0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
-        0x38, 0x00, 0x00, 0x00, 0x33, 0x82, 0x02, 0xe2,
-        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f,
-        0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
-        0x65, 0x00, 0x72, 0x00
-    },
-    {
-        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
         0x03, 0x00, 0x00, 0x00, 0x18, 0x00, 0x18, 0x00,
         0x6c, 0x00, 0x00, 0x00, 0x18, 0x00, 0x18, 0x00,
         0x84, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
@@ -240,8 +227,6 @@ struct {
     uint8_t NTLMv2Response[16];
     struct ntlm_key EncryptedSessionKey;
     uint8_t ChallengeMessage[0x68];
-    /* Version field differs from the one MS DOCS generated */
-    uint8_t EncChallengeMessage[0x68];
     uint8_t AuthenticateMessage[0xE8];
 } T_NTLMv2 = {
     (
@@ -301,21 +286,6 @@ struct {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x24, 0x00, 0x24, 0x00, 0x44, 0x00, 0x00, 0x00,
         0x06, 0x00, 0x70, 0x17, 0x00, 0x00, 0x00, 0x0f,
-        0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
-        0x65, 0x00, 0x72, 0x00, 0x02, 0x00, 0x0c, 0x00,
-        0x44, 0x00, 0x6f, 0x00, 0x6d, 0x00, 0x61, 0x00,
-        0x69, 0x00, 0x6e, 0x00, 0x01, 0x00, 0x0c, 0x00,
-        0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
-        0x65, 0x00, 0x72, 0x00, 0x00, 0x00, 0x00, 0x00
-    },
-    {
-        0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00,
-        0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c, 0x00,
-        0x38, 0x00, 0x00, 0x00, 0x33, 0x82, 0x8a, 0xe2,
-        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x24, 0x00, 0x24, 0x00, 0x44, 0x00, 0x00, 0x00,
-        0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f,
         0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
         0x65, 0x00, 0x72, 0x00, 0x02, 0x00, 0x0c, 0x00,
         0x44, 0x00, 0x6f, 0x00, 0x6d, 0x00, 0x61, 0x00,
@@ -823,10 +793,12 @@ int test_EncodeChallengeMessageV1(struct ntlm_ctx *ctx)
     if (ret) return ret;
 
     if ((message.length != 0x44) ||
-        (memcmp(message.data, T_NTLMv1.EncChallengeMessage, 0x44) != 0)) {
+        (memcmp(message.data, T_NTLMv1.ChallengeMessage,
+                              sizeof(T_NTLMv1.ChallengeMessage)) != 0)) {
         fprintf(stderr, "Challenge Messages differ!\n");
         fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv1.EncChallengeMessage, 0x44));
+                        hex_to_dump(T_NTLMv1.ChallengeMessage,
+                                    sizeof(T_NTLMv1.ChallengeMessage)));
         fprintf(stderr, "obtained:\n%s",
                         hex_to_dump(message.data, message.length));
         ret = EINVAL;
@@ -838,7 +810,8 @@ int test_EncodeChallengeMessageV1(struct ntlm_ctx *ctx)
 
 int test_DecodeChallengeMessageV2(struct ntlm_ctx *ctx)
 {
-    struct ntlm_buffer chal_msg = { T_NTLMv2.ChallengeMessage, 0x68 };
+    struct ntlm_buffer chal_msg = { T_NTLMv2.ChallengeMessage,
+                                    sizeof(T_NTLMv2.ChallengeMessage) };
     uint32_t type;
     uint32_t flags;
     char *target_name = NULL;
@@ -902,11 +875,13 @@ int test_EncodeChallengeMessageV2(struct ntlm_ctx *ctx)
                                &challenge, &target_info, &message);
     if (ret) return ret;
 
-    if ((message.length != 0x68) ||
-        (memcmp(message.data, T_NTLMv2.EncChallengeMessage, 0x68) != 0)) {
+    if ((message.length != sizeof(T_NTLMv2.ChallengeMessage)) ||
+        (memcmp(message.data, T_NTLMv2.ChallengeMessage,
+                              sizeof(T_NTLMv2.ChallengeMessage)) != 0)) {
         fprintf(stderr, "Challenge Messages differ!\n");
         fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.EncChallengeMessage, 0x68));
+                        hex_to_dump(T_NTLMv2.ChallengeMessage,
+                                    sizeof(T_NTLMv2.ChallengeMessage)));
         fprintf(stderr, "obtained:\n%s",
                         hex_to_dump(message.data, message.length));
         ret = EINVAL;
@@ -1653,6 +1628,9 @@ int main(int argc, const char *argv[])
     ret = test_EncryptedSessionKey3(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
+    /* override internal version for V1 test vector */
+    ntlm_internal_set_version(6, 0, 6000, 15);
+
     fprintf(stdout, "Test decoding ChallengeMessage v1\n");
     ret = test_DecodeChallengeMessageV1(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
@@ -1677,6 +1655,9 @@ int main(int argc, const char *argv[])
     ret = test_EncryptedSessionKey(ctx, &T_NTLMv2.SessionBaseKey,
                                    &T_NTLMv2.EncryptedSessionKey);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    /* override internal version for V2 test vector */
+    ntlm_internal_set_version(6, 0, 6000, 15);
 
     fprintf(stdout, "Test decoding ChallengeMessage v2\n");
     ret = test_DecodeChallengeMessageV2(ctx);
