@@ -980,7 +980,7 @@ done:
 /* TODO: support datagram style */
 int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
                          uint32_t flags,
-                         char *target_name,
+                         const char *target_name,
                          struct ntlm_buffer *challenge,
                          struct ntlm_buffer *target_info,
                          struct ntlm_buffer *message)
