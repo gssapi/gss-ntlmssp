@@ -103,6 +103,18 @@ uint64_t ntlm_timestamp_now(void);
 
 bool ntlm_casecmp(const char *s1, const char *s2);
 
+/**
+ * @brief Sets the NTLMSSP version
+ *        Mostly used to emulate Windows versions for test vectors
+ *
+ * @param major     major version number (ex. 6)
+ * @param minor     minor version number (ex. 1)
+ * @param build     build version number (ex. 7600)
+ * @param revision  revision version number (ex. 16)
+ */
+void ntlm_internal_set_version(uint8_t major, uint8_t minor,
+                               uint16_t build, uint8_t revision);
+
 /* ############### CRYPTO FUNCTIONS ################ */
 
 struct ntlm_key {

@@ -420,22 +420,33 @@ done:
     return ret;
 }
 
+struct wire_version ntlmssp_version = {
+    NTLMSSP_VERSION_MAJOR,
+    NTLMSSP_VERSION_MINOR,
+    NTLMSSP_VERSION_BUILD, /* 0 is always 0 even in LE */
+    { 0, 0, 0 },
+    NTLMSSP_VERSION_REV
+};
+
+void ntlm_internal_set_version(uint8_t major, uint8_t minor,
+                               uint16_t build, uint8_t revision)
+{
+    ntlmssp_version.major = major;
+    ntlmssp_version.minor = minor;
+    ntlmssp_version.build = htole16(build);
+    ntlmssp_version.revision = revision;
+}
+
 static int ntlm_encode_version(struct ntlm_ctx *ctx,
                                struct ntlm_buffer *buffer,
                                size_t *data_offs)
 {
-    struct wire_version *v;
-
     if (*data_offs + sizeof(struct wire_version) > buffer->length) {
         return ERR_ENCODE;
     }
 
-    v = (struct wire_version *)&buffer->data[*data_offs];
-    v->major = NTLMSSP_VERSION_MAJOR;
-    v->minor = NTLMSSP_VERSION_MINOR;
-    v->build = htole16(NTLMSSP_VERSION_BUILD);
-    v->revision = NTLMSSP_VERSION_REV;
-
+    memcpy(&buffer->data[*data_offs], &ntlmssp_version,
+           sizeof(struct wire_version));
     *data_offs += sizeof(struct wire_version);
     return 0;
 }
