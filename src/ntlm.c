@@ -799,6 +799,7 @@ done:
 int ntlm_process_target_info(struct ntlm_ctx *ctx,
                              struct ntlm_buffer *in,
                              const char *server,
+                             struct ntlm_buffer *unhashed_cb,
                              struct ntlm_buffer *out,
                              uint64_t *out_srv_time,
                              bool *add_mic)
@@ -811,6 +812,8 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx,
     char *av_target_name = NULL;
     uint32_t av_flags = 0;
     uint64_t srv_time = 0;
+    uint8_t cb[16] = { 0 };
+    struct ntlm_buffer av_cb = { cb, 16 };
     int ret = 0;
 
     /* TODO: check that returned netbios/dns names match ? */
@@ -837,6 +840,11 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx,
         *add_mic = true;
     }
 
+    if (unhashed_cb->length > 0) {
+        ret = ntlm_hash_channel_bindings(unhashed_cb, &av_cb);
+        if (ret) goto done;
+    }
+
     if (!av_target_name && server) {
         av_target_name = strdup(server);
         if (!av_target_name) {
@@ -851,7 +859,7 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx,
                                   nb_computer_name, nb_domain_name,
                                   dns_computer_name, dns_domain_name,
                                   dns_tree_name, &av_flags, &srv_time,
-                                  NULL, av_target_name, NULL, out);
+                                  NULL, av_target_name, &av_cb, out);
 
 done:
     safefree(nb_computer_name);

@@ -51,6 +51,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     struct ntlm_buffer target_info = { 0 };
     struct ntlm_buffer client_target_info = { 0 };
     const char *server_name = NULL;
+    struct ntlm_buffer cb = { 0 };
     uint64_t srv_time = 0;
     struct ntlm_buffer nt_chal_resp = { 0 };
     struct ntlm_buffer lm_chal_resp = { 0 };
@@ -396,9 +397,24 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
 
             if (target_info.length > 0) {
+
+                if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
+                    if (input_chan_bindings->initiator_addrtype != 0 ||
+                        input_chan_bindings->initiator_address.length != 0 ||
+                        input_chan_bindings->acceptor_addrtype != 0 ||
+                        input_chan_bindings->acceptor_address.length != 0 ||
+                        input_chan_bindings->application_data.length == 0) {
+                        retmin = EINVAL;
+                        retmaj = GSS_S_BAD_BINDINGS;
+                        goto done;
+                    }
+                    cb.length = input_chan_bindings->application_data.length;
+                    cb.data = input_chan_bindings->application_data.value;
+                }
+
                 retmin = ntlm_process_target_info(ctx->ntlm,
                                                   &target_info,
-                                                  server_name,
+                                                  server_name, &cb,
                                                   &client_target_info,
                                                   &srv_time,
                                                   protect ? &add_mic: NULL);

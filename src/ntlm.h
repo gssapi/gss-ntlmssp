@@ -538,6 +538,7 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
  * @param ctx                   The ntlm context
  * @param in                    A ntlm_buffer containing the received info
  * @param server                The Client Supplied Server Name if available
+ * @param unhashed_cb           A ntlm_buffer with channel binding data
  * @param out                   The processed target_info buffer
  * @param out_srv_time          A 64 bit FILETIME timestamp
  * @param add_mic               A pointer to a boolean. If NULL MIC flags will
@@ -549,6 +550,7 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
 int ntlm_process_target_info(struct ntlm_ctx *ctx,
                              struct ntlm_buffer *in,
                              const char *server,
+                             struct ntlm_buffer *unhashed_cb,
                              struct ntlm_buffer *out,
                              uint64_t *out_srv_time,
                              bool *add_mic);
