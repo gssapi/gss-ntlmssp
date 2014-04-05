@@ -1026,6 +1026,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             char useratdom[1024];
             size_t ulen, dlen, uadlen;
             gss_buffer_desc usrname;
+            int retries;
 
             if (!dom_name) {
                 dom_name = strdup("");
@@ -1075,32 +1076,45 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 goto done;
             }
 
-            /* NTLMv2 Key */
-            retmin = NTOWFv2(ctx->ntlm, &usr_cred->cred.user.nt_hash,
-                             usr_cred->cred.user.user.data.user.name,
-                             usr_cred->cred.user.user.data.user.domain,
-                             &ntlmv2_key);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
-            }
+            for (retries = 2; retries > 0; retries--) {
+                const char *domstr;
 
-            /* NTLMv2 Response */
-            retmin = ntlmv2_verify_nt_response(&nt_chal_resp, &ntlmv2_key,
-                                               ctx->server_chal);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
-            }
+                if (retries == 2) {
+                    domstr = usr_cred->cred.user.user.data.user.domain;
+                } else {
+                    domstr = NULL;
+                }
 
-            /* FIXME: retries using NULL as domain name in case of failure */
+                /* NTLMv2 Key */
+                retmin = NTOWFv2(ctx->ntlm, &usr_cred->cred.user.nt_hash,
+                                 usr_cred->cred.user.user.data.user.name,
+                                 domstr, &ntlmv2_key);
+                if (retmin) {
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                }
 
-            /* LMv2 Response */
-            retmin = ntlmv2_verify_lm_response(&lm_chal_resp, &ntlmv2_key,
-                                               ctx->server_chal);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
+                /* NTLMv2 Response */
+                retmin = ntlmv2_verify_nt_response(&nt_chal_resp,
+                                                   &ntlmv2_key,
+                                                   ctx->server_chal);
+                if (retmin == 0) {
+                    break;
+                } else {
+                    if (ctx->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY) {
+                        /* LMv2 Response */
+                        retmin = ntlmv2_verify_lm_response(&lm_chal_resp,
+                                                           &ntlmv2_key,
+                                                           ctx->server_chal);
+                        if (retmin == 0) {
+                            break;
+                        }
+                    }
+                }
+                if (retmin && retries < 2) {
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                }
             }
 
             /* The NT proof is the first 16 bytes */
