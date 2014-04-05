@@ -33,19 +33,6 @@
 #include "ntlm.h"
 #include "crypto.h"
 
-/* lm response, v1 or v2 */
-#pragma pack(push, 1)
-union wire_lm_response {
-    struct {
-        uint8_t resp[24];
-    } v1;
-    struct {
-        uint8_t resp[16];
-        uint8_t cli_chal[8];
-    } v2;
-};
-#pragma pack(pop)
-
 /* ntlm response, v1 or v2 */
 #pragma pack(push, 1)
 union wire_ntlm_response {
@@ -359,7 +346,7 @@ int ntlmv2_compute_lm_response(struct ntlm_key *ntlmv2_key,
                                uint8_t server_chal[8], uint8_t client_chal[8],
                                struct ntlm_buffer *lm_response)
 {
-    union wire_lm_response *lm_resp = NULL;
+    union wire_ntlm_response *lm_resp = NULL;
     struct ntlm_buffer key = { ntlmv2_key->data, ntlmv2_key->length };
     uint8_t payload_buf[16];
     struct ntlm_buffer payload = { payload_buf, 16 };
@@ -367,7 +354,7 @@ int ntlmv2_compute_lm_response(struct ntlm_key *ntlmv2_key,
     int ret;
 
     /* now caluclate the LM Proof */
-    lm_resp = malloc(sizeof(union wire_lm_response));
+    lm_resp = malloc(sizeof(union wire_ntlm_response));
     if (!lm_resp) {
         ret = ENOMEM;
         goto done;
@@ -638,7 +625,7 @@ int ntlmv2_verify_lm_response(struct ntlm_buffer *lm_response,
                               uint8_t server_chal[8])
 {
     struct ntlm_buffer key = { ntlmv2_key->data, ntlmv2_key->length };
-    union wire_lm_response *lm_resp = NULL;
+    union wire_ntlm_response *lm_resp = NULL;
     uint8_t payload_buf[16];
     struct ntlm_buffer payload = { payload_buf, 16 };
     uint8_t proof[16];
@@ -648,7 +635,7 @@ int ntlmv2_verify_lm_response(struct ntlm_buffer *lm_response,
     if (lm_response->length != 24) return EINVAL;
 
     /* now caluclate the LM Proof */
-    lm_resp = (union wire_lm_response *)lm_response->data;
+    lm_resp = (union wire_ntlm_response *)lm_response->data;
 
     memcpy(payload.data, server_chal, 8);
     memcpy(&payload.data[8], lm_resp->v2.cli_chal, 8);
