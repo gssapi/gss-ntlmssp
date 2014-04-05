@@ -1307,6 +1307,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
                          char **domain_name, char **user_name,
                          char **workstation,
                          struct ntlm_buffer *enc_sess_key,
+                         struct ntlm_buffer *target_info,
                          struct ntlm_buffer *mic)
 {
     struct wire_auth_msg *msg;
@@ -1353,6 +1354,27 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
         ret = ntlm_decode_field(&msg->nt_chalresp, buffer,
                                 payload_offs, nt_chalresp);
         if (ret) goto done;
+
+        if (target_info) {
+            union wire_ntlm_response *resp;
+            struct wire_ntlmv2_cli_chal *chal;
+            uint8_t *data;
+            int len;
+            resp = (union wire_ntlm_response *)nt_chalresp->data;
+            chal = (struct wire_ntlmv2_cli_chal *)resp->v2.cli_chal;
+            len = nt_chalresp->length - sizeof(resp->v2.resp)
+                    - offsetof(struct wire_ntlmv2_cli_chal, target_info);
+            if (len > 0) {
+                data = chal->target_info;
+                target_info->data = malloc(len);
+                if (!target_info->data) {
+                    ret = ENOMEM;
+                    goto done;
+                }
+                memcpy(target_info->data, data, len);
+                target_info->length = len;
+            }
+        }
     }
     if (msg->domain_name.len != 0 && domain_name) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {

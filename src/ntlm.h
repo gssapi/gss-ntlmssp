@@ -666,6 +666,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
  * @param user_name     The User name
  * @param workstation   The Workstation name
  * @param enc_sess_key  The session key
+ * @param target_info   The target_info AV_PAIR embedded in the NT Response
  * @param mic           A MIC of the messages
  *                      Passing a pointer to a mic means the caller has
  *                      previously requested the presence of a MIC field from
@@ -688,6 +689,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
                          char **domain_name, char **user_name,
                          char **workstation,
                          struct ntlm_buffer *enc_sess_key,
+                         struct ntlm_buffer *target_info,
                          struct ntlm_buffer *mic);
 
 #endif /* _NTLM_H_ */

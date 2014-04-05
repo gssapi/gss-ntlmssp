@@ -103,4 +103,34 @@ struct wire_version {
 };
 #pragma pack(pop)
 
+/* ln/ntlm response, v1 or v2 */
+#pragma pack(push, 1)
+union wire_ntlm_response {
+    struct {
+        uint8_t resp[24];
+    } v1;
+    struct {
+        uint8_t resp[16];
+        uint8_t cli_chal[];
+    } v2;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct wire_ntlmv2_cli_chal {
+    uint8_t resp_version;
+    uint8_t hi_resp_version;
+    uint8_t zero_6[6];
+    uint64_t timestamp;
+    uint8_t client_chal[8];
+    uint8_t zero_4[4];
+    uint8_t target_info[];
+        /* NOTE: the target_info array must terminate with 4 zero bytes.
+         * This is consistent with just copying the target_info array
+         * returned in the challenge message as the last AV_PAIR there is
+         * always MSV_AV_EOL which happens to be 4 bytes of zeros */
+
+};
+#pragma pack(pop)
+
 #endif /* _NTLM_COMMON_H_ */

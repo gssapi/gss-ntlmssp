@@ -910,7 +910,7 @@ int test_DecodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
     ret = ntlm_decode_auth_msg(ctx, &auth_msg, T_NTLMv2.ChallengeFlags,
                                &lm_chalresp, &nt_chalresp,
                                &dom, &usr, &wks,
-                               &enc_sess_key, NULL);
+                               &enc_sess_key, NULL, NULL);
     if (ret) return ret;
 
     if ((lm_chalresp.length != 24) ||

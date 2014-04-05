@@ -1001,7 +1001,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                       ctx->neg_flags,
                                       &lm_chal_resp, &nt_chal_resp,
                                       &dom_name, &usr_name, &wks_name,
-                                      &enc_sess_key, &mic);
+                                      &enc_sess_key, &target_info, &mic);
         if (retmin) {
             retmaj = GSS_S_DEFECTIVE_TOKEN;
             goto done;
