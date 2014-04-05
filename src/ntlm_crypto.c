@@ -830,3 +830,41 @@ int ntlm_mic(struct ntlm_key *exported_session_key,
 
     return HMAC_MD5_IOV(&key, &iov, mic);
 }
+
+int ntlm_verify_mic(struct ntlm_key *key,
+                    struct ntlm_buffer *negotiate_message,
+                    struct ntlm_buffer *challenge_message,
+                    struct ntlm_buffer *authenticate_message,
+                    struct ntlm_buffer *mic)
+{
+    uint8_t micbuf[16];
+    struct ntlm_buffer check_mic = { micbuf, 16 };
+    struct wire_auth_msg *msg;
+    size_t payload_offs;
+    uint32_t flags;
+    int ret;
+
+    msg = (struct wire_auth_msg *)authenticate_message->data;
+    payload_offs = offsetof(struct wire_auth_msg, payload);
+
+    /* flags must be checked as they may push the payload further down */
+    flags = le32toh(msg->neg_flags);
+    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
+        /* skip version for now */
+        payload_offs += sizeof(struct wire_version);
+    }
+
+    if (payload_offs + 16 > authenticate_message->length) return EINVAL;
+
+    /* payload_offs now points at the MIC buffer, clear it off in order
+     * to be able to calculate the original chcksum */
+    memset(&authenticate_message->data[payload_offs], 0, 16);
+
+    ret = ntlm_mic(key, negotiate_message, challenge_message,
+                        authenticate_message, &check_mic);
+    if (ret) return ret;
+
+    if (memcmp(mic->data, check_mic.data, 16) != 0) return EACCES;
+
+    return 0;
+}

@@ -36,25 +36,6 @@
 #include "ntlm.h"
 
 #pragma pack(push, 1)
-struct wire_msg_hdr {
-    uint8_t signature[8];
-    uint32_t msg_type;
-};
-#pragma pack(pop)
-
-/* A wire string, the offset is relative to the mesage and must fall into the
- * payload section.
- * max_len should be set equal to len and ignored by servers.
- */
-#pragma pack(push, 1)
-struct wire_field_hdr {
-    uint16_t len;
-    uint16_t max_len;
-    uint32_t offset;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
 struct wire_neg_msg {
     struct wire_msg_hdr header;
     uint32_t neg_flags;
@@ -72,20 +53,6 @@ struct wire_chal_msg {
     uint8_t server_challenge[8];
     uint8_t reserved[8];
     struct wire_field_hdr target_info;
-    uint8_t payload[]; /* variable */
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-struct wire_auth_msg {
-    struct wire_msg_hdr header;
-    struct wire_field_hdr lm_chalresp;
-    struct wire_field_hdr nt_chalresp;
-    struct wire_field_hdr domain_name;
-    struct wire_field_hdr user_name;
-    struct wire_field_hdr workstation;
-    struct wire_field_hdr enc_sess_key;
-    uint32_t neg_flags;
     uint8_t payload[]; /* variable */
 };
 #pragma pack(pop)
@@ -139,19 +106,6 @@ struct wire_ntlm_cli_chal {
     uint8_t cli_chal[8];
     uint32_t reserved3;
     uint8_t av_pairs[]; /* variable */
-};
-#pragma pack(pop)
-
-/* Version information.
- * Used only for debugging and usually placed as the head of the payload when
- * used */
-#pragma pack(push, 1)
-struct wire_version {
-    uint8_t major;
-    uint8_t minor;
-    uint16_t build;
-    uint8_t reserved[3];
-    uint8_t revision;
 };
 #pragma pack(pop)
 

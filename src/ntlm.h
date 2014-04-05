@@ -430,6 +430,26 @@ int ntlm_mic(struct ntlm_key *exported_session_key,
              struct ntlm_buffer *authenticate_message,
              struct ntlm_buffer *mic);
 
+/**
+ * @brief  Verifies a MIC
+ *
+ * @param key                       The keys used to generate the original MIC
+ * @param negotiate_message         The NTLM Negotiate Message (or empty)
+ * @param challenge_message         The NTLM Challenge Message
+ * @param authenticate_message      The NTLM Authenticate Message
+ * @param mic                       The original MIC
+ *
+ * NOTE: This function zeros the area of memory where the MIC is held in the
+ *       Authenticate Message
+ *
+ * @return 0 on success, EACCES if the MIC fails to verify, or an error
+ */
+int ntlm_verify_mic(struct ntlm_key *key,
+                    struct ntlm_buffer *negotiate_message,
+                    struct ntlm_buffer *challenge_message,
+                    struct ntlm_buffer *authenticate_message,
+                    struct ntlm_buffer *mic);
+
 /* ############## ENCODING / DECODING ############## */
 
 /**
