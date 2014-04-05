@@ -737,8 +737,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     struct ntlm_buffer enc_sess_key = { 0 };
     struct ntlm_key encrypted_random_session_key = { .length = 16 };
     struct ntlm_key key_exchange_key = { .length = 16 };
-    uint8_t mic_data[16];
-    struct ntlm_buffer mic = { mic_data, 16 };
+    uint8_t micbuf[16];
+    struct ntlm_buffer mic = { micbuf, 16 };
     char *dom_name = NULL;
     char *usr_name = NULL;
     char *wks_name = NULL;
@@ -749,6 +749,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     uint32_t tmpmin;
     uint32_t in_flags;
     uint32_t msg_type;
+    uint32_t av_flags = 0;
     uint8_t sec_req;
     char *p;
 
@@ -1007,6 +1008,17 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        if (target_info.length > 0) {
+            retmin = ntlm_decode_target_info(ctx->ntlm, &target_info,
+                                             NULL, NULL, NULL, NULL,
+                                             NULL, NULL, &av_flags,
+                                             NULL, NULL, NULL);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+        }
+
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) &&
             !(ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
             retmin = EINVAL;
@@ -1142,8 +1154,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 goto done;
             }
 
-            /* FIXME: Verify MIC if client sent it */
-
         } else {
             /* ### NTLMv1 ### */
             retmaj = GSS_S_FAILURE;
@@ -1163,6 +1173,17 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             }
         } else {
             ctx->exported_session_key = key_exchange_key;
+        }
+
+        /* check if MIC was sent */
+        if (av_flags & MSVAVFLAGS_MIC_PRESENT) {
+            retmin = ntlm_verify_mic(&ctx->exported_session_key,
+                                     &ctx->nego_msg, &ctx->chal_msg,
+                                     &ctx->auth_msg, &mic);
+            if (retmin) {
+                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                goto done;
+            }
         }
 
         if (ctx->neg_flags & (NTLMSSP_NEGOTIATE_SIGN |
