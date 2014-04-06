@@ -729,8 +729,8 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
     char *dns_tree = NULL;
     char *av_target = NULL;
     size_t data_offs = 0;
-    uint64_t timestamp;
-    uint32_t flags;
+    uint64_t timestamp = 0;
+    uint32_t flags = 0;
     int ret = 0;
 
     while (data_offs + 4 <= buffer->length) {
@@ -823,7 +823,9 @@ done:
         if (dns_domain_name) *dns_domain_name = dns_domain;
         if (dns_tree_name) *dns_tree_name = dns_tree;
         if (av_target_name) *av_target_name = av_target;
+        if (av_timestamp) *av_timestamp = timestamp;
         if (av_single_host) *av_single_host = sh;
+        if (av_flags) *av_flags = flags;
         if (av_cb) *av_cb = cb;
     }
     return ret;
