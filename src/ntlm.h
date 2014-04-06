@@ -461,6 +461,16 @@ int ntlm_verify_mic(struct ntlm_key *key,
 int ntlm_hash_channel_bindings(struct ntlm_buffer *unhashed,
                                struct ntlm_buffer *signature);
 
+/**
+ * @brief   Verifies Channel binding signature from unhashed data.
+ *
+ * @param unhashed      The unhashed channel bindings data
+ * @param signature     The recieved MD5 signature to check against
+ *
+ * @return 0 on success, EACCES if the CBT fails to verify, or an error
+ */
+int ntlm_verify_channel_bindings(struct ntlm_buffer *unhashed,
+                                 struct ntlm_buffer *signature);
 
 /* ############## ENCODING / DECODING ############## */
 

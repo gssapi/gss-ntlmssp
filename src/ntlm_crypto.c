@@ -866,3 +866,20 @@ int ntlm_hash_channel_bindings(struct ntlm_buffer *unhashed,
     safefree(input.data);
     return ret;
 }
+
+int ntlm_verify_channel_bindings(struct ntlm_buffer *unhashed,
+                                 struct ntlm_buffer *signature)
+{
+    uint8_t cbbuf[16];
+    struct ntlm_buffer cb = { cbbuf, 16 };
+    int ret;
+
+    if (signature->length != 16) return EINVAL;
+
+    ret = ntlm_hash_channel_bindings(unhashed, &cb);
+    if (ret) return ret;
+
+    if (memcmp(cb.data, signature->data, 16) != 0) return EACCES;
+
+    return 0;
+}
