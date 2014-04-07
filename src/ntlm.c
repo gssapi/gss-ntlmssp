@@ -1127,6 +1127,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
 {
     struct wire_auth_msg *msg;
     struct ntlm_buffer buffer;
+    struct ntlm_buffer empty_chalresp = { 0 };
     size_t data_offs;
     size_t domain_name_len = 0;
     size_t user_name_len = 0;
@@ -1139,9 +1140,13 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
 
     if (lm_chalresp) {
         buffer.length += lm_chalresp->length;
+    } else {
+        lm_chalresp = &empty_chalresp;
     }
     if (nt_chalresp) {
         buffer.length += nt_chalresp->length;
+    } else {
+        nt_chalresp = &empty_chalresp;
     }
     if (domain_name) {
         domain_name_len = strlen(domain_name);
@@ -1197,16 +1202,14 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
         data_offs += mic->length;
     }
 
-    if (lm_chalresp) {
-        ret = ntlm_encode_field(&msg->lm_chalresp, &buffer,
-                                &data_offs, lm_chalresp);
-        if (ret) goto done;
-    }
-    if (nt_chalresp) {
-        ret = ntlm_encode_field(&msg->nt_chalresp, &buffer,
-                                &data_offs, nt_chalresp);
-        if (ret) goto done;
-    }
+    ret = ntlm_encode_field(&msg->lm_chalresp, &buffer,
+                            &data_offs, lm_chalresp);
+    if (ret) goto done;
+
+    ret = ntlm_encode_field(&msg->nt_chalresp, &buffer,
+                            &data_offs, nt_chalresp);
+    if (ret) goto done;
+
     if (domain_name_len) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
             ret = ntlm_encode_ucs2_str_hdr(ctx, &msg->domain_name,

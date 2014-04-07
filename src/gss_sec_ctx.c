@@ -445,13 +445,16 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 goto done;
             }
 
-            /* LMv2 Response */
-            retmin = ntlmv2_compute_lm_response(&ntlmv2_key,
-                                                server_chal, client_chal,
-                                                &lm_chal_resp);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
+            if (target_info.length == 0) {
+                /* LMv2 Response
+                 * (only sent if challenge response has not target_info*/
+                retmin = ntlmv2_compute_lm_response(&ntlmv2_key,
+                                                    server_chal, client_chal,
+                                                    &lm_chal_resp);
+                if (retmin) {
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                }
             }
 
             /* The NT proof is the first 16 bytes */
