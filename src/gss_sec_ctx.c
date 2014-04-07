@@ -15,6 +15,7 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +42,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     struct gssntlm_ctx *ctx;
     struct gssntlm_name *server = NULL;
     struct gssntlm_cred *cred = NULL;
-    const char *workstation = NULL;
+    char *env_name;
+    char *workstation = NULL;
     const char *domain = NULL;
     uint32_t in_flags;
     uint32_t msg_type;
@@ -182,10 +184,41 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED;
             domain = cred->cred.user.user.data.user.domain;
         }
-        if (ctx->workstation) {
-            ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
-            workstation = ctx->workstation;
+
+        env_name = getenv("NETBIOS_COMPUTER_NAME");
+        if (env_name) {
+            workstation = strdup(env_name);
+        } else {
+        /* acquire our own name */
+            gss_buffer_desc tmpbuf = { 0, "" };
+            struct gssntlm_name *tmpname;
+            char *p;
+            retmaj = gssntlm_import_name_by_mech(&retmin,
+                                                 &gssntlm_oid,
+                                                 &tmpbuf,
+                                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                                 (gss_name_t *)&tmpname);
+            if (retmaj) goto done;
+            p = strchr(tmpname->data.server.name, '.');
+            if (p) {
+                workstation = strndup(tmpname->data.server.name,
+                                        p - tmpname->data.server.name);
+            } else {
+                workstation = strdup(tmpname->data.server.name);
+            }
+            for (p = workstation; p && *p; p++) {
+                /* Can only be ASCII, so toupper is safe */
+                *p = toupper(*p);
+            }
+            gssntlm_release_name(&tmpmin, (gss_name_t *)&tmpname);
         }
+        if (!workstation) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
+        ctx->workstation = workstation;
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
@@ -745,6 +778,9 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     struct ntlm_buffer challenge = { 0 };
     struct gssntlm_name *server_name = NULL;
     char *computer_name = NULL;
+    char *nb_computer_name = NULL;
+    char *nb_domain_name = NULL;
+    char *env_name;
     gss_buffer_desc tmpbuf;
     uint64_t timestamp;
     struct ntlm_buffer target_info = { 0 };
@@ -942,15 +978,47 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             retmaj = GSS_S_FAILURE;
             goto done;
         }
-        if ((p = strchr(server_name->data.server.name, '.')) != NULL) {
-            /* we want only the non qualified computer name for now */
-            *p = '\0';
+
+        env_name = getenv("NETBIOS_COMPUTER_NAME");
+        if (env_name) {
+            nb_computer_name = strdup(env_name);
+        } else {
+            p = strchr(computer_name, '.');
+            if (p) {
+                nb_computer_name = strndup(computer_name, p - computer_name);
+            } else {
+                nb_computer_name = strdup(computer_name);
+            }
+            for (p = nb_computer_name; p && *p; p++) {
+                /* Can only be ASCII, so toupper is safe */
+                *p = toupper(*p);
+            }
+        }
+        if (!nb_computer_name) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        env_name = getenv("NETBIOS_DOMAIN_NAME");
+        if (env_name) {
+            nb_domain_name = strdup(env_name);
+        } else {
+            nb_domain_name = strdup("WORKGROUP");
+        }
+        if (!nb_domain_name) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
         }
 
         timestamp = ntlm_timestamp_now();
 
-        retmin = ntlm_encode_target_info(ctx->ntlm, computer_name, NULL,
-                                         NULL, NULL, NULL,
+        retmin = ntlm_encode_target_info(ctx->ntlm,
+                                         nb_computer_name,
+                                         nb_domain_name,
+                                         computer_name,
+                                         NULL, NULL,
                                          NULL, &timestamp,
                                          NULL, computer_name, NULL,
                                          &target_info);
@@ -1269,6 +1337,8 @@ done:
     *context_handle = (gss_ctx_id_t)ctx;
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
     safefree(computer_name);
+    safefree(nb_computer_name);
+    safefree(nb_domain_name);
     safefree(workstation);
     safefree(domain);
     safefree(usr_name);
