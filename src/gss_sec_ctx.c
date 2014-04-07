@@ -321,6 +321,12 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
 
         /* check required flags */
+        if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_128) &&
+            (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) &&
+            (!(in_flags & NTLMSSP_NEGOTIATE_128))) {
+            retmaj = GSS_S_UNAVAILABLE;
+            goto done;
+        }
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_SEAL))) {
             retmaj = GSS_S_FAILURE;
