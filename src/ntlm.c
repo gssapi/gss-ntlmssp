@@ -796,7 +796,7 @@ done:
     return ret;
 }
 
-int ntlm_process_target_info(struct ntlm_ctx *ctx,
+int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
                              struct ntlm_buffer *in,
                              const char *server,
                              struct ntlm_buffer *unhashed_cb,
@@ -824,6 +824,13 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx,
                                   &dns_tree_name, &av_target_name,
                                   &av_flags, &srv_time, NULL, NULL);
     if (ret) goto done;
+
+    if (protect &&
+        (!nb_computer_name || nb_computer_name[0] == '\0' ||
+         !nb_domain_name || nb_domain_name[0] == '\0')) {
+        ret = EINVAL;
+        goto done;
+    }
 
     if (server && av_target_name) {
         if (strcasecmp(server, av_target_name) != 0) {

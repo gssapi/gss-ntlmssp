@@ -536,6 +536,7 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
  * @brief   A utility function to process a target_info structure
  *
  * @param ctx                   The ntlm context
+ * @param protect               Set if signing or sealing has been requested
  * @param in                    A ntlm_buffer containing the received info
  * @param server                The Client Supplied Server Name if available
  * @param unhashed_cb           A ntlm_buffer with channel binding data
@@ -547,7 +548,7 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
  *
  * @return      0 if everyting parses correctly, or an error code
  */
-int ntlm_process_target_info(struct ntlm_ctx *ctx,
+int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
                              struct ntlm_buffer *in,
                              const char *server,
                              struct ntlm_buffer *unhashed_cb,

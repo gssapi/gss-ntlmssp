@@ -70,6 +70,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     uint8_t sec_req;
     bool key_exch;
     bool add_mic = false;
+    bool protect;
 
     ctx = (struct gssntlm_ctx *)(*context_handle);
 
@@ -399,6 +400,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             in_flags &= ~NTLMSSP_NEGOTIATE_DATAGRAM;
         }
 
+        protect = in_flags & (NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL);
+
         if (ctx->gss_flags & GSS_C_ANON_FLAG) {
             /* Anonymous auth, empty responses */
             memset(&nt_chal_resp, 0, sizeof(nt_chal_resp));
@@ -445,7 +448,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                     cb.data = input_chan_bindings->application_data.value;
                 }
 
-                retmin = ntlm_process_target_info(ctx->ntlm,
+                retmin = ntlm_process_target_info(ctx->ntlm, protect,
                                                   &target_info,
                                                   server_name, &cb,
                                                   &client_target_info,
@@ -600,7 +603,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
         }
 
-        if (in_flags & (NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL)) {
+        if (protect) {
             retmin = ntlm_signseal_keys(in_flags, true,
                                         &ctx->exported_session_key,
                                         &ctx->send.sign_key,
