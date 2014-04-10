@@ -433,6 +433,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
 
             if (target_info.length > 0) {
+                bool *add_mic_ptr = NULL;
+                const char *envvar;
 
                 if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
                     if (input_chan_bindings->initiator_addrtype != 0 ||
@@ -448,12 +450,20 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                     cb.data = input_chan_bindings->application_data.value;
                 }
 
+                if (protect) {
+                    envvar = getenv("NTLMSSP_ENABLE_MIC");
+                    if ((envvar != NULL) &&
+                        (strcasecmp(envvar, "1") == 0)) {
+                        add_mic_ptr = &add_mic;
+                    }
+                }
+
                 retmin = ntlm_process_target_info(ctx->ntlm, protect,
                                                   &target_info,
                                                   server_name, &cb,
                                                   &client_target_info,
                                                   &srv_time,
-                                                  protect ? &add_mic: NULL);
+                                                  add_mic_ptr);
                 if (retmin) {
                     if (retmin == ERR_DECODE) {
                         retmaj = GSS_S_DEFECTIVE_TOKEN;
