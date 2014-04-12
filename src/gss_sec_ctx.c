@@ -1134,6 +1134,15 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             }
         }
 
+        if (src_name) {
+            retmaj = gssntlm_duplicate_name(&retmin,
+                                            (gss_name_t)&ctx->source_name,
+                                            src_name);
+            if (retmaj) {
+                goto done;
+            }
+        }
+
         ctx->stage = NTLMSSP_STAGE_DONE;
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
         ctx->established = true;
