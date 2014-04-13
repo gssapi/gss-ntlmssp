@@ -189,6 +189,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
         if (!(sec_req & SEC_LM_OK)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
         if (!(sec_req & SEC_EXT_SEC_OK)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
