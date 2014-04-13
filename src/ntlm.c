@@ -832,7 +832,7 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx,
     /* the server did not send the timestamp, use current time */
     if (srv_time == 0) {
         srv_time = ntlm_timestamp_now();
-    } else {
+    } else if (add_mic) {
         av_flags |= MSVAVFLAGS_MIC_PRESENT;
         *add_mic = true;
     }

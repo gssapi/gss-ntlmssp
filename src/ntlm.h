@@ -518,7 +518,9 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
  * @param server                The Client Supplied Server Name if available
  * @param out                   The processed target_info buffer
  * @param out_srv_time          A 64 bit FILETIME timestamp
- * @param add_mic               Whether the caller should generate a MIC
+ * @param add_mic               A pointer to a boolean. If NULL MIC flags will
+ *                               not be set, otherwise if allowed the MIC flag
+ *                               will be set and true will be returned.
  *
  * @return      0 if everyting parses correctly, or an error code
  */

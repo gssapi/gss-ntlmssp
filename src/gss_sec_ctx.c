@@ -400,7 +400,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                                                   &target_info,
                                                   server_name,
                                                   &client_target_info,
-                                                  &srv_time, &add_mic);
+                                                  &srv_time,
+                                                  protect ? &add_mic: NULL);
                 if (retmin) {
                     if (retmin == ERR_DECODE) {
                         retmaj = GSS_S_DEFECTIVE_TOKEN;
