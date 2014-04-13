@@ -219,7 +219,7 @@ void ntlm_free_buffer_data(struct ntlm_buffer *buf)
 /* A FILETIME structure is effectively a little endian 64 bit integer
  * with the time from January 1, 1601 UTC with 10s of microsecond resolution.
  */
-#define FILETIME_EPOCH_VALUE 11644473600000000LL
+#define FILETIME_EPOCH_VALUE 116444736000000000LL
 uint64_t ntlm_timestamp_now(void)
 {
     struct timeval tv;
