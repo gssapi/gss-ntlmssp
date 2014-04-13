@@ -562,6 +562,14 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         /* in_flags all verified, assign as current flags */
         ctx->neg_flags |= in_flags;
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) {
+            ctx->gss_flags |= GSS_C_INTEG_FLAG;
+        }
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
+            ctx->gss_flags |= GSS_C_CONF_FLAG & GSS_C_INTEG_FLAG;
+        }
+
         enc_sess_key.data = encrypted_random_session_key.data;
         enc_sess_key.length = encrypted_random_session_key.length;
 
@@ -599,6 +607,9 @@ done:
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
         gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
         *minor_status = retmin;
+    } else {
+        if (ret_flags) *ret_flags = ctx->gss_flags;
+        if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
     *context_handle = (gss_ctx_id_t)ctx;
     if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
@@ -1155,6 +1166,9 @@ done:
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
         gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
         *minor_status = retmin;
+    } else {
+        if (ret_flags) *ret_flags = ctx->gss_flags;
+        if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
     *context_handle = (gss_ctx_id_t)ctx;
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
