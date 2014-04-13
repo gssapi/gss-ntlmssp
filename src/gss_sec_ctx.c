@@ -784,6 +784,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     char *nb_computer_name = NULL;
     char *nb_domain_name = NULL;
     char *env_name;
+    char *chal_target_name;
     gss_buffer_desc tmpbuf;
     uint64_t timestamp;
     struct ntlm_buffer target_info = { 0 };
@@ -1023,15 +1024,25 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                          computer_name,
                                          NULL, NULL,
                                          NULL, &timestamp,
-                                         NULL, computer_name, NULL,
+                                         NULL, NULL, NULL,
                                          &target_info);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
             goto done;
         }
 
+        switch (ctx->role) {
+        case GSSNTLM_DOMAIN_SERVER:
+        case GSSNTLM_DOMAIN_CONTROLLER:
+            chal_target_name = nb_domain_name;
+            break;
+        default:
+            chal_target_name = nb_computer_name;
+            break;
+        }
+
         retmin = ntlm_encode_chal_msg(ctx->ntlm, ctx->neg_flags,
-                                      computer_name, &challenge,
+                                      chal_target_name, &challenge,
                                       &target_info, &ctx->chal_msg);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
