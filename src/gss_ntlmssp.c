@@ -70,7 +70,9 @@ uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx, time_t *time_now)
     time_t now;
 
     if (!ctx) return GSS_S_NO_CONTEXT;
-    if (!ctx->established) return GSS_S_NO_CONTEXT;
+    if (!(ctx->int_flags & NTLMSSP_CTX_FLAG_ESTABLISHED)) {
+        return GSS_S_NO_CONTEXT;
+    }
 
     now = time(NULL);
     if (now > ctx->expiration_time) return GSS_S_CONTEXT_EXPIRED;

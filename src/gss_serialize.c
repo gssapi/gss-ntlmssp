@@ -67,7 +67,7 @@ struct export_ctx {
     struct export_keys send;
     struct export_keys recv;
 
-    uint8_t established;
+    uint8_t int_flags;
     uint64_t expration_time;
 
     uint8_t data[];
@@ -378,7 +378,7 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
     ret = export_keys(&state, &ctx->recv, &ectx->recv);
     if (ret) goto done;
 
-    ectx->established = ctx->established ? 1 : 0;
+    ectx->int_flags = ctx->int_flags;
 
     expiration = ctx->expiration_time;
     ectx->expration_time = htole64(expiration);
@@ -707,7 +707,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     maj = import_keys(minor_status, &state, &ectx->recv, &ctx->recv);
     if (maj != GSS_S_COMPLETE) goto done;
 
-    ctx->established = (ectx->established == 1) ? true : false;
+    ctx->int_flags = ectx->int_flags;
 
     time = le64toh(ectx->expration_time);
     ctx->expiration_time = time;

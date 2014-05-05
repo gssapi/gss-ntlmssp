@@ -434,7 +434,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
             if (target_info.length > 0) {
                 bool *add_mic_ptr = NULL;
-                const char *envvar;
 
                 if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
                     if (input_chan_bindings->initiator_addrtype != 0 ||
@@ -451,9 +450,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 }
 
                 if (protect) {
-                    envvar = getenv("NTLMSSP_ENABLE_MIC");
-                    if ((envvar != NULL) &&
-                        (strcasecmp(envvar, "1") == 0)) {
+                    if (ctx->int_flags & NTLMSSP_CTX_FLAG_SPNEGO_CAN_MIC) {
                         add_mic_ptr = &add_mic;
                     }
                 }
@@ -666,6 +663,9 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
             /* now that we have the mic, copy it into the auth message */
             memcpy(auth_mic.data, mic.data, 16);
+
+            /* Make sure SPNEGO gets to know it has to add mechlistMIC too */
+            ctx->int_flags |= NTLMSSP_CTX_FLAG_AUTH_WITH_MIC;
         }
 
         ctx->stage = NTLMSSP_STAGE_DONE;
@@ -681,7 +681,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         /* For now use the same as the challenge/response lifetime (36h) */
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
-        ctx->established = true;
+        ctx->int_flags |= NTLMSSP_CTX_FLAG_ESTABLISHED;
 
         retmaj = GSS_S_COMPLETE;
     }
@@ -1344,7 +1344,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         ctx->stage = NTLMSSP_STAGE_DONE;
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
-        ctx->established = true;
+        ctx->int_flags |= NTLMSSP_CTX_FLAG_ESTABLISHED;
         retmaj = GSS_S_COMPLETE;
     }
 
@@ -1422,7 +1422,7 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
         }
     }
 
-    if (ctx->established) {
+    if (ctx->int_flags & NTLMSSP_CTX_FLAG_ESTABLISHED) {
         if (lifetime_rec) {
             now = time(NULL);
             if (ctx->expiration_time > now) {
@@ -1492,4 +1492,64 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
 
     *minor_status = EINVAL;
     return GSS_S_UNAVAILABLE;
+}
+
+gss_OID_desc spnego_req_mic_oid = {
+    GSS_SPNEGO_REQUIRE_MIC_OID_LENGTH,
+    GSS_SPNEGO_REQUIRE_MIC_OID_STRING
+};
+
+uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
+	                                    const gss_ctx_id_t context_handle,
+	                                    const gss_OID desired_object,
+	                                    gss_buffer_set_t *data_set)
+{
+    struct gssntlm_ctx *ctx;
+    gss_buffer_desc mic_buf;
+    uint32_t maj, min;
+    uint8_t mic_set;
+
+    if (minor_status == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
+    *minor_status = 0;
+
+    if (context_handle == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    ctx = (struct gssntlm_ctx *)context_handle;
+
+    if (desired_object == GSS_C_NO_OID) {
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+
+    *data_set = GSS_C_NO_BUFFER_SET;
+
+    /* the simple fact the spnego layer is asking means it can handle
+     * forcing mechlistMIC if we add a MIC to the Authenticate packet.
+     * We expect this to be called before the authenticate token is
+     * generated to set this flag ... */
+    ctx->int_flags |= NTLMSSP_CTX_FLAG_SPNEGO_CAN_MIC;
+
+    /* ... and then again after, in which case if we actually did add
+     * a MIC we can tell spnego to add a mechlistMIC */
+    if (ctx->int_flags & NTLMSSP_CTX_FLAG_AUTH_WITH_MIC) {
+        mic_set = 1;
+    } else {
+        mic_set = 0;
+    }
+
+    mic_buf.value = &mic_set;
+    mic_buf.length = sizeof(mic_set);
+
+    maj = gss_add_buffer_set_member(&min, &mic_buf, data_set);
+    if (maj != GSS_S_COMPLETE) {
+        *minor_status = min;
+        (void)gss_release_buffer_set(&min, data_set);
+        return maj;
+    }
+
+    return GSS_S_COMPLETE;
 }

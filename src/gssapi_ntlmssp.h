@@ -47,6 +47,18 @@ extern "C" {
 #define GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x01"
 #define GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
+/* SPNEGO Require MIC OID
+ * When the NTLMSSP mechanism produces a MIC in the authenticate message,
+ * the SPNEGO mechanism also must produce a mechlistMIC token otherwise
+ * Windows servers get confused and fail the authentication.
+ * This OID is queried by the SPNEGO mechanism after each token is generated.
+ * After the Negotiate token is produced, a query for this context property
+ * signals us that the SPNEGO implementation knows how to deal with the MIC,
+ * After the Authenticate token is produced we return whether a MIC was
+ * produced or not */
+#define GSS_SPNEGO_REQUIRE_MIC_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x02"
+#define GSS_SPNEGO_REQUIRE_MIC_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
+
 #define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
 #define GSS_NTLMSSP_CS_NTHASH "ntlmssp_nthash"
 #define GSS_NTLMSSP_CS_PASSWORD "ntlmssp_password"

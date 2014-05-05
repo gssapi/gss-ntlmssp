@@ -297,6 +297,17 @@ OM_uint32 gss_set_sec_context_option(OM_uint32 *minor_status,
                                           value);
 }
 
+OM_uint32 gss_inquire_sec_context_by_oid(OM_uint32 *minor_status,
+	                                 const gss_ctx_id_t context_handle,
+	                                 const gss_OID desired_object,
+	                                 gss_buffer_set_t *data_set)
+{
+    return gssntlm_inquire_sec_context_by_oid(minor_status,
+                                              context_handle,
+                                              desired_object,
+                                              data_set);
+}
+
 OM_uint32 gss_inquire_cred(OM_uint32 *minor_status,
                            gss_cred_id_t cred_handle,
                            gss_name_t *name,

@@ -61,6 +61,10 @@
                 NTLMSSP_NEGOTIATE_OEM | \
                 NTLMSSP_NEGOTIATE_UNICODE)
 
+#define NTLMSSP_CTX_FLAG_ESTABLISHED    0x01 /* context was established */
+#define NTLMSSP_CTX_FLAG_SPNEGO_CAN_MIC 0x02 /* SPNEGO asks for MIC */
+#define NTLMSSP_CTX_FLAG_AUTH_WITH_MIC  0x04 /* Auth MIC was created */
+
 struct gssntlm_name {
     enum ntlm_name_type {
         GSSNTLM_NAME_NULL,
@@ -150,7 +154,7 @@ struct gssntlm_ctx {
     struct gssntlm_signseal send;
     struct gssntlm_signseal recv;
 
-    bool established;
+    uint32_t int_flags;
     time_t expiration_time;
 };
 
@@ -261,6 +265,11 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
                                         gss_ctx_id_t *context_handle,
                                         const gss_OID desired_object,
                                         const gss_buffer_t value);
+
+uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
+	                                    const gss_ctx_id_t context_handle,
+	                                    const gss_OID desired_object,
+	                                    gss_buffer_set_t *data_set);
 
 uint32_t gssntlm_get_mic(uint32_t *minor_status,
                          gss_ctx_id_t context_handle,
