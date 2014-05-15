@@ -102,6 +102,14 @@ AC_SUBST([CRYPTO_LIBS])
 
 AX_CHECK_ZLIB(,[AC_MSG_ERROR([Could not find Zlib support])])
 
+PKG_CHECK_MODULES(WBC, wbclient,
+                  [AC_DEFINE([HAVE_WBCLIENT], [1],
+                             [Wbclient support is available])],
+                  AC_MSG_WARN("Samba's wbclient headers are not available"))
+AC_SUBST(WBC_CFLAGS)
+AC_SUBST(WBC_LIBS)
+
+
 if test x$HAVE_MANPAGES != x; then
     CHECK_XML_TOOLS
     CHECK_STYLESHEET([$SGML_CATALOG_FILES],

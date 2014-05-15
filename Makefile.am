@@ -66,7 +66,7 @@ AM_CPPFLAGS = \
 
 #EXTRA_DIST = build/config.rpath
 
-GN_MECHGLUE_LIBS = $(GSSAPI_LIBS) $(CRYPTO_LIBS)
+GN_MECHGLUE_LIBS = $(GSSAPI_LIBS) $(CRYPTO_LIBS) $(WBC_LIBS)
 
 GN_MECHGLUE_OBJ = \
     src/crypto.c \
@@ -99,6 +99,7 @@ dist_gssapi_HEADERS = \
 gssntlmssp_la_SOURCES = \
     $(GN_MECHGLUE_OBJ)
 gssntlmssp_la_CFLAGS = \
+    $(WBC_CFLAGS) \
     $(AM_CFLAGS)
 gssntlmssp_la_LDFLAGS = \
     $(GN_MECHGLUE_LIBS) \
@@ -110,8 +111,10 @@ ntlmssptest_SOURCES = \
     $(GN_MECHGLUE_OBJ) \
     tests/ntlmssptest.c
 ntlmssptest_CFLAGS = \
+    $(WBC_CFLAGS) \
     $(AM_CFLAGS)
 ntlmssptest_LDADD = \
+    $(WBC_LIBS) \
     $(GSSAPI_LIBS) \
     $(CRYPTO_LIBS)
 
