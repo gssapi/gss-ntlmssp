@@ -97,7 +97,7 @@ dist_gssapi_HEADERS = \
 gssntlmssp_la_SOURCES = \
     $(GN_MECHGLUE_OBJ)
 gssntlmssp_la_CFLAGS = \
-    $(AM_FLAGS)
+    $(AM_CFLAGS)
 gssntlmssp_la_LDFLAGS = \
     $(GN_MECHGLUE_LIBS) \
     -export-symbols-regex '^gss(spi|)_' \
@@ -108,7 +108,7 @@ ntlmssptest_SOURCES = \
     $(GN_MECHGLUE_OBJ) \
     tests/ntlmssptest.c
 ntlmssptest_CFLAGS = \
-    $(AM_FLAGS)
+    $(AM_CFLAGS)
 ntlmssptest_LDADD = \
     $(GSSAPI_LIBS) \
     $(CRYPTO_LIBS)
