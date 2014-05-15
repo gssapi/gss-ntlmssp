@@ -78,6 +78,8 @@ GN_MECHGLUE_OBJ = \
     src/gss_sec_ctx.c \
     src/gss_signseal.c \
     src/gss_serialize.c \
+    src/external.c \
+    src/gss_auth.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \

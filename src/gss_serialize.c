@@ -749,6 +749,7 @@ struct export_cred {
 #define EXP_CRED_ANON 1
 #define EXP_CRED_USER 2
 #define EXP_CRED_SERVER 3
+#define EXP_CRED_EXTERNAL 4
 
 uint32_t gssntlm_export_cred(uint32_t *minor_status,
                              gss_cred_id_t cred_handle,
@@ -812,6 +813,12 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
         ecred->type = EXP_CRED_SERVER;
 
         ret = export_name(&state, &cred->cred.server.name, &ecred->name);
+        if (ret) goto done;
+        break;
+    case GSSNTLM_CRED_EXTERNAL:
+        ecred->type = EXP_CRED_EXTERNAL;
+
+        ret = export_name(&state, &cred->cred.external.user, &ecred->name);
         if (ret) goto done;
         break;
     }
@@ -907,6 +914,12 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         cred->type = GSSNTLM_CRED_SERVER;
         maj = import_name(minor_status, &state, &ecred->name,
                           &cred->cred.server.name);
+        if (maj != GSS_S_COMPLETE) goto done;
+        break;
+    case EXP_CRED_EXTERNAL:
+        cred->type = GSSNTLM_CRED_EXTERNAL;
+        maj = import_name(minor_status, &state, &ecred->name,
+                          &cred->cred.external.user);
         if (maj != GSS_S_COMPLETE) goto done;
         break;
     default:

@@ -89,7 +89,8 @@ struct gssntlm_cred {
         GSSNTLM_CRED_NONE,
         GSSNTLM_CRED_ANON,
         GSSNTLM_CRED_USER,
-        GSSNTLM_CRED_SERVER
+        GSSNTLM_CRED_SERVER,
+        GSSNTLM_CRED_EXTERNAL,
     } type;
 
     union {
@@ -104,6 +105,9 @@ struct gssntlm_cred {
         struct {
             struct gssntlm_name name;
         } server;
+        struct {
+            struct gssntlm_name user;
+        } external;
     } cred;
 };
 
@@ -164,7 +168,21 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst);
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 
-extern const gss_OID_desc gssntlm_oid;
+
+uint32_t external_get_creds(struct gssntlm_name *name,
+                            struct gssntlm_cred *cred);
+uint32_t external_srv_auth(char *user, char *domain,
+                           char *workstation, uint8_t *challenge,
+                           struct ntlm_buffer *nt_chal_resp,
+                           struct ntlm_buffer *lm_chal_resp,
+                           struct ntlm_key *ntlmv2_key);
+
+uint32_t gssntlm_srv_auth(uint32_t *minor,
+                          struct gssntlm_ctx *ctx,
+                          struct gssntlm_cred *cred,
+                          struct ntlm_buffer *nt_chal_resp,
+                          struct ntlm_buffer *lm_chal_resp,
+                          struct ntlm_key *key_exchange_key);
 
 extern const gss_OID_desc gssntlm_oid;
 

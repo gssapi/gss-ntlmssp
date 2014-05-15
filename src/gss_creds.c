@@ -273,6 +273,11 @@ int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out)
                                 &out->cred.server.name);
         if (ret) goto done;
         break;
+    case GSSNTLM_CRED_EXTERNAL:
+        ret = gssntlm_copy_name(&in->cred.external.user,
+                                &out->cred.external.user);
+        if (ret) goto done;
+        break;
     }
     out->type = in->type;
 
@@ -304,6 +309,9 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred)
         break;
     case GSSNTLM_CRED_SERVER:
         gssntlm_int_release_name(&cred->cred.server.name);
+        break;
+    case GSSNTLM_CRED_EXTERNAL:
+        gssntlm_int_release_name(&cred->cred.external.user);
         break;
     }
 }
@@ -365,6 +373,9 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             retmin = get_creds_from_store(name, cred, cred_store);
         } else {
             retmin = get_user_file_creds(name, cred);
+            if (retmin) {
+                retmin = external_get_creds(name, cred);
+            }
         }
         if (retmin) {
             retmaj = GSS_S_CRED_UNAVAIL;
@@ -497,6 +508,12 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
         case GSSNTLM_CRED_SERVER:
             maj = gssntlm_duplicate_name(minor_status,
                                          (gss_name_t)&cred->cred.server.name,
+                                         name);
+            if (maj != GSS_S_COMPLETE) return maj;
+            break;
+        case GSSNTLM_CRED_EXTERNAL:
+            maj = gssntlm_duplicate_name(minor_status,
+                                         (gss_name_t)&cred->cred.external.user,
                                          name);
             if (maj != GSS_S_COMPLETE) return maj;
             break;

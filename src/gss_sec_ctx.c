@@ -24,7 +24,6 @@
 #include "gssapi_ntlmssp.h"
 #include "gss_ntlmssp.h"
 
-
 uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                                   gss_cred_id_t claimant_cred_handle,
                                   gss_ctx_id_t *context_handle,
@@ -1145,16 +1144,15 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             /* FIXME: not supported for now */
             retmin = EINVAL;
             retmaj = GSS_S_FAILURE;
+            goto done;
+        }
 
-        } else if (sec_req & SEC_V2_ONLY) {
+        if (sec_req & SEC_V2_ONLY) {
 
             /* ### NTLMv2 ### */
-            struct ntlm_key ntlmv2_key = { .length = 16 };
-            struct ntlm_buffer nt_proof = { 0 };
             char useratdom[1024];
             size_t ulen, dlen, uadlen;
             gss_buffer_desc usrname;
-            int retries;
 
             if (!dom_name) {
                 dom_name = strdup("");
@@ -1197,6 +1195,12 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                           (gss_cred_id_t *)&usr_cred,
                                           NULL, NULL);
             if (retmaj) goto done;
+            /* We can't handle winbind credentials yet */
+            if (usr_cred->type != GSSNTLM_CRED_USER) {
+                retmin = EINVAL;
+                retmaj = GSS_S_CRED_UNAVAIL;
+                goto done;
+            }
 
             retmin = gssntlm_copy_name(gss_usrname, &ctx->source_name);
             if (retmin) {
@@ -1204,59 +1208,10 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 goto done;
             }
 
-            for (retries = 2; retries > 0; retries--) {
-                const char *domstr;
-
-                if (retries == 2) {
-                    domstr = usr_cred->cred.user.user.data.user.domain;
-                } else {
-                    domstr = NULL;
-                }
-
-                /* NTLMv2 Key */
-                retmin = NTOWFv2(ctx->ntlm, &usr_cred->cred.user.nt_hash,
-                                 usr_cred->cred.user.user.data.user.name,
-                                 domstr, &ntlmv2_key);
-                if (retmin) {
-                    retmaj = GSS_S_FAILURE;
-                    goto done;
-                }
-
-                /* NTLMv2 Response */
-                retmin = ntlmv2_verify_nt_response(&nt_chal_resp,
-                                                   &ntlmv2_key,
-                                                   ctx->server_chal);
-                if (retmin == 0) {
-                    break;
-                } else {
-                    if (ctx->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY) {
-                        /* LMv2 Response */
-                        retmin = ntlmv2_verify_lm_response(&lm_chal_resp,
-                                                           &ntlmv2_key,
-                                                           ctx->server_chal);
-                        if (retmin == 0) {
-                            break;
-                        }
-                    }
-                }
-                if (retmin && retries < 2) {
-                    retmaj = GSS_S_FAILURE;
-                    goto done;
-                }
-            }
-
-            /* The NT proof is the first 16 bytes */
-            nt_proof.data = nt_chal_resp.data;
-            nt_proof.length = 16;
-
-            /* The Session Base Key */
-            /* In NTLMv2 the Key Exchange Key is the Session Base Key */
-            retmin = ntlmv2_session_base_key(&ntlmv2_key, &nt_proof,
-                                             &key_exchange_key);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
-            }
+            retmaj = gssntlm_srv_auth(&retmin, ctx, usr_cred,
+                                      &nt_chal_resp, &lm_chal_resp,
+                                      &key_exchange_key);
+            if (retmaj) goto done;
 
         } else {
             /* ### NTLMv1 ### */
