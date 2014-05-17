@@ -1368,6 +1368,9 @@ done:
     safefree(usr_name);
     safefree(dom_name);
     safefree(wks_name);
+    ntlm_free_buffer_data(&nt_chal_resp);
+    ntlm_free_buffer_data(&lm_chal_resp);
+    ntlm_free_buffer_data(&enc_sess_key);
     ntlm_free_buffer_data(&target_info);
     return retmaj;
 }
