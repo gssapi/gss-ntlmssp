@@ -83,11 +83,11 @@ const char *hex_to_dump(uint8_t *d, size_t s)
 }
 
 /* Test Data as per para 4.2 of MS-NLMP */
-char *T_User = "User";
-char *T_UserDom = "Domain";
-char *T_Passwd = "Password";
-char *T_Server_Name = "Server";
-char *T_Workstation = "COMPUTER";
+const char *T_User = "User";
+const char *T_UserDom = "Domain";
+const char *T_Passwd = "Password";
+const char *T_Server_Name = "Server";
+const char *T_Workstation = "COMPUTER";
 uint8_t T_RandomSessionKey[] = {
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55
@@ -529,6 +529,20 @@ struct t_gsswrapex_data {
 };
 
 /* Basic GSS_WrapEx V1 Test Data */
+
+uint8_t T_GSSWRAPv1noESS_Plaintext_data[18] = {
+    0x50, 0x00, 0x6c, 0x00, 0x61, 0x00, 0x69, 0x00, 0x6e,
+    0x00, 0x74, 0x00, 0x65, 0x00, 0x78, 0x00, 0x74, 0x00
+};
+uint8_t T_GSSWRAPv1noESS_Ciphertext_data[18] = {
+    0x56, 0xfe, 0x04, 0xd8, 0x61, 0xf9, 0x31, 0x9a, 0xf0,
+    0xd7, 0x23, 0x8a, 0x2e, 0x3b, 0x4d, 0x45, 0x7f, 0xb8
+};
+uint8_t T_GSSWRAPv1noESS_Signature_data[16] = {
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x09, 0xdc, 0xd1, 0xdf, 0x2e, 0x45, 0x9d, 0x36
+};
+
 struct t_gsswrapex_data T_GSSWRAPv1noESS = {
     (
       NTLMSSP_NEGOTIATE_56 |
@@ -536,9 +550,8 @@ struct t_gsswrapex_data T_GSSWRAPv1noESS = {
     ),
     0,
     {
-      .data = (uint8_t *)"\x50\x00\x6c\x00\x61\x00\x69\x00"
-                 "\x6e\x00\x74\x00\x65\x00\x78\x00\x74\x00",
-      .length = 18
+      .data = T_GSSWRAPv1noESS_Plaintext_data,
+      .length = sizeof(T_GSSWRAPv1noESS_Plaintext_data)
     },
     {
       .data = {
@@ -556,18 +569,30 @@ struct t_gsswrapex_data T_GSSWRAPv1noESS = {
       .length = 0
     },
     {
-      .data = (uint8_t *)"\x56\xfe\x04\xd8\x61\xf9\x31\x9a"
-                 "\xf0\xd7\x23\x8a\x2e\x3b\x4d\x45\x7f\xb8",
-      .length = 18
+      .data = T_GSSWRAPv1noESS_Ciphertext_data,
+      .length = sizeof(T_GSSWRAPv1noESS_Ciphertext_data)
     },
     {
-      .data = (uint8_t *)"\x01\x00\x00\x00\x00\x00\x00\x00"
-                         "\x09\xdc\xd1\xdf\x2e\x45\x9d\x36",
-      .length = 16
+      .data = T_GSSWRAPv1noESS_Signature_data,
+      .length = sizeof(T_GSSWRAPv1noESS_Signature_data)
     },
 };
 
 /* GSS_WrapEx V1 Extended Session Security Test Data */
+
+uint8_t T_GSSWRAPEXv1_Plaintext_data[18] = {
+    0x50, 0x00, 0x6c, 0x00, 0x61, 0x00, 0x69, 0x00, 0x6e,
+    0x00, 0x74, 0x00, 0x65, 0x00, 0x78, 0x00, 0x74, 0x00
+};
+uint8_t T_GSSWRAPEXv1_Ciphertext_data[18] = {
+    0xa0, 0x23, 0x72, 0xf6, 0x53, 0x02, 0x73, 0xf3, 0xaa,
+    0x1e, 0xb9, 0x01, 0x90, 0xce, 0x52, 0x00, 0xc9, 0x9d
+};
+uint8_t T_GSSWRAPEXv1_Signature_data[16] = {
+    0x01, 0x00, 0x00, 0x00, 0xff, 0x2a, 0xeb, 0x52,
+    0xf6, 0x81, 0x79, 0x3a, 0x00, 0x00, 0x00, 0x00
+};
+
 struct t_gsswrapex_data T_GSSWRAPEXv1 = {
     (
       NTLMSSP_NEGOTIATE_56 |
@@ -576,9 +601,8 @@ struct t_gsswrapex_data T_GSSWRAPEXv1 = {
     ),
     0,
     {
-      .data = (uint8_t *)"\x50\x00\x6c\x00\x61\x00\x69\x00"
-                 "\x6e\x00\x74\x00\x65\x00\x78\x00\x74\x00",
-      .length = 18
+      .data = T_GSSWRAPEXv1_Plaintext_data,
+      .length = sizeof(T_GSSWRAPEXv1_Plaintext_data)
     },
     {
       .data = {
@@ -602,18 +626,30 @@ struct t_gsswrapex_data T_GSSWRAPEXv1 = {
       .length = 16
     },
     {
-      .data = (uint8_t *)"\xa0\x23\x72\xf6\x53\x02\x73\xf3"
-                 "\xaa\x1e\xb9\x01\x90\xce\x52\x00\xc9\x9d",
-      .length = 18
+      .data = T_GSSWRAPEXv1_Ciphertext_data,
+      .length = sizeof(T_GSSWRAPEXv1_Ciphertext_data)
     },
     {
-      .data = (uint8_t *)"\x01\x00\x00\x00\xff\x2a\xeb\x52"
-                         "\xf6\x81\x79\x3a\x00\x00\x00\x00",
-      .length = 16
+      .data = T_GSSWRAPEXv1_Signature_data,
+      .length = sizeof(T_GSSWRAPEXv1_Signature_data)
     },
 };
 
 /* GSS_WrapEx V2 Test Data */
+
+uint8_t T_GSSWRAPEXv2_Plaintext_data[18] = {
+    0x50, 0x00, 0x6c, 0x00, 0x61, 0x00, 0x69, 0x00, 0x6e,
+    0x00, 0x74, 0x00, 0x65, 0x00, 0x78, 0x00, 0x74, 0x00
+};
+uint8_t T_GSSWRAPEXv2_Ciphertext_data[18] = {
+    0x54, 0xe5, 0x01, 0x65, 0xbf, 0x19, 0x36, 0xdc, 0x99,
+    0x60, 0x20, 0xc1, 0x81, 0x1b, 0x0f, 0x06, 0xfb, 0x5f
+};
+uint8_t T_GSSWRAPEXv2_Signature_data[16] = {
+    0x01, 0x00, 0x00, 0x00, 0x7f, 0xb3, 0x8e, 0xc5,
+    0xc5, 0x5d, 0x49, 0x76, 0x00, 0x00, 0x00, 0x00
+};
+
 struct t_gsswrapex_data T_GSSWRAPEXv2 = {
     (
       NTLMSSP_NEGOTIATE_56 | NTLMSSP_NEGOTIATE_128 |
@@ -622,9 +658,8 @@ struct t_gsswrapex_data T_GSSWRAPEXv2 = {
     ),
     0,
     {
-      .data = (uint8_t *)"\x50\x00\x6c\x00\x61\x00\x69\x00"
-                 "\x6e\x00\x74\x00\x65\x00\x78\x00\x74\x00",
-      .length = 18
+      .data = T_GSSWRAPEXv2_Plaintext_data,
+      .length = sizeof(T_GSSWRAPEXv2_Plaintext_data)
     },
     {
       .data = {
@@ -648,14 +683,12 @@ struct t_gsswrapex_data T_GSSWRAPEXv2 = {
       .length = 16
     },
     {
-      .data = (uint8_t *)"\x54\xe5\x01\x65\xbf\x19\x36\xdc"
-                 "\x99\x60\x20\xc1\x81\x1b\x0f\x06\xfb\x5f",
-      .length = 18
+      .data = T_GSSWRAPEXv2_Ciphertext_data,
+      .length = sizeof(T_GSSWRAPEXv2_Ciphertext_data)
     },
     {
-      .data = (uint8_t *)"\x01\x00\x00\x00\x7f\xb3\x8e\xc5"
-                         "\xc5\x5d\x49\x76\x00\x00\x00\x00",
-      .length = 16
+      .data = T_GSSWRAPEXv2_Signature_data,
+      .length = sizeof(T_GSSWRAPEXv2_Signature_data)
     },
 };
 int test_LMOWFv1(struct ntlm_ctx *ctx)
@@ -1515,8 +1548,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb)
     gss_buffer_desc pwbuf;
     gss_buffer_desc nbuf;
     uint32_t retmin, retmaj;
-    char *msg = "Sample, signature checking, message.";
-    gss_buffer_desc message = { strlen(msg), msg };
+    const char *msg = "Sample, signature checking, message.";
+    gss_buffer_desc message = { strlen(msg), discard_const(msg) };
     gss_buffer_desc ctx_token;
     uint8_t rand_cb[128];
     struct gss_channel_bindings_struct cbts = { 0 };
@@ -1823,8 +1856,8 @@ int test_gssapi_cl(void)
     gss_buffer_desc set_seqnum_buf;
     uint32_t app_seq_num;
     uint32_t retmin, retmaj;
-    char *msg = "Sample, signature checking, message.";
-    gss_buffer_desc message = { strlen(msg), msg };
+    const char *msg = "Sample, signature checking, message.";
+    gss_buffer_desc message = { strlen(msg), discard_const(msg) };
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);

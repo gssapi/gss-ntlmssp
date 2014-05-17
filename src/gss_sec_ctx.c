@@ -191,7 +191,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             workstation = strdup(env_name);
         } else {
         /* acquire our own name */
-            gss_buffer_desc tmpbuf = { 0, "" };
+            gss_buffer_desc tmpbuf = { 0, discard_const("") };
             struct gssntlm_name *tmpname;
             char *p;
             retmaj = gssntlm_import_name_by_mech(&retmin,
@@ -970,7 +970,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         /* acquire our own name */
         if (!server_name) {
-            tmpbuf.value = "";
+            tmpbuf.value = discard_const("");
             tmpbuf.length = 0;
             retmaj = gssntlm_import_name_by_mech(&retmin,
                                                  &gssntlm_oid,
@@ -1451,7 +1451,7 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
 
 gss_OID_desc set_seq_num_oid = {
     GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH,
-    GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING
+    discard_const(GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING)
 };
 
 uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
@@ -1499,7 +1499,7 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
 
 gss_OID_desc spnego_req_mic_oid = {
     GSS_SPNEGO_REQUIRE_MIC_OID_LENGTH,
-    GSS_SPNEGO_REQUIRE_MIC_OID_STRING
+    discard_const(GSS_SPNEGO_REQUIRE_MIC_OID_STRING)
 };
 
 uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
