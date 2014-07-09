@@ -609,25 +609,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
         }
 
-        if (protect) {
-            retmin = ntlm_signseal_keys(in_flags, true,
-                                        &ctx->exported_session_key,
-                                        &ctx->crypto_state);
-            if (retmin) {
-                retmaj = GSS_S_FAILURE;
-                goto done;
-            }
-        }
-
         /* in_flags all verified, assign as current flags */
         ctx->neg_flags |= in_flags;
-
-        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) {
-            ctx->gss_flags |= GSS_C_INTEG_FLAG;
-        }
-        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
-            ctx->gss_flags |= GSS_C_CONF_FLAG & GSS_C_INTEG_FLAG;
-        }
 
         enc_sess_key.data = encrypted_random_session_key.data;
         enc_sess_key.length = encrypted_random_session_key.length;
@@ -660,6 +643,23 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
             /* Make sure SPNEGO gets to know it has to add mechlistMIC too */
             ctx->int_flags |= NTLMSSP_CTX_FLAG_AUTH_WITH_MIC;
+        }
+
+        if (protect) {
+            retmin = ntlm_signseal_keys(in_flags, true,
+                                        &ctx->exported_session_key,
+                                        &ctx->crypto_state);
+            if (retmin) {
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
+        }
+
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) {
+            ctx->gss_flags |= GSS_C_INTEG_FLAG;
+        }
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
+            ctx->gss_flags |= GSS_C_CONF_FLAG & GSS_C_INTEG_FLAG;
         }
 
         ctx->stage = NTLMSSP_STAGE_DONE;
