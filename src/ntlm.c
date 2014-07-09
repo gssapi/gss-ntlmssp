@@ -36,28 +36,6 @@
 #include "ntlm.h"
 
 #pragma pack(push, 1)
-struct wire_neg_msg {
-    struct wire_msg_hdr header;
-    uint32_t neg_flags;
-    struct wire_field_hdr domain_name;
-    struct wire_field_hdr workstation_name;
-    uint8_t payload[]; /* variable */
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-struct wire_chal_msg {
-    struct wire_msg_hdr header;
-    struct wire_field_hdr target_name;
-    uint32_t neg_flags;
-    uint8_t server_challenge[8];
-    uint8_t reserved[8];
-    struct wire_field_hdr target_info;
-    uint8_t payload[]; /* variable */
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
 struct wire_av_pair {
     uint16_t av_id;
     uint16_t av_len;
