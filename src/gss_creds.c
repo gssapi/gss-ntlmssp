@@ -107,9 +107,31 @@ static int get_user_file_creds(struct gssntlm_name *name,
 static int get_server_creds(struct gssntlm_name *name,
                             struct gssntlm_cred *cred)
 {
-    if (!name) return EINVAL;
+    gss_name_t gssname = NULL;
+    gss_buffer_desc tmpbuf;
+    uint32_t retmaj;
+    uint32_t retmin;
+    int ret;
+
+    if (name == NULL) {
+        tmpbuf.value = discard_const("");
+        tmpbuf.length = 0;
+        ret = 0;
+        retmaj = gssntlm_import_name_by_mech(&retmin,
+                                             &gssntlm_oid,
+                                             &tmpbuf,
+                                             GSS_C_NT_HOSTBASED_SERVICE,
+                                             &gssname);
+        if (retmaj) return retmin;
+
+        name = (struct gssntlm_name *)gssname;
+    }
+
     cred->type = GSSNTLM_CRED_SERVER;
-    return gssntlm_copy_name(name, &cred->cred.server.name);
+    ret = gssntlm_copy_name(name, &cred->cred.server.name);
+    gssntlm_int_release_name((struct gssntlm_name *)gssname);
+
+    return ret;
 }
 
 static int hex_to_key(const char *hex, struct ntlm_key *key)
@@ -176,7 +198,7 @@ static int get_creds_from_store(struct gssntlm_name *name,
     }
 
     /* so far only user options can be defined in the cred_store */
-    if (cred->type != GSSNTLM_CRED_USER) return 0;
+    if (cred->type != GSSNTLM_CRED_USER) return ENOENT;
 
     for (i = 0; i < cred_store->count; i++) {
         if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_DOMAIN) == 0) {
@@ -305,12 +327,22 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
      * It may be possible to specify get server name from env and/or
      * user creds from cred store at the same time, etc .. */
     if (cred_usage == GSS_C_BOTH) {
-        if (name->type == GSSNTLM_NAME_USER ||
-            name->type == GSSNTLM_NAME_ANON) {
-            cred_usage = GSS_C_INITIATE;
-        }
-        if (name->type == GSSNTLM_NAME_SERVER) {
+        if (name == NULL) {
             cred_usage = GSS_C_ACCEPT;
+        } else {
+            switch (name->type) {
+            case GSSNTLM_NAME_SERVER:
+                cred_usage = GSS_C_ACCEPT;
+                break;
+            case GSSNTLM_NAME_USER:
+            case GSSNTLM_NAME_ANON:
+                cred_usage = GSS_C_INITIATE;
+                break;
+            default:
+                retmin = EINVAL;
+                retmaj = GSS_S_CRED_UNAVAIL;
+                goto done;
+            }
         }
     }
 
@@ -336,11 +368,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             goto done;
         }
 
-        if (cred_store != GSS_C_NO_CRED_STORE) {
-            retmin = get_creds_from_store(name, cred, cred_store);
-        } else {
-            retmin = get_server_creds(name, cred);
-        }
+        retmin = get_server_creds(name, cred);
         if (retmin) {
             retmaj = GSS_S_CRED_UNAVAIL;
         }
