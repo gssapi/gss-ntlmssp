@@ -25,7 +25,7 @@
 
 const gss_OID_desc gssntlm_oid = {
     .length = GSS_NTLMSSP_OID_LENGTH,
-    .elements = GSS_NTLMSSP_OID_STRING
+    .elements = discard_const(GSS_NTLMSSP_OID_STRING)
 };
 
 uint8_t gssntlm_required_security(int security_level,

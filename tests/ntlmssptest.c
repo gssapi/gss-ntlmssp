@@ -1851,8 +1851,10 @@ int test_gssapi_cl(void)
     gss_name_t gss_srvname = NULL;
     gss_buffer_desc pwbuf;
     gss_buffer_desc nbuf;
-    gss_OID_desc set_seqnum_oid = { GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH,
-                                    GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING };
+    gss_OID_desc set_seqnum_oid = {
+        GSS_NTLMSSP_SET_SEQ_NUM_OID_LENGTH,
+        discard_const(GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING)
+    };
     gss_buffer_desc set_seqnum_buf;
     uint32_t app_seq_num;
     uint32_t retmin, retmaj;
