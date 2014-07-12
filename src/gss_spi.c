@@ -286,6 +286,17 @@ OM_uint32 gss_display_name(OM_uint32 *minor_status,
                                 output_name_type);
 }
 
+OM_uint32 gss_localname(OM_uint32 *minor_status,
+	                const gss_name_t name,
+	                gss_const_OID mech_type,
+	                gss_buffer_t localname)
+{
+    return gssntlm_localname(minor_status,
+                             name,
+                             mech_type,
+                             localname);
+}
+
 OM_uint32 gss_set_sec_context_option(OM_uint32 *minor_status,
                                      gss_ctx_id_t *context_handle,
                                      const gss_OID desired_object,

@@ -466,3 +466,66 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
 
     return GSS_S_COMPLETE;
 }
+
+#define PWBUFLEN 1024
+
+uint32_t gssntlm_localname(uint32_t *minor_status,
+	                   const gss_name_t name,
+	                   gss_const_OID mech_type,
+	                   gss_buffer_t localname)
+{
+    struct gssntlm_name *in;
+    char *uname = NULL;
+    char pwbuf[PWBUFLEN];
+    struct passwd pw, *res;
+    uint32_t min = 0;
+    int ret;
+
+    in = (struct gssntlm_name *)name;
+    if (in->type != GSSNTLM_NAME_USER) {
+        *minor_status = EINVAL;
+        return GSS_S_FAILURE;
+    }
+
+    /* TODO: hook up with winbindd/sssd for name resolution ? */
+
+    if (in->data.user.domain) {
+        ret = asprintf(&uname, "%s\\%s",
+                       in->data.user.domain, in->data.user.name);
+        if (ret == -1) {
+            min = ENOMEM;
+            goto done;
+        }
+        ret = getpwnam_r(uname, &pw, pwbuf, PWBUFLEN, &res);
+        if (ret) {
+            min = ret;
+            goto done;
+        }
+        safefree(uname);
+        if (res) {
+            uname = strdup(res->pw_name);
+        }
+    }
+    if (uname == NULL) {
+        ret = getpwnam_r(in->data.user.name, &pw, pwbuf, PWBUFLEN, &res);
+        if (ret != 0 || res == NULL) {
+            min = ret;
+            goto done;
+        }
+        uname = strdup(res->pw_name);
+    }
+    if (!uname) {
+        min = ENOMEM;
+        goto done;
+    }
+
+done:
+    *minor_status = min;
+    if (min) {
+        free(uname);
+        return GSS_S_FAILURE;
+    }
+    localname->value = uname;
+    localname->length = strlen(uname) + 1;
+    return GSS_S_COMPLETE;
+}

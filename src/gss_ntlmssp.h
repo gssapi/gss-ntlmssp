@@ -313,6 +313,11 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
                               gss_buffer_t output_name_buffer,
                               gss_OID *output_name_type);
 
+uint32_t gssntlm_localname(uint32_t *minor_status,
+	                   const gss_name_t name,
+	                   gss_const_OID mech_type,
+	                   gss_buffer_t localname);
+
 uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
                               gss_cred_id_t cred_handle,
                               gss_name_t *name,
