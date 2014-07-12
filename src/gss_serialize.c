@@ -273,7 +273,7 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
     ectx = (struct export_ctx *)state.exp_struct;
-    state.exp_data = (void *)ectx->data - (void *)ectx;
+    state.exp_data = (char *)ectx->data - (char *)ectx;
     state.exp_len = state.exp_data;
     state.exp_ptr = 0;
 
@@ -592,7 +592,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     state.exp_struct = interprocess_token->value;
     state.exp_len = interprocess_token->length;
     ectx = (struct export_ctx *)state.exp_struct;
-    state.exp_data = (void *)ectx->data - (void *)ectx;
+    state.exp_data = (char *)ectx->data - (char *)ectx;
     state.exp_ptr = 0;
 
     if (ectx->version != le16toh(1)) {
@@ -769,7 +769,7 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
     ecred = (struct export_cred *)state.exp_struct;
-    state.exp_data = (void *)ecred->data - (void *)ecred;
+    state.exp_data = (char *)ecred->data - (char *)ecred;
     state.exp_len = state.exp_data;
     state.exp_ptr = 0;
 
@@ -857,7 +857,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
     state.exp_struct = token->value;
     state.exp_len = token->length;
     ecred = (struct export_cred *)state.exp_struct;
-    state.exp_data = (void *)ecred->data - (void *)ecred;
+    state.exp_data = (char *)ecred->data - (char *)ecred;
     state.exp_ptr = 0;
 
     if (ecred->version != le16toh(1)) {

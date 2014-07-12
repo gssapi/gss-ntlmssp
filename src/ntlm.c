@@ -957,7 +957,7 @@ int ntlm_encode_neg_msg(struct ntlm_ctx *ctx, uint32_t flags,
     if (!buffer.data) return ENOMEM;
 
     msg = (struct wire_neg_msg *)buffer.data;
-    data_offs = (void *)msg->payload - (void *)msg;
+    data_offs = (char *)msg->payload - (char *)msg;
 
     ntlm_encode_header(&msg->header, NEGOTIATE_MESSAGE);
 
@@ -998,7 +998,7 @@ int ntlm_decode_neg_msg(struct ntlm_ctx *ctx,
     if (!ctx) return EINVAL;
 
     msg = (struct wire_neg_msg *)buffer->data;
-    payload_offs = (void *)msg->payload - (void *)msg;
+    payload_offs = (char *)msg->payload - (char *)msg;
 
     neg_flags = le32toh(msg->neg_flags);
 
@@ -1071,7 +1071,7 @@ int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
     if (!buffer.data) return ENOMEM;
 
     msg = (struct wire_chal_msg *)buffer.data;
-    data_offs = (void *)msg->payload - (void *)msg;
+    data_offs = (char *)msg->payload - (char *)msg;
 
     ntlm_encode_header(&msg->header, CHALLENGE_MESSAGE);
 
@@ -1128,7 +1128,7 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
     if (challenge->length < 8) return EINVAL;
 
     msg = (struct wire_chal_msg *)buffer->data;
-    payload_offs = (void *)msg->payload - (void *)msg;
+    payload_offs = (char *)msg->payload - (char *)msg;
 
     flags = le32toh(msg->neg_flags);
 
@@ -1234,7 +1234,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     if (!buffer.data) return ENOMEM;
 
     msg = (struct wire_auth_msg *)buffer.data;
-    data_offs = (void *)msg->payload - (void *)msg;
+    data_offs = (char *)msg->payload - (char *)msg;
 
     ntlm_encode_header(&msg->header, AUTHENTICATE_MESSAGE);
 
@@ -1339,7 +1339,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     if (enc_sess_key) enc_sess_key->data = NULL;
 
     msg = (struct wire_auth_msg *)buffer->data;
-    payload_offs = (void *)msg->payload - (void *)msg;
+    payload_offs = (char *)msg->payload - (char *)msg;
 
     /* this must be first as it pushes the payload further down */
     if (flags & NTLMSSP_NEGOTIATE_VERSION) {
