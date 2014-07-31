@@ -1,7 +1,8 @@
-# GSS-API mechanism plugins
+# NTLMSSP mechanism plugin
 #
-# NOTE: copy the content of this file in /etc/gss/mech to activate the NTLM SSP
-# mechanism
+# NOTE: to activate the NTLM SSP mechanism do the following
+#     * FOR krb5 < 1.12: copy the content of this file in /etc/gss/mech
+#     * FOR krb5 >= 1.12: copy this file in /etc/gss/mech.d
 #
 # Mechanism Name	Object Identifier		Shared Library Path			Other Options
 gssntlmssp_v1		1.3.6.1.4.1.311.2.2.10	        @libdir@/gssntlmssp/gssntlmssp.so

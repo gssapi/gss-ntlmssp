@@ -8,7 +8,7 @@ License:	LGPLv3+
 URL:		https://fedorahosted.org/gss-ntlmssp
 Source0:	https://fedorahosted.org/released/gss-ntlmssp/%{name}-%{version}.tar.gz
 
-Requires: krb5-libs%{?_isa} >= 1.11.2
+Requires: krb5-libs%{?_isa} >= 1.11.5
 
 BuildRequires: autoconf
 BuildRequires: automake
@@ -20,7 +20,7 @@ BuildRequires: docbook-style-xsl
 BuildRequires: doxygen
 BuildRequires: gettext-devel
 BuildRequires: pkgconfig
-BuildRequires: krb5-devel >= 1.11.2
+BuildRequires: krb5-devel >= 1.11.5
 BuildRequires: libunistring-devel
 BuildRequires: openssl-devel
 
@@ -50,14 +50,13 @@ make %{?_smp_mflags} all
 %install
 %make_install
 rm -f %{buildroot}%{_libdir}/gssntlmssp/gssntlmssp.la
-install -d -m755 %{buildroot}%{_sysconfdir}/gss
-install -pm644 examples/mech.ntlmssp %{buildroot}%{_sysconfdir}/gss/mech.ntlmssp
+install -pm644 examples/mech.ntlmssp %{buildroot}%{_sysconfdir}/gss/mech.d/ntlmssp.conf
 
 %check
 make test_gssntlmssp
 
 %files
-%config(noreplace) %{_sysconfdir}/gss/mech.ntlmssp
+%config(noreplace) %{_sysconfdir}/gss/mech.d/ntlmssp.conf
 %{_libdir}/gssntlmssp/
 %{_mandir}/man8/gssntlmssp.8*
 %doc COPYING
