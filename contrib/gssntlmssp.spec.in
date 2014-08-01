@@ -50,6 +50,7 @@ make %{?_smp_mflags} all
 %install
 %make_install
 rm -f %{buildroot}%{_libdir}/gssntlmssp/gssntlmssp.la
+mkdir -p %{buildroot}%{_sysconfdir}/gss/mech.d
 install -pm644 examples/mech.ntlmssp %{buildroot}%{_sysconfdir}/gss/mech.d/ntlmssp.conf
 
 %check
