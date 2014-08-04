@@ -80,13 +80,15 @@ GN_MECHGLUE_OBJ = \
     src/gss_serialize.c \
     src/external.c \
     src/gss_auth.c \
+    src/winbind.c \
     src/gss_ntlmssp.c
 
 dist_noinst_HEADERS = \
     src/crypto.h \
     src/ntlm_common.h \
     src/ntlm.h \
-    src/gss_ntlmssp.h
+    src/gss_ntlmssp.h \
+    src/gss_ntlmssp_winbind.h
 
 gssapidir = $(includedir)/gssapi
 dist_gssapi_HEADERS = \

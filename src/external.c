@@ -1,7 +1,12 @@
 /* Copyright (C) 2014 GSS-NTLMSSP contributors, see COPYING for License */
 
+#include "config.h"
 #include <errno.h>
 #include "gss_ntlmssp.h"
+
+#if HAVE_WBCLIENT
+#include "gss_ntlmssp_winbind.h"
+#endif
 
 uint32_t external_netbios_get_names(char **computer, char **domain)
 {
@@ -20,5 +25,10 @@ uint32_t external_srv_auth(char *user, char *domain,
                            struct ntlm_buffer *lm_chal_resp,
                            struct ntlm_key *ntlmv2_key)
 {
+#if HAVE_WBCLIENT
+    return winbind_srv_auth(user, domain, workstation, challenge,
+                            nt_chal_resp, lm_chal_resp, ntlmv2_key);
+#else
     return ENOSYS;
+#endif
 }

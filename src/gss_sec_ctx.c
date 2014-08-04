@@ -907,7 +907,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                           NULL, NULL);
             if (retmaj) goto done;
             /* We can't handle winbind credentials yet */
-            if (usr_cred->type != GSSNTLM_CRED_USER) {
+            if (usr_cred->type != GSSNTLM_CRED_USER &&
+                usr_cred->type != GSSNTLM_CRED_EXTERNAL) {
                 retmin = EINVAL;
                 retmaj = GSS_S_CRED_UNAVAIL;
                 goto done;
