@@ -92,7 +92,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
     } else {
         cred = (struct gssntlm_cred *)claimant_cred_handle;
-        if (cred->type != GSSNTLM_CRED_USER) {
+        if (cred->type != GSSNTLM_CRED_USER &&
+            cred->type != GSSNTLM_CRED_EXTERNAL) {
             retmin = EINVAL;
             retmaj = GSS_S_CRED_UNAVAIL;
             goto done;

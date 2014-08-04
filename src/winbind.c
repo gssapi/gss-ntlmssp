@@ -103,6 +103,106 @@ done:
     return ret;
 }
 
+uint32_t winbind_cli_auth(char *user, char *domain,
+                          gss_channel_bindings_t input_chan_bindings,
+                          uint32_t in_flags,
+                          uint32_t *neg_flags,
+                          struct ntlm_buffer *nego_msg,
+                          struct ntlm_buffer *chal_msg,
+                          struct ntlm_buffer *auth_msg,
+                          struct ntlm_key *exported_session_key)
+{
+    /* Get responses and session key from winbind */
+    struct wbcCredentialCacheParams params;
+    struct wbcCredentialCacheInfo *result = NULL;
+    struct wbcNamedBlob *sesskey_blob = NULL;
+    struct wbcNamedBlob *auth_blob = NULL;
+    struct wire_auth_msg *w_auth_msg;
+    struct wire_chal_msg *w_chal_msg;
+    wbcErr wbc_status;
+    int ret = EINVAL;
+    int i;
+
+    if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
+        /* Winbind doesn't support this (yet). We'd want to pass our
+         * own client_target_info in with the request. */
+        ret = EINVAL;
+        goto done;
+    }
+
+    params.account_name = user;
+    params.domain_name= domain;
+    params.level = WBC_CREDENTIAL_CACHE_LEVEL_NTLMSSP;
+    params.num_blobs = 0;
+    params.blobs = NULL;
+
+    wbc_status = wbcAddNamedBlob(&params.num_blobs, &params.blobs,
+                                 "challenge_blob", 0,
+                                 chal_msg->data, chal_msg->length);
+    if (!WBC_ERROR_IS_OK(wbc_status)) {
+        ret = ENOMEM;
+        goto done;
+    }
+    /* If we've masked out flags in in_flags, don't let
+     * winbind see them in the challenge */
+    w_chal_msg = (struct wire_chal_msg *)params.blobs[0].blob.data;
+    w_chal_msg->neg_flags = htole32(in_flags);
+
+    /* Put this in second.
+     * https://bugzilla.samba.org/show_bug.cgi?id=10692 */
+    if (nego_msg->length) {
+        wbc_status = wbcAddNamedBlob(&params.num_blobs, &params.blobs,
+                                     "initial_blob", 0,
+                                     nego_msg->data, nego_msg->length);
+        if (!WBC_ERROR_IS_OK(wbc_status)) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    wbc_status = wbcCredentialCache(&params, &result, NULL);
+    if (!WBC_ERROR_IS_OK(wbc_status)) {
+        ret = ENOENT;
+        goto done;
+    }
+    for (i = 0; i < result->num_blobs; i++) {
+        if (strcmp(result->blobs[i].name, "auth_blob") == 0) {
+            auth_blob = &result->blobs[i];
+        } else if (strcmp(result->blobs[i].name, "session_key") == 0) {
+            sesskey_blob = &result->blobs[i];
+        }
+    }
+
+    if (!auth_blob || auth_blob->blob.length < sizeof(*auth_msg) ||
+        !sesskey_blob || sesskey_blob->blob.length != 16 ) {
+        ret = EIO;
+        goto done;
+    }
+    /* We need to 'correct' the flags in the auth message that
+     * winbind generates.  In datagram mode they do matter.
+     * Winbind leaves out the DATAGRAM and SEAL flags, amongst
+     * others. Thankfully winbind also doesn't support MIC so
+     * we can tamper as much as we like... */
+    w_auth_msg = (struct wire_auth_msg *)auth_blob->blob.data;
+    *neg_flags |= in_flags;
+    w_auth_msg->neg_flags = htole32(*neg_flags);
+
+    auth_msg->length = auth_blob->blob.length;
+    auth_msg->data = auth_blob->blob.data;
+    auth_blob->blob.data = NULL;
+
+    exported_session_key->length = sesskey_blob->blob.length;
+    memcpy(exported_session_key->data, sesskey_blob->blob.data,
+           sesskey_blob->blob.length);
+
+    ret = 0;
+
+done:
+    wbcFreeMemory(params.blobs);
+    wbcFreeMemory(result);
+    return ret;
+}
+
 uint32_t winbind_srv_auth(char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,

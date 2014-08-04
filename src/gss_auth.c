@@ -279,6 +279,20 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
         retmaj = GSS_S_COMPLETE;
         break;
 
+    case GSSNTLM_CRED_EXTERNAL:
+        retmin = external_cli_auth(cred->cred.external.user.data.user.name,
+                                   cred->cred.external.user.data.user.domain,
+                                   input_chan_bindings, in_flags,
+                                   &ctx->neg_flags, &ctx->nego_msg,
+                                   &ctx->chal_msg, &ctx->auth_msg,
+                                   &ctx->exported_session_key);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+        retmaj = GSS_S_COMPLETE;
+        break;
+
     default:
         retmin = EINVAL;
         retmaj = GSS_S_FAILURE;
