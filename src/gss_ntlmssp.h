@@ -182,6 +182,12 @@ uint32_t external_srv_auth(char *user, char *domain,
 uint32_t netbios_get_names(char *computer_name,
                            char **netbios_host, char **netbios_domain);
 
+uint32_t gssntlm_cli_auth(uint32_t *minor,
+                          struct gssntlm_ctx *ctx,
+                          struct gssntlm_cred *cred,
+                          struct ntlm_buffer *target_info,
+                          uint32_t in_flags,
+                          gss_channel_bindings_t input_chan_bindings);
 uint32_t gssntlm_srv_auth(uint32_t *minor,
                           struct gssntlm_ctx *ctx,
                           struct gssntlm_cred *cred,
