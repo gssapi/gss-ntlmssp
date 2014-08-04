@@ -1,5 +1,7 @@
 /* Copyright (C) 2014 GSS-NTLMSSP contributors, see COPYING for License */
 
+uint32_t winbind_get_names(char **computer, char **domain);
+
 uint32_t winbind_get_creds(struct gssntlm_name *name,
                            struct gssntlm_cred *cred);
 

@@ -10,7 +10,11 @@
 
 uint32_t external_netbios_get_names(char **computer, char **domain)
 {
+#if HAVE_WBCLIENT
+    return winbind_get_names(computer, domain);
+#else
     return ENOSYS;
+#endif
 }
 
 uint32_t external_get_creds(struct gssntlm_name *name,

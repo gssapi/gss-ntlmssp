@@ -10,6 +10,41 @@
 
 #include <wbclient.h>
 
+uint32_t winbind_get_names(char **computer, char **domain)
+{
+    struct wbcInterfaceDetails *details = NULL;
+    wbcErr wbc_status;
+    int ret = ENOENT;
+
+    wbc_status = wbcInterfaceDetails(&details);
+    if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
+
+    if (computer) {
+        *computer = strdup(details->netbios_name);
+        if (!*computer) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    if (domain) {
+        *domain = strdup(details->netbios_domain);
+        if (!*domain) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    ret = 0;
+
+done:
+    if (ret) {
+        if (computer) free(*computer);
+    }
+    wbcFreeMemory(details);
+    return ret;
+}
+
 uint32_t winbind_get_creds(struct gssntlm_name *name,
                            struct gssntlm_cred *cred)
 {
