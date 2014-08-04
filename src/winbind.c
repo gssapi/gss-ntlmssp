@@ -10,6 +10,64 @@
 
 #include <wbclient.h>
 
+uint32_t winbind_get_creds(struct gssntlm_name *name,
+                           struct gssntlm_cred *cred)
+{
+    struct wbcCredentialCacheParams params;
+    struct wbcCredentialCacheInfo *result;
+    struct wbcInterfaceDetails *details = NULL;
+    wbcErr wbc_status;
+    int ret = ENOENT;
+
+    if (name && name->data.user.domain) {
+        params.domain_name = name->data.user.domain;
+    } else {
+        wbc_status = wbcInterfaceDetails(&details);
+        if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
+
+        params.domain_name = details->netbios_domain;
+    }
+
+    if (name && name->data.user.name) {
+        params.account_name = name->data.user.name;
+    } else {
+        params.account_name = getenv("NTLMUSER");
+        if (!params.account_name) {
+            params.account_name = getenv("USER");
+        }
+        if (!params.account_name) goto done;
+    }
+
+    params.level = WBC_CREDENTIAL_CACHE_LEVEL_NTLMSSP;
+    params.num_blobs = 0;
+    params.blobs = NULL;
+    wbc_status = wbcCredentialCache(&params, &result, NULL);
+
+    if(!WBC_ERROR_IS_OK(wbc_status)) goto done;
+
+    /* Yes, winbind seems to think it has credentials for us */
+    wbcFreeMemory(result);
+
+    cred->type = GSSNTLM_CRED_EXTERNAL;
+    cred->cred.external.user.type = GSSNTLM_NAME_USER;
+    cred->cred.external.user.data.user.domain = strdup(params.domain_name);
+    if (!cred->cred.external.user.data.user.domain) {
+        ret = ENOMEM;
+        goto done;
+    }
+    cred->cred.external.user.data.user.name = strdup(params.account_name);
+    if (!cred->cred.external.user.data.user.name) {
+        ret = ENOMEM;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    wbcFreeMemory(details);
+    return ret;
+}
+
 uint32_t winbind_srv_auth(char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,

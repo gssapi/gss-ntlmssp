@@ -16,7 +16,11 @@ uint32_t external_netbios_get_names(char **computer, char **domain)
 uint32_t external_get_creds(struct gssntlm_name *name,
                             struct gssntlm_cred *cred)
 {
+#if HAVE_WBCLIENT
+    return winbind_get_creds(name, cred);
+#else
     return ENOSYS;
+#endif
 }
 
 uint32_t external_srv_auth(char *user, char *domain,
