@@ -17,6 +17,7 @@
 
 #define _GNU_SOURCE
 
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <pwd.h>
@@ -528,4 +529,81 @@ done:
     localname->value = uname;
     localname->length = strlen(uname) + 1;
     return GSS_S_COMPLETE;
+}
+
+uint32_t netbios_get_names(char *computer_name,
+                           char **netbios_host, char **netbios_domain)
+{
+    char *nb_computer_name = NULL;
+    char *nb_domain_name = NULL;
+    char *env_name;
+    uint32_t ret;
+
+    env_name = getenv("NETBIOS_COMPUTER_NAME");
+    if (env_name) {
+        nb_computer_name = strdup(env_name);
+        if (!nb_computer_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    env_name = getenv("NETBIOS_DOMAIN_NAME");
+    if (env_name) {
+        nb_domain_name = strdup(env_name);
+        if (!nb_domain_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    if (!nb_computer_name || !nb_domain_name) {
+        /* fetch only missing ones */
+        ret = external_netbios_get_names(
+                    nb_computer_name ? NULL : &nb_computer_name,
+                    nb_domain_name ? NULL : &nb_domain_name);
+        if ((ret != 0) &&
+            (ret != ENOENT) &&
+            (ret != ENOSYS)) {
+            goto done;
+        }
+    }
+
+    if (!nb_computer_name) {
+        char *p;
+        p = strchr(computer_name, '.');
+        if (p) {
+            nb_computer_name = strndup(computer_name, p - computer_name);
+        } else {
+            nb_computer_name = strdup(computer_name);
+        }
+        for (p = nb_computer_name; p && *p; p++) {
+            /* Can only be ASCII, so toupper is safe */
+            *p = toupper(*p);
+        }
+        if (!nb_computer_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    if (!nb_domain_name) {
+        nb_domain_name = strdup("WORKGROUP");
+        if (!nb_domain_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
+    ret = 0;
+
+done:
+    if (ret) {
+        safefree(nb_computer_name);
+        safefree(nb_domain_name);
+    }
+
+    *netbios_domain = nb_domain_name;
+    *netbios_host = nb_computer_name;
+    return ret;
 }

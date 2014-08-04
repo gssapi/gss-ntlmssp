@@ -168,7 +168,7 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred);
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst);
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 
-
+uint32_t external_netbios_get_names(char **computer, char **domain);
 uint32_t external_get_creds(struct gssntlm_name *name,
                             struct gssntlm_cred *cred);
 uint32_t external_srv_auth(char *user, char *domain,
@@ -176,6 +176,9 @@ uint32_t external_srv_auth(char *user, char *domain,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
                            struct ntlm_key *ntlmv2_key);
+
+uint32_t netbios_get_names(char *computer_name,
+                           char **netbios_host, char **netbios_domain);
 
 uint32_t gssntlm_srv_auth(uint32_t *minor,
                           struct gssntlm_ctx *ctx,

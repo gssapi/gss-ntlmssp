@@ -3,6 +3,11 @@
 #include <errno.h>
 #include "gss_ntlmssp.h"
 
+uint32_t external_netbios_get_names(char **computer, char **domain)
+{
+    return ENOSYS;
+}
+
 uint32_t external_get_creds(struct gssntlm_name *name,
                             struct gssntlm_cred *cred)
 {
