@@ -127,6 +127,8 @@ struct gssntlm_ctx {
         NTLMSSP_STAGE_DONE
     } stage;
 
+    uint8_t sec_req;
+
     char *workstation;
 
     struct ntlm_ctx *ntlm;

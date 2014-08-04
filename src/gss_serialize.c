@@ -44,10 +44,12 @@ struct export_keys {
     uint32_t seq_num;
 };
 
+#define EXPORT_CTX_VER 0x0002
 struct export_ctx {
-    uint16_t version;   /* 0x00 0x01 */
+    uint16_t version;
     uint8_t role;
     uint8_t stage;
+    uint8_t sec_req;
 
     struct relmem workstation;
 
@@ -277,7 +279,7 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
     state.exp_len = state.exp_data;
     state.exp_ptr = 0;
 
-    ectx->version = htole16(1);
+    ectx->version = htole16(EXPORT_CTX_VER);
 
     switch(ctx->role) {
     case GSSNTLM_CLIENT:
@@ -311,6 +313,8 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
         ectx->stage = EXP_STG_DONE;
         break;
     }
+
+    ectx->sec_req = ctx->sec_req;
 
     if (!ctx->workstation) {
         ectx->workstation.ptr = 0;
@@ -595,7 +599,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     state.exp_data = (char *)ectx->data - (char *)ectx;
     state.exp_ptr = 0;
 
-    if (ectx->version != le16toh(1)) {
+    if (ectx->version != le16toh(EXPORT_CTX_VER)) {
         maj = GSS_S_DEFECTIVE_TOKEN;
         goto done;
     }
@@ -638,6 +642,8 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
         maj = GSS_S_DEFECTIVE_TOKEN;
         goto done;
     }
+
+    ctx->sec_req = ectx->sec_req;
 
     dest = NULL;
     if (ectx->workstation.len > 0) {

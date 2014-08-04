@@ -67,7 +67,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     uint32_t tmpmin;
     uint32_t retmin = 0;
     uint32_t retmaj = 0;
-    uint8_t sec_req;
     bool key_exch;
     bool add_mic = false;
     bool protect;
@@ -223,16 +222,16 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
-        if (sec_req == 0xff) {
+        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        if (ctx->sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;
         }
-        if (!(sec_req & SEC_LM_OK)) {
+        if (!(ctx->sec_req & SEC_LM_OK)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
-        if (!(sec_req & SEC_EXT_SEC_OK)) {
+        if (!(ctx->sec_req & SEC_EXT_SEC_OK)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
 
@@ -334,15 +333,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
-        if (sec_req == 0xff) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
         /* mask unacceptable flags */
-        if (!(sec_req & SEC_LM_OK)) {
+        if (!(ctx->sec_req & SEC_LM_OK)) {
             in_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
         }
         if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) {
@@ -415,7 +407,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             lm_chal_resp.data[0] = 0;
             lm_chal_resp.length = 1;
 
-        } else if (sec_req & SEC_V2_ONLY) {
+        } else if (ctx->sec_req & SEC_V2_ONLY) {
 
             /* ### NTLMv2 ### */
             uint8_t client_chal[8];
@@ -816,7 +808,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     uint32_t av_flags = 0;
     struct ntlm_buffer unhashed_cb = { 0 };
     struct ntlm_buffer av_cb = { 0 };
-    uint8_t sec_req;
 
     if (context_handle == NULL) return GSS_S_CALL_INACCESSIBLE_READ;
     if (output_token == GSS_C_NO_BUFFER) {
@@ -863,8 +854,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         ctx->role = GSSNTLM_SERVER;
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
-        if (sec_req == 0xff) {
+        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        if (ctx->sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;
         }
@@ -872,11 +863,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         ctx->neg_flags = NTLMSSP_DEFAULT_ALLOWED_SERVER_FLAGS;
         /* Fixme: How do we allow anonymous negotition ? */
 
-        if ((sec_req & SEC_LM_OK) || (sec_req & SEC_DC_LM_OK)) {
+        if ((ctx->sec_req & SEC_LM_OK) || (ctx->sec_req & SEC_DC_LM_OK)) {
             ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_LM_KEY;
         }
-        if (sec_req & SEC_EXT_SEC_OK) {
+        if (ctx->sec_req & SEC_EXT_SEC_OK) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
 
@@ -1114,13 +1105,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
-        if (sec_req == 0xff) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
         if (((usr_name == NULL) || (usr_name[0] == '\0')) &&
             (nt_chal_resp.length == 0) &&
             (((lm_chal_resp.length == 1) && (lm_chal_resp.data[0] == '\0')) ||
@@ -1132,7 +1116,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        if (sec_req & SEC_V2_ONLY) {
+        if (ctx->sec_req & SEC_V2_ONLY) {
 
             /* ### NTLMv2 ### */
             char useratdom[1024];
