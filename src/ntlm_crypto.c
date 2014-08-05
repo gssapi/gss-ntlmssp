@@ -630,14 +630,14 @@ static int ntlmv2_sign(struct ntlm_key *sign_key, uint32_t seq_num,
     struct ntlm_buffer seq = { le8seq, 4 };
     struct ntlm_buffer *data[2];
     struct ntlm_iov iov;
-    uint8_t hmac_sig[16];
-    struct ntlm_buffer hmac = { hmac_sig, 16 };
+    uint8_t hmac_sig[NTLM_SIGNATURE_SIZE];
+    struct ntlm_buffer hmac = { hmac_sig, NTLM_SIGNATURE_SIZE };
     struct ntlm_buffer rc4buf;
     struct ntlm_buffer rc4res;
     int ret;
 
     msg_sig = (union wire_msg_signature *)signature->data;
-    if (signature->length != 16) {
+    if (signature->length != NTLM_SIGNATURE_SIZE) {
         return EINVAL;
     }
 
@@ -686,7 +686,7 @@ static int ntlmv1_sign(struct ntlm_rc4_handle *handle,
     int ret;
 
     msg_sig = (union wire_msg_signature *)signature->data;
-    if (signature->length != 16) {
+    if (signature->length != NTLM_SIGNATURE_SIZE) {
         return EINVAL;
     }
 
@@ -764,7 +764,7 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
     }
 
     msg_buffer = *message;
-    msg_buffer.length -= 16;
+    msg_buffer.length -= NTLM_SIGNATURE_SIZE;
 
     ret = RC4_UPDATE(handle, &msg_buffer, output);
     if (ret) return ret;
@@ -809,8 +809,8 @@ int ntlm_verify_mic(struct ntlm_key *key,
                     struct ntlm_buffer *authenticate_message,
                     struct ntlm_buffer *mic)
 {
-    uint8_t micbuf[16];
-    struct ntlm_buffer check_mic = { micbuf, 16 };
+    uint8_t micbuf[NTLM_SIGNATURE_SIZE];
+    struct ntlm_buffer check_mic = { micbuf, NTLM_SIGNATURE_SIZE };
     struct wire_auth_msg *msg;
     size_t payload_offs;
     uint32_t flags;
@@ -826,17 +826,21 @@ int ntlm_verify_mic(struct ntlm_key *key,
         payload_offs += sizeof(struct wire_version);
     }
 
-    if (payload_offs + 16 > authenticate_message->length) return EINVAL;
+    if (payload_offs + NTLM_SIGNATURE_SIZE > authenticate_message->length) {
+        return EINVAL;
+    }
 
     /* payload_offs now points at the MIC buffer, clear it off in order
      * to be able to calculate the original chcksum */
-    memset(&authenticate_message->data[payload_offs], 0, 16);
+    memset(&authenticate_message->data[payload_offs], 0, NTLM_SIGNATURE_SIZE);
 
     ret = ntlm_mic(key, negotiate_message, challenge_message,
                         authenticate_message, &check_mic);
     if (ret) return ret;
 
-    if (memcmp(mic->data, check_mic.data, 16) != 0) return EACCES;
+    if (memcmp(mic->data, check_mic.data, NTLM_SIGNATURE_SIZE) != 0) {
+        return EACCES;
+    }
 
     return 0;
 }

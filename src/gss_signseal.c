@@ -59,12 +59,12 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
         }
     }
 
-    message_token->value = malloc(16);
+    message_token->value = malloc(NTLM_SIGNATURE_SIZE);
     if (!message_token->value) {
         *minor_status = ENOMEM;
         return GSS_S_FAILURE;
     }
-    message_token->length = 16;
+    message_token->length = NTLM_SIGNATURE_SIZE;
 
     message.data = message_buffer->value;
     message.length = message_buffer->length;
@@ -96,7 +96,7 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
     struct gssntlm_ctx *ctx;
     struct ntlm_buffer message;
     uint8_t token[16];
-    struct ntlm_buffer signature = { token, 16 };
+    struct ntlm_buffer signature = { token, NTLM_SIGNATURE_SIZE };
     uint32_t retmaj, retmin;
 
     *minor_status = 0;
@@ -134,7 +134,8 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    if (memcmp(signature.data, message_token->value, 16) != 0) {
+    if (memcmp(signature.data,
+               message_token->value, NTLM_SIGNATURE_SIZE) != 0) {
         return GSS_S_BAD_SIG;
     }
 
@@ -192,19 +193,20 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         }
     }
 
-    output_message_buffer->value = malloc(input_message_buffer->length + 16);
+    output_message_buffer->length =
+        input_message_buffer->length + NTLM_SIGNATURE_SIZE;
+    output_message_buffer->value = malloc(output_message_buffer->length);
     if (!output_message_buffer->value) {
         *minor_status = ENOMEM;
         return GSS_S_FAILURE;
     }
-    output_message_buffer->length = input_message_buffer->length + 16;
 
     message.data = input_message_buffer->value;
     message.length = input_message_buffer->length;
     output.data = output_message_buffer->value;
     output.length = input_message_buffer->length;
     signature.data = &output.data[input_message_buffer->length];
-    signature.length = 16;
+    signature.length = NTLM_SIGNATURE_SIZE;
     retmin = ntlm_seal(ctx->send.seal_handle, ctx->neg_flags,
                        &ctx->send.sign_key, ctx->send.seq_num,
                        &message, &output, &signature);
@@ -232,7 +234,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     struct ntlm_buffer message;
     struct ntlm_buffer output;
     uint8_t sig[16];
-    struct ntlm_buffer signature = { sig, 16 };
+    struct ntlm_buffer signature = { sig, NTLM_SIGNATURE_SIZE };
     uint32_t retmaj, retmin;
 
     *minor_status = 0;
@@ -263,12 +265,13 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         }
     }
 
-    output_message_buffer->value = malloc(input_message_buffer->length - 16);
+    output_message_buffer->length =
+        input_message_buffer->length - NTLM_SIGNATURE_SIZE;
+    output_message_buffer->value = malloc(output_message_buffer->length);
     if (!output_message_buffer->value) {
         *minor_status = ENOMEM;
         return GSS_S_FAILURE;
     }
-    output_message_buffer->length = input_message_buffer->length - 16;
 
     message.data = input_message_buffer->value;
     message.length = input_message_buffer->length;
@@ -283,7 +286,8 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    if (memcmp(&message.data[output.length], signature.data, 16) != 0) {
+    if (memcmp(&message.data[output.length],
+               signature.data, NTLM_SIGNATURE_SIZE) != 0) {
         safefree(output_message_buffer->value);
         return GSS_S_BAD_SIG;
     }
@@ -320,7 +324,7 @@ uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
     if (req_output_size < 16) {
         *max_input_size = 0;
     } else {
-        *max_input_size = req_output_size - 16;
+        *max_input_size = req_output_size - NTLM_SIGNATURE_SIZE;
     }
 
     return GSS_S_COMPLETE;

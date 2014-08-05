@@ -79,6 +79,7 @@
 #define MSVAVFLAGS_MIC_PRESENT      0x02
 #define MSVAVFLAGS_UNVERIFIED_SPN   0x04
 
+#define NTLM_SIGNATURE_SIZE 16
 
 struct ntlm_ctx;
 
