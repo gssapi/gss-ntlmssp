@@ -294,3 +294,34 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     }
     return GSS_S_COMPLETE;
 }
+
+uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
+                                 gss_ctx_id_t context_handle,
+                                 int conf_req_flag,
+                                 gss_qop_t qop_req,
+                                 uint32_t req_output_size,
+                                 uint32_t *max_input_size)
+{
+    struct gssntlm_ctx *ctx;
+    uint32_t retmaj;
+
+    *minor_status = 0;
+
+    ctx = (struct gssntlm_ctx *)context_handle;
+    retmaj = gssntlm_context_is_valid(ctx, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        return retmaj;
+    }
+
+    if (qop_req != GSS_C_QOP_DEFAULT) {
+        return GSS_S_BAD_QOP;
+    }
+
+    if (req_output_size < 16) {
+        *max_input_size = 0;
+    } else {
+        *max_input_size = req_output_size - 16;
+    }
+
+    return GSS_S_COMPLETE;
+}

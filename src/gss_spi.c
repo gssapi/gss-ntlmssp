@@ -254,6 +254,21 @@ OM_uint32 gss_unwrap(OM_uint32 *minor_status,
                           qop_state);
 }
 
+OM_uint32 gss_wrap_size_limit(OM_uint32 *minor_status,
+                              gss_ctx_id_t context_handle,
+                              int conf_req_flag,
+                              gss_qop_t qop_req,
+                              OM_uint32 req_output_size,
+                              OM_uint32 *max_input_size)
+{
+    return gssntlm_wrap_size_limit(minor_status,
+                                   context_handle,
+                                   conf_req_flag,
+                                   qop_req,
+                                   req_output_size,
+                                   max_input_size);
+}
+
 OM_uint32 gss_inquire_context(OM_uint32 *minor_status,
                               gss_ctx_id_t context_handle,
                               gss_name_t *src_name,

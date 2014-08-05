@@ -298,6 +298,13 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
                         int *conf_state,
                         gss_qop_t *qop_state);
 
+uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
+                                 gss_ctx_id_t context_handle,
+                                 int conf_req_flag,
+                                 gss_qop_t qop_req,
+                                 uint32_t req_output_size,
+                                 uint32_t *max_input_size);
+
 uint32_t gssntlm_inquire_context(uint32_t *minor_status,
                                  gss_ctx_id_t context_handle,
                                  gss_name_t *src_name,
