@@ -768,7 +768,7 @@ static int ntlmv1_sign(struct ntlm_rc4_handle *handle,
         return EINVAL;
     }
 
-    rc4buf[0] = 0;
+    rc4buf[0] = random_pad;
     rc4buf[1] = htole32(CRC32(0, message));
     rc4buf[2] = htole32(seq_num);
 
@@ -780,7 +780,7 @@ static int ntlmv1_sign(struct ntlm_rc4_handle *handle,
     if (ret) return ret;
 
     msg_sig->v1.version = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
-    msg_sig->v1.random_pad = random_pad;
+    msg_sig->v1.random_pad = 0;
 
     return 0;
 }
