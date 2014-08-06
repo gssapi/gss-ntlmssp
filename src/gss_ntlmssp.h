@@ -173,19 +173,15 @@ int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 uint32_t external_netbios_get_names(char **computer, char **domain);
 uint32_t external_get_creds(struct gssntlm_name *name,
                             struct gssntlm_cred *cred);
-uint32_t external_cli_auth(char *user, char *domain,
-                           gss_channel_bindings_t input_chan_bindings,
+uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
+                           struct gssntlm_cred *cred,
                            uint32_t in_flags,
-                           uint32_t *neg_flags,
-                           struct ntlm_buffer *nego_msg,
-                           struct ntlm_buffer *chal_msg,
-                           struct ntlm_buffer *auth_msg,
-                           struct ntlm_key *exported_session_key);
-uint32_t external_srv_auth(char *user, char *domain,
-                           char *workstation, uint8_t *challenge,
+                           gss_channel_bindings_t input_chan_bindings);
+uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
+                           struct gssntlm_cred *cred,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
-                           struct ntlm_key *ntlmv2_key);
+                           struct ntlm_key *session_base_key);
 
 uint32_t netbios_get_names(char *computer_name,
                            char **netbios_host, char **netbios_domain);

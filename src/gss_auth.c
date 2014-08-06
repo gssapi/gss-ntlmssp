@@ -280,12 +280,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
         break;
 
     case GSSNTLM_CRED_EXTERNAL:
-        retmin = external_cli_auth(cred->cred.external.user.data.user.name,
-                                   cred->cred.external.user.data.user.domain,
-                                   input_chan_bindings, in_flags,
-                                   &ctx->neg_flags, &ctx->nego_msg,
-                                   &ctx->chal_msg, &ctx->auth_msg,
-                                   &ctx->exported_session_key);
+        retmin = external_cli_auth(ctx, cred, in_flags, input_chan_bindings);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -382,10 +377,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         break;
 
     case GSSNTLM_CRED_EXTERNAL:
-        retmin = external_srv_auth(cred->cred.external.user.data.user.name,
-                                   cred->cred.external.user.data.user.domain,
-                                   ctx->workstation, ctx->server_chal,
-                                   nt_chal_resp, lm_chal_resp,
+        retmin = external_srv_auth(ctx, cred, nt_chal_resp, lm_chal_resp,
                                    key_exchange_key);
         if (retmin) {
             retmaj = GSS_S_FAILURE;

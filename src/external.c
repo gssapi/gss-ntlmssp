@@ -27,34 +27,34 @@ uint32_t external_get_creds(struct gssntlm_name *name,
 #endif
 }
 
-uint32_t external_cli_auth(char *user, char *domain,
-                           gss_channel_bindings_t input_chan_bindings,
+uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
+                           struct gssntlm_cred *cred,
                            uint32_t in_flags,
-                           uint32_t *neg_flags,
-                           struct ntlm_buffer *nego_msg,
-                           struct ntlm_buffer *chal_msg,
-                           struct ntlm_buffer *auth_msg,
-                           struct ntlm_key *exported_session_key)
+                           gss_channel_bindings_t input_chan_bindings)
 {
 #if HAVE_WBCLIENT
-    return winbind_cli_auth(user, domain, input_chan_bindings,
-                            in_flags, neg_flags,
-                            nego_msg, chal_msg, auth_msg,
-                            exported_session_key);
+    return winbind_cli_auth(cred->cred.external.user.data.user.name,
+                            cred->cred.external.user.data.user.domain,
+                            input_chan_bindings,
+                            in_flags, &ctx->neg_flags,
+                            &ctx->nego_msg, &ctx->chal_msg, &ctx->auth_msg,
+                            &ctx->exported_session_key);
 #else
     return ENOSYS;
 #endif
 }
 
-uint32_t external_srv_auth(char *user, char *domain,
-                           char *workstation, uint8_t *challenge,
+uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
+                           struct gssntlm_cred *cred,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
-                           struct ntlm_key *ntlmv2_key)
+                           struct ntlm_key *session_base_key)
 {
 #if HAVE_WBCLIENT
-    return winbind_srv_auth(user, domain, workstation, challenge,
-                            nt_chal_resp, lm_chal_resp, ntlmv2_key);
+    return winbind_srv_auth(cred->cred.external.user.data.user.name,
+                            cred->cred.external.user.data.user.domain,
+                            ctx->workstation, ctx->server_chal,
+                            nt_chal_resp, lm_chal_resp, session_base_key);
 #else
     return ENOSYS;
 #endif
