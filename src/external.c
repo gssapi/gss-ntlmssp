@@ -51,9 +51,28 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                            struct ntlm_key *session_base_key)
 {
 #if HAVE_WBCLIENT
+    uint8_t challenge[8];
+    uint8_t *chal_ptr;
+
+    /* NOTE: in the ntlmv1 extended security case, winbindd wants a
+     * pre-digested challenge, this is arguably a bug as it has all
+     * the data needed to compute it by itself ... just cope */
+    if (is_ntlm_v1(nt_chal_resp) &&
+        (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) ) {
+        int ret;
+
+        ret = ntlm_compute_ext_sec_challenge(ctx->server_chal,
+                                             lm_chal_resp->data,
+                                             challenge);
+        if (ret) return ret;
+        chal_ptr = challenge;
+    } else {
+        chal_ptr = ctx->server_chal;
+    }
+
     return winbind_srv_auth(cred->cred.external.user.data.user.name,
                             cred->cred.external.user.data.user.domain,
-                            ctx->workstation, ctx->server_chal,
+                            ctx->workstation, chal_ptr,
                             nt_chal_resp, lm_chal_resp, session_base_key);
 #else
     return ENOSYS;
