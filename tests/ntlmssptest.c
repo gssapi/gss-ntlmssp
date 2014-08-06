@@ -2171,6 +2171,24 @@ int main(int argc, const char *argv[])
     ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPEXv2);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
+    fprintf(stdout, " *** Test with NTLMv1 auth");
+    setenv("LM_COMPAT_LEVEL", "0", 1);
+
+    fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
+    ret = test_gssapi_1(true, false);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation (with password)\n");
+    ret = test_gssapi_1(false, false);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test Connectionless exchange\n");
+    ret = test_gssapi_cl();
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, " *** Again forcing NTLMv2 auth");
+    setenv("LM_COMPAT_LEVEL", "5", 1);
+
     fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
     ret = test_gssapi_1(true, false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
