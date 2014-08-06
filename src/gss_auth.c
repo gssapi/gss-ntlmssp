@@ -164,14 +164,20 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
         } else {
             /* ### NTLMv1 ### */
             uint8_t client_chal[8];
-            uint8_t nt_resp_buf[24];
-            uint8_t lm_resp_buf[24];
             struct ntlm_buffer cli_chal = { client_chal, 8 };
-            struct ntlm_buffer nt_response = { nt_resp_buf, 24 };
-            struct ntlm_buffer lm_response = { lm_resp_buf, 24 };
             struct ntlm_key session_base_key = { .length = 16 };
             bool NoLMResponseNTLMv1 = true; /* FIXME: get from conf/env */
             bool ext_sec;
+
+            nt_chal_resp.length = 24;
+            nt_chal_resp.data = calloc(1, nt_chal_resp.length);
+            lm_chal_resp.length = 24;
+            lm_chal_resp.data = calloc(1, lm_chal_resp.length);
+            if (!nt_chal_resp.data || !lm_chal_resp.data) {
+                retmin = ENOMEM;
+                retmaj = GSS_S_FAILURE;
+                goto done;
+            }
 
             /* Random client challenge */
             retmin = RAND_BUFFER(&cli_chal);
@@ -184,18 +190,18 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
 
             retmin = ntlm_compute_nt_response(&cred->cred.user.nt_hash,
                                               ext_sec, ctx->server_chal,
-                                              client_chal, &nt_response);
+                                              client_chal, &nt_chal_resp);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
             }
 
             if (!ext_sec && NoLMResponseNTLMv1) {
-                memcpy(lm_response.data, nt_response.data, 24);
+                memcpy(lm_chal_resp.data, nt_chal_resp.data, 24);
             } else {
                 retmin = ntlm_compute_lm_response(&cred->cred.user.lm_hash,
                                                   ext_sec, ctx->server_chal,
-                                                  client_chal, &lm_response);
+                                                  client_chal, &lm_chal_resp);
                 if (retmin) {
                     retmaj = GSS_S_FAILURE;
                     goto done;
@@ -213,7 +219,8 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                            (in_flags & NTLMSSP_NEGOTIATE_LM_KEY),
                            (in_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY),
                            ctx->server_chal, &cred->cred.user.lm_hash,
-                           &session_base_key, &lm_response, &key_exchange_key);
+                           &session_base_key, &lm_chal_resp,
+                           &key_exchange_key);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
