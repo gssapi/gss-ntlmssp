@@ -221,6 +221,14 @@ static int get_creds_from_store(struct gssntlm_name *name,
             cred->cred.user.nt_hash.length = 16;
             ret = NTOWFv1(cred_store->elements[i].value,
                           &cred->cred.user.nt_hash);
+
+            if (gssntlm_get_lm_compatibility_level() < 3) {
+                cred->cred.user.lm_hash.length = 16;
+                ret = LMOWFv1(cred_store->elements[i].value,
+                              &cred->cred.user.lm_hash);
+                if (ret) return ret;
+            }
+
             if (ret) return ret;
         }
     }
