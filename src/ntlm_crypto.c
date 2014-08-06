@@ -128,30 +128,40 @@ int LMOWFv1(const char *password, struct ntlm_key *result)
     return WEAK_DES(&key, &plain, &cipher);
 }
 
+int ntlm_compute_ext_sec_challenge(uint8_t *server_chal,
+                                   uint8_t *client_chal,
+                                   uint8_t *result_chal)
+{
+    uint8_t scbuf[16];
+    uint8_t mdbuf[16];
+    struct ntlm_buffer challenges = { scbuf, 16 };
+    struct ntlm_buffer msgdigest = { mdbuf, 16 };
+    int ret;
+
+    memcpy(scbuf, server_chal, 8);
+    memcpy(&scbuf[8], client_chal, 8);
+    ret = MD5_HASH(&challenges, &msgdigest);
+    if (ret) return ret;
+
+    memcpy(result_chal, mdbuf, 8);
+    return 0;
+}
+
 int ntlm_compute_nt_response(struct ntlm_key *nt_key, bool ext_sec,
                              uint8_t server_chal[8], uint8_t client_chal[8],
                              struct ntlm_buffer *nt_response)
 {
     struct ntlm_buffer key = { nt_key->data, nt_key->length };
-    struct ntlm_buffer payload;
-    struct ntlm_buffer result;
-    uint8_t buf1[16];
-    uint8_t buf2[16];
+    uint8_t chal[8];
+    struct ntlm_buffer payload = { chal, 8};
     int ret;
 
-    memcpy(buf1, server_chal, 8);
     if (ext_sec) {
-        memcpy(&buf1[8], client_chal, 8);
-        payload.data = buf1;
-        payload.length = 16;
-        result.data = buf2;
-        result.length = 16;
-        ret = MD5_HASH(&payload, &result);
+        ret = ntlm_compute_ext_sec_challenge(server_chal, client_chal, chal);
         if (ret) return ret;
-        memcpy(buf1, result.data, 8);
+    } else {
+        memcpy(chal, server_chal, 8);
     }
-    payload.data = buf1;
-    payload.length = 8;
 
     return DESL(&key, &payload, nt_response);
 }

@@ -165,6 +165,18 @@ int NTOWFv1(const char *password, struct ntlm_key *result);
 int LMOWFv1(const char *password, struct ntlm_key *result);
 
 /**
+ * @brief   Generate the challenge used in NTLMv1 w/ Extended Security
+ *
+ * @param server_chal   An 8 byte long buffer w/ the server challenge
+ * @param client_chal   An 8 byte long buffer w/ the client challenge
+ * @param result_chal   An 8 byte long buffer w/ for the result
+ *
+ * @return 0 on success or ERR_CRYPTO
+ */
+int ntlm_compute_ext_sec_challenge(uint8_t *server_chal,
+                                   uint8_t *client_chal,
+                                   uint8_t *result_chal);
+/**
  * @brief   Generates a v1 NT Response
  *
  * @param nt_key            The NTLMv1 key computed by NTOWFv1()
