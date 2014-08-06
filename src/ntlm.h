@@ -360,6 +360,36 @@ int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
                             uint8_t server_chal[8], uint8_t client_chal[8]);
 
 /**
+ * @brief   Verifies a NTLM v1 NT Response
+ *
+ * @param nt_response       The NT Response buffer
+ * @param nt_key            The NTLMv1 NT Key
+ * @param ext_sec           Whether Extended Security was negotiated
+ * @param server_chal[8]    The Server Challenge
+ * @param client_chal[8]    The Client Challenge
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_verify_nt_response(struct ntlm_buffer *nt_response,
+                            struct ntlm_key *nt_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8]);
+
+/**
+ * @brief   Verifies a NTLM v1 LM Response
+ *
+ * @param lm_response       The LM Response buffer
+ * @param lm_key            The NTLMv1 LM Key
+ * @param ext_sec           Whether Extended Security was negotiated
+ * @param server_chal[8]    The Server Challenge
+ * @param client_chal[8]    The Client Challenge
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
+                            struct ntlm_key *lm_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8]);
+
+/**
  * @brief   Verifies a 16 bit NT Response
  *
  * @param nt_response       The NT Response buffer including client challenge

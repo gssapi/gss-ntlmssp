@@ -579,6 +579,48 @@ static int ntlm_seal_regen(struct ntlm_signseal_handle *h)
     return ret;
 }
 
+int ntlm_verify_nt_response(struct ntlm_buffer *nt_response,
+                            struct ntlm_key *nt_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8])
+{
+    uint8_t buf[24];
+    struct ntlm_buffer expected_response = { buf, 24 };
+    int ret;
+
+    ret = ntlm_compute_nt_response(nt_key, ext_sec,
+                                   server_chal, client_chal,
+                                   &expected_response);
+    if (ret) return ret;
+
+    ret = EINVAL;
+    if (memcmp(nt_response->data, expected_response.data, 24) == 0) {
+        ret = 0;
+    }
+
+    return ret;
+}
+
+int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
+                            struct ntlm_key *lm_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8])
+{
+    uint8_t buf[24];
+    struct ntlm_buffer expected_response = { buf, 24 };
+    int ret;
+
+    ret = ntlm_compute_lm_response(lm_key, ext_sec,
+                                   server_chal, client_chal,
+                                   &expected_response);
+    if (ret) return ret;
+
+    ret = EINVAL;
+    if (memcmp(lm_response->data, expected_response.data, 24) == 0) {
+        ret = 0;
+    }
+
+    return ret;
+}
+
 int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
                               struct ntlm_key *ntlmv2_key,
                               uint8_t server_chal[8])
