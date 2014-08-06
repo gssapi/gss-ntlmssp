@@ -759,10 +759,7 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
     struct ntlm_buffer msg_buffer;
     int ret;
 
-    if (!((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
-        && (flags & NTLMSSP_NEGOTIATE_SEAL))) {
-        /* we only support v2 for now as we can't sign w/o session security
-         * anyway */
+    if (!(flags & NTLMSSP_NEGOTIATE_SEAL)) {
         return ENOTSUP;
     }
 
@@ -772,9 +769,13 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
     ret = RC4_UPDATE(handle, &msg_buffer, output);
     if (ret) return ret;
 
-    return ntlmv2_sign(sign_key, seq_num, handle,
-                      (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                      output, signature);
+    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
+        return ntlmv2_sign(sign_key, seq_num, handle,
+                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                           output, signature);
+    } else {
+        return ntlmv1_sign(handle, 0, seq_num, output, signature);
+    }
 }
 
 int ntlm_mic(struct ntlm_key *exported_session_key,
