@@ -186,6 +186,8 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
 uint32_t netbios_get_names(char *computer_name,
                            char **netbios_host, char **netbios_domain);
 
+bool is_ntlm_v1(struct ntlm_buffer *nt_chal_resp);
+
 uint32_t gssntlm_cli_auth(uint32_t *minor,
                           struct gssntlm_ctx *ctx,
                           struct gssntlm_cred *cred,

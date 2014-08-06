@@ -309,6 +309,12 @@ done:
 }
 
 
+bool is_ntlm_v1(struct ntlm_buffer *nt_chal_resp)
+{
+    return (nt_chal_resp->length == 24);
+}
+
+
 uint32_t gssntlm_srv_auth(uint32_t *minor,
                           struct gssntlm_ctx *ctx,
                           struct gssntlm_cred *cred,
@@ -316,10 +322,13 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                           struct ntlm_buffer *lm_chal_resp,
                           struct ntlm_key *key_exchange_key)
 {
+    struct ntlm_key session_base_key = { .length = 16 };
     struct ntlm_key ntlmv2_key = { .length = 16 };
     struct ntlm_buffer nt_proof = { 0 };
     uint32_t retmaj, retmin;
     const char *domstr;
+    bool ntlm_v1;
+    bool ext_sec;
     int retries;
 
     if (key_exchange_key->length != 16) {
@@ -327,10 +336,37 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         return GSS_S_FAILURE;
     }
 
+    ntlm_v1 = is_ntlm_v1(nt_chal_resp);
+
+    if (ntlm_v1 && !(ctx->sec_req & (SEC_DC_LM_OK | SEC_DC_NTLM_OK))) {
+        *minor = EPERM;
+        return GSS_S_FAILURE;
+    }
+
+    ext_sec = (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
+
     switch (cred->type) {
 
     case GSSNTLM_CRED_USER:
-        for (retries = 2; retries > 0; retries--) {
+        if (ntlm_v1) {
+            uint8_t client_chal[8] = { 0 };
+
+            if (ext_sec) {
+                memcpy(client_chal, lm_chal_resp->data, 8);
+            }
+
+            retmin = ntlm_verify_nt_response(nt_chal_resp,
+                                             &cred->cred.user.nt_hash,
+                                             ext_sec, ctx->server_chal,
+                                             client_chal);
+            if (retmin && ctx->sec_req & SEC_DC_LM_OK) {
+                retmin = ntlm_verify_lm_response(lm_chal_resp,
+                                                 &cred->cred.user.lm_hash,
+                                                 ext_sec, ctx->server_chal,
+                                                 client_chal);
+            }
+
+        } else for (retries = 2; retries > 0; retries--) {
 
             if (retries == 2) {
                 domstr = cred->cred.user.user.data.user.domain;
@@ -351,24 +387,30 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
             retmin = ntlmv2_verify_nt_response(nt_chal_resp,
                                                &ntlmv2_key,
                                                ctx->server_chal);
-            if (retmin == 0) {
-                break;
-            } else {
-                if (ctx->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY) {
-                    /* LMv2 Response */
-                    retmin = ntlmv2_verify_lm_response(lm_chal_resp,
-                                                       &ntlmv2_key,
-                                                       ctx->server_chal);
-                    if (retmin == 0) {
-                        break;
-                    }
-                }
+            if (retmin && ctx->sec_req & SEC_DC_LM_OK) {
+                /* LMv2 Response */
+                retmin = ntlmv2_verify_lm_response(lm_chal_resp,
+                                                   &ntlmv2_key,
+                                                   ctx->server_chal);
             }
-            if (retmin && retries < 2) {
+            if (retmin == 0) break;
+        }
+
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        if (ntlm_v1) {
+            retmin = ntlm_session_base_key(&cred->cred.user.nt_hash,
+                                           &session_base_key);
+            if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
             }
+            break;
         }
+
         /* The NT proof is the first 16 bytes */
         nt_proof.data = nt_chal_resp->data;
         nt_proof.length = 16;
@@ -376,7 +418,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         /* The Session Base Key */
         /* In NTLMv2 the Key Exchange Key is the Session Base Key */
         retmin = ntlmv2_session_base_key(&ntlmv2_key, &nt_proof,
-                                     key_exchange_key);
+                                         &session_base_key);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -385,7 +427,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
 
     case GSSNTLM_CRED_EXTERNAL:
         retmin = external_srv_auth(ctx, cred, nt_chal_resp, lm_chal_resp,
-                                   key_exchange_key);
+                                   &session_base_key);
         if (retmin) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -396,6 +438,22 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         retmin = EINVAL;
         retmaj = GSS_S_FAILURE;
         goto done;
+    }
+
+    if (ntlm_v1) {
+        retmin = KXKEY(ctx->ntlm, ext_sec,
+                       (ctx->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY),
+                       (ctx->neg_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY),
+                       ctx->server_chal, &cred->cred.user.lm_hash,
+                       &session_base_key, lm_chal_resp,
+                       key_exchange_key);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+    } else {
+        memcpy(key_exchange_key->data,
+               session_base_key.data, session_base_key.length);
     }
 
     retmaj = GSS_S_COMPLETE;

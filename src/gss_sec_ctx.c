@@ -857,11 +857,9 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             retmin = EINVAL;
             retmaj = GSS_S_FAILURE;
             goto done;
-        }
 
-        if (ctx->sec_req & SEC_V2_ONLY) {
+        } else {
 
-            /* ### NTLMv2 ### */
             char useratdom[1024];
             size_t ulen, dlen, uadlen;
             gss_buffer_desc usrname;
@@ -925,11 +923,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                       &nt_chal_resp, &lm_chal_resp,
                                       &key_exchange_key);
             if (retmaj) goto done;
-
-        } else {
-            /* ### NTLMv1 ### */
-            retmaj = GSS_S_FAILURE;
-            goto done;
         }
 
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH) {
