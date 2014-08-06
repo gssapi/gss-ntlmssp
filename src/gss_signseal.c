@@ -117,7 +117,7 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         /* must regenerate seal key */
         retmin = ntlm_seal_regen(&ctx->recv.seal_key,
                                  &ctx->recv.seal_handle,
-                                 ctx->send.seq_num);
+                                 ctx->recv.seq_num);
         if (retmin) {
             *minor_status = retmin;
             return GSS_S_FAILURE;

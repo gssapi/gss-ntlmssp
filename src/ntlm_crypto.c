@@ -539,10 +539,10 @@ int ntlm_seal_regen(struct ntlm_key *seal_key,
 
     memcpy(inbuf, seal_key->data, seal_key->length);
     le = htole32(seq_num);
-    memcpy(&inbuf[16], &le, 4);
+    memcpy(&inbuf[seal_key->length], &le, 4);
 
     payload.data = inbuf;
-    payload.length = 20;
+    payload.length = seal_key->length + 4;
     result.data = outbuf;
     result.length = 16;
 
