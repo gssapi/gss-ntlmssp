@@ -192,7 +192,7 @@ static int export_name(struct export_state *state,
 }
 
 static int export_keys(struct export_state *state,
-                       struct gssntlm_signseal *keys,
+                       struct ntlm_signseal_handle *keys,
                        struct export_keys *exp_keys)
 {
     uint8_t buf[258];
@@ -372,10 +372,10 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                              &ectx->exported_session_key);
     if (ret) goto done;
 
-    ret = export_keys(&state, &ctx->send, &ectx->send);
+    ret = export_keys(&state, &ctx->crypto_state.send, &ectx->send);
     if (ret) goto done;
 
-    ret = export_keys(&state, &ctx->recv, &ectx->recv);
+    ret = export_keys(&state, &ctx->crypto_state.recv, &ectx->recv);
     if (ret) goto done;
 
     ectx->int_flags = ctx->int_flags;
@@ -500,7 +500,7 @@ static uint32_t import_name(uint32_t *minor_status,
 static uint32_t import_keys(uint32_t *minor_status,
                             struct export_state *state,
                             struct export_keys *keys,
-                            struct gssntlm_signseal *imp_keys)
+                            struct ntlm_signseal_handle *imp_keys)
 {
     struct ntlm_buffer in;
     uint8_t *dest;
@@ -701,10 +701,12 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
         memset(&ctx->exported_session_key, 0, sizeof(struct ntlm_key));
     }
 
-    maj = import_keys(minor_status, &state, &ectx->send, &ctx->send);
+    maj = import_keys(minor_status, &state,
+                      &ectx->send, &ctx->crypto_state.send);
     if (maj != GSS_S_COMPLETE) goto done;
 
-    maj = import_keys(minor_status, &state, &ectx->recv, &ctx->recv);
+    maj = import_keys(minor_status, &state,
+                      &ectx->recv, &ctx->crypto_state.recv);
     if (maj != GSS_S_COMPLETE) goto done;
 
     ctx->int_flags = ectx->int_flags;

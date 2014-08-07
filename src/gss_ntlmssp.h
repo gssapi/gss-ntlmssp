@@ -107,13 +107,6 @@ struct gssntlm_cred {
     } cred;
 };
 
-struct gssntlm_signseal {
-    struct ntlm_key sign_key;
-    struct ntlm_key seal_key;
-    struct ntlm_rc4_handle *seal_handle;
-    uint32_t seq_num;
-};
-
 struct gssntlm_ctx {
     enum gssntlm_role {
         GSSNTLM_CLIENT,
@@ -151,8 +144,7 @@ struct gssntlm_ctx {
     /* TODO: Add whitelist of servers we are allowed to communicate with */
 
     struct ntlm_key exported_session_key;
-    struct gssntlm_signseal send;
-    struct gssntlm_signseal recv;
+    struct ntlm_signseal_state crypto_state;
 
     uint32_t int_flags;
     time_t expiration_time;

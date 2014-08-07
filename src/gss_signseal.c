@@ -50,9 +50,7 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
 
     if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
         /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->send.seal_key,
-                                 &ctx->send.seal_handle,
-                                 ctx->send.seq_num);
+        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_SEND);
         if (retmin) {
             *minor_status = retmin;
             return GSS_S_FAILURE;
@@ -70,8 +68,8 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
     message.length = message_buffer->length;
     signature.data = message_token->value;
     signature.length = message_token->length;
-    retmin = ntlm_sign(&ctx->send.sign_key, ctx->send.seq_num,
-                       ctx->send.seal_handle, ctx->neg_flags,
+    retmin = ntlm_sign(ctx->neg_flags, NTLM_SEND,
+                       &ctx->crypto_state,
                        &message, &signature);
     if (retmin) {
         *minor_status = retmin;
@@ -81,7 +79,7 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
 
     if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
         /* increment seq_num upon succesful signature */
-        ctx->send.seq_num++;
+        ctx->crypto_state.send.seq_num++;
     }
 
     return GSS_S_COMPLETE;
@@ -115,9 +113,7 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
 
     if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
         /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->recv.seal_key,
-                                 &ctx->recv.seal_handle,
-                                 ctx->recv.seq_num);
+        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_RECV);
         if (retmin) {
             *minor_status = retmin;
             return GSS_S_FAILURE;
@@ -126,8 +122,8 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
 
     message.data = message_buffer->value;
     message.length = message_buffer->length;
-    retmin = ntlm_sign(&ctx->recv.sign_key, ctx->recv.seq_num,
-                       ctx->recv.seal_handle, ctx->neg_flags,
+    retmin = ntlm_sign(ctx->neg_flags, NTLM_RECV,
+                       &ctx->crypto_state,
                        &message, &signature);
     if (retmin) {
         *minor_status = retmin;
@@ -141,7 +137,7 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
 
     if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
         /* increment seq_num upon succesful signature */
-        ctx->recv.seq_num++;
+        ctx->crypto_state.recv.seq_num++;
     }
 
     return GSS_S_COMPLETE;
@@ -184,9 +180,7 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
 
     if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
         /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->send.seal_key,
-                                 &ctx->send.seal_handle,
-                                 ctx->send.seq_num);
+        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_SEND);
         if (retmin) {
             *minor_status = retmin;
             return GSS_S_FAILURE;
@@ -207,8 +201,7 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
     output.length = input_message_buffer->length;
     signature.data = &output.data[input_message_buffer->length];
     signature.length = NTLM_SIGNATURE_SIZE;
-    retmin = ntlm_seal(ctx->send.seal_handle, ctx->neg_flags,
-                       &ctx->send.sign_key, ctx->send.seq_num,
+    retmin = ntlm_seal(ctx->neg_flags, &ctx->crypto_state,
                        &message, &output, &signature);
     if (retmin) {
         *minor_status = retmin;
@@ -218,7 +211,7 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
 
     if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
         /* increment seq_num upon succesful encryption */
-        ctx->send.seq_num++;
+        ctx->crypto_state.send.seq_num++;
     }
     return GSS_S_COMPLETE;
 }
@@ -256,9 +249,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
 
     if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
         /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->recv.seal_key,
-                                 &ctx->recv.seal_handle,
-                                 ctx->send.seq_num);
+        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_RECV);
         if (retmin) {
             *minor_status = retmin;
             return GSS_S_FAILURE;
@@ -277,8 +268,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     message.length = input_message_buffer->length;
     output.data = output_message_buffer->value;
     output.length = output_message_buffer->length;
-    retmin = ntlm_unseal(ctx->recv.seal_handle, ctx->neg_flags,
-                         &ctx->recv.sign_key, ctx->recv.seq_num,
+    retmin = ntlm_unseal(ctx->neg_flags, &ctx->crypto_state,
                          &message, &output, &signature);
     if (retmin) {
         *minor_status = retmin;
@@ -294,7 +284,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
 
     if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
         /* increment seq_num upon succesful encryption */
-        ctx->recv.seq_num++;
+        ctx->crypto_state.recv.seq_num++;
     }
     return GSS_S_COMPLETE;
 }

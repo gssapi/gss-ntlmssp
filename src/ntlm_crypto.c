@@ -481,13 +481,8 @@ static int ntlm_sealkey(uint32_t flags, bool mode,
 }
 
 int ntlm_signseal_keys(uint32_t flags, bool client,
-                       struct ntlm_key *random_session_key,
-                       struct ntlm_key *sign_send_key,
-                       struct ntlm_key *sign_recv_key,
-                       struct ntlm_key *seal_send_key,
-                       struct ntlm_key *seal_recv_key,
-                       struct ntlm_rc4_handle **seal_send_handle,
-                       struct ntlm_rc4_handle **seal_recv_handle)
+                       struct ntlm_key *session_key,
+                       struct ntlm_signseal_state *state)
 {
     struct ntlm_buffer rc4_key;
     bool mode;
@@ -495,39 +490,38 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
 
     /* send key */
     mode = client ? NTLM_MODE_CLIENT : NTLM_MODE_SERVER;
-    ret = ntlm_signkey(flags, mode, random_session_key, sign_send_key);
+    ret = ntlm_signkey(flags, mode, session_key, &state->send.sign_key);
     if (ret) return ret;
     /* recv key */
     mode = client ? NTLM_MODE_SERVER : NTLM_MODE_CLIENT;
-    ret = ntlm_signkey(flags, mode, random_session_key, sign_recv_key);
+    ret = ntlm_signkey(flags, mode, session_key, &state->recv.sign_key);
     if (ret) return ret;
 
     /* send key */
     mode = client ? NTLM_MODE_CLIENT : NTLM_MODE_SERVER;
-    ret = ntlm_sealkey(flags, mode, random_session_key, seal_send_key);
+    ret = ntlm_sealkey(flags, mode, session_key, &state->send.seal_key);
     if (ret) return ret;
     /* recv key */
     mode = client ? NTLM_MODE_SERVER : NTLM_MODE_CLIENT;
-    ret = ntlm_sealkey(flags, mode, random_session_key, seal_recv_key);
+    ret = ntlm_sealkey(flags, mode, session_key, &state->recv.seal_key);
     if (ret) return ret;
 
-    rc4_key.data = seal_send_key->data;
-    rc4_key.length = seal_send_key->length;
-    ret = RC4_INIT(&rc4_key, NTLM_CIPHER_ENCRYPT, seal_send_handle);
+    rc4_key.data = state->send.seal_key.data;
+    rc4_key.length = state->send.seal_key.length;
+    ret = RC4_INIT(&rc4_key, NTLM_CIPHER_ENCRYPT, &state->send.seal_handle);
     if (ret) return ret;
 
-    rc4_key.data = seal_recv_key->data;
-    rc4_key.length = seal_recv_key->length;
-    ret = RC4_INIT(&rc4_key, NTLM_CIPHER_DECRYPT, seal_recv_handle);
+    rc4_key.data = state->recv.seal_key.data;
+    rc4_key.length = state->recv.seal_key.length;
+    ret = RC4_INIT(&rc4_key, NTLM_CIPHER_DECRYPT, &state->recv.seal_handle);
     if (ret) return ret;
 
     return 0;
 }
 
-int ntlm_seal_regen(struct ntlm_key *seal_key,
-                    struct ntlm_rc4_handle **seal_handle,
-                    uint32_t seq_num)
+int ntlm_seal_regen(struct ntlm_signseal_state *state, int direction)
 {
+    struct ntlm_signseal_handle *h;
     struct ntlm_buffer payload;
     struct ntlm_buffer result;
     uint8_t inbuf[20];
@@ -535,21 +529,27 @@ int ntlm_seal_regen(struct ntlm_key *seal_key,
     uint32_t le;
     int ret;
 
-    RC4_FREE(seal_handle);
+    if (direction == NTLM_SEND) {
+        h = &state->send;
+    } else {
+        h = &state->recv;
+    }
 
-    memcpy(inbuf, seal_key->data, seal_key->length);
-    le = htole32(seq_num);
-    memcpy(&inbuf[seal_key->length], &le, 4);
+    RC4_FREE(&h->seal_handle);
+
+    memcpy(inbuf, h->seal_key.data, h->seal_key.length);
+    le = htole32(h->seq_num);
+    memcpy(&inbuf[h->seal_key.length], &le, 4);
 
     payload.data = inbuf;
-    payload.length = seal_key->length + 4;
+    payload.length = h->seal_key.length + 4;
     result.data = outbuf;
     result.length = 16;
 
     ret = MD5_HASH(&payload, &result);
     if (ret) return ret;
 
-    ret = RC4_INIT(&result, NTLM_CIPHER_ENCRYPT, seal_handle);
+    ret = RC4_INIT(&result, NTLM_CIPHER_ENCRYPT, &h->seal_handle);
     return ret;
 }
 
@@ -707,19 +707,28 @@ static int ntlmv1_sign(struct ntlm_rc4_handle *handle,
     return 0;
 }
 
-int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
-              struct ntlm_rc4_handle *handle, uint32_t flags,
-              struct ntlm_buffer *message, struct ntlm_buffer *signature)
+int ntlm_sign(uint32_t flags, int direction,
+              struct ntlm_signseal_state *state,
+              struct ntlm_buffer *message,
+              struct ntlm_buffer *signature)
 {
+    struct ntlm_signseal_handle *h;
+
+    if (direction == NTLM_SEND) {
+        h = &state->send;
+    } else {
+        h = &state->recv;
+    }
+
     if ((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
         && (flags & NTLMSSP_NEGOTIATE_SIGN)) {
-        return ntlmv2_sign(sign_key, seq_num, handle,
+        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
                            (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
                            message, signature);
     } else if (flags & NTLMSSP_NEGOTIATE_SIGN) {
-        return ntlmv1_sign(handle, 0, seq_num, message, signature);
+        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, message, signature);
     } else if (flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN) {
-        uint32_t le_seq = htole32(seq_num);
+        uint32_t le_seq = htole32(h->seq_num);
         memcpy(signature->data, &le_seq, 4);
         memset(&signature->data[4], 0, 12);
         return 0;
@@ -728,34 +737,40 @@ int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
     return ENOTSUP;
 }
 
-int ntlm_seal(struct ntlm_rc4_handle *handle, uint32_t flags,
-              struct ntlm_key *sign_key, uint32_t seq_num,
-              struct ntlm_buffer *message, struct ntlm_buffer *output,
+int ntlm_seal(uint32_t flags,
+              struct ntlm_signseal_state *state,
+              struct ntlm_buffer *message,
+              struct ntlm_buffer *output,
               struct ntlm_buffer *signature)
 {
+    struct ntlm_signseal_handle *h;
     int ret;
 
-    if (flags & NTLMSSP_NEGOTIATE_SEAL) {
-        ret = RC4_UPDATE(handle, message, output);
-        if (ret) return ret;
-
-        if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-            return ntlmv2_sign(sign_key, seq_num, handle,
-                               (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                               message, signature);
-        } else {
-            return ntlmv1_sign(handle, 0, seq_num, message, signature);
-        }
+    if (!(flags & NTLMSSP_NEGOTIATE_SEAL)) {
+        return ENOTSUP;
     }
 
-    return ENOTSUP;
+    h = &state->send;
+
+    ret = RC4_UPDATE(h->seal_handle, message, output);
+    if (ret) return ret;
+
+    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
+        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
+                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                           message, signature);
+    } else {
+        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, message, signature);
+    }
 }
 
-int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
-                struct ntlm_key *sign_key, uint32_t seq_num,
-                struct ntlm_buffer *message, struct ntlm_buffer *output,
+int ntlm_unseal(uint32_t flags,
+                struct ntlm_signseal_state *state,
+                struct ntlm_buffer *message,
+                struct ntlm_buffer *output,
                 struct ntlm_buffer *signature)
 {
+    struct ntlm_signseal_handle *h;
     struct ntlm_buffer msg_buffer;
     int ret;
 
@@ -763,18 +778,20 @@ int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
         return ENOTSUP;
     }
 
+    h = &state->recv;
+
     msg_buffer = *message;
     msg_buffer.length -= NTLM_SIGNATURE_SIZE;
 
-    ret = RC4_UPDATE(handle, &msg_buffer, output);
+    ret = RC4_UPDATE(h->seal_handle, &msg_buffer, output);
     if (ret) return ret;
 
     if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-        return ntlmv2_sign(sign_key, seq_num, handle,
+        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
                            (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
                            output, signature);
     } else {
-        return ntlmv1_sign(handle, 0, seq_num, output, signature);
+        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, output, signature);
     }
 }
 

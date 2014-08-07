@@ -613,12 +613,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         if (protect) {
             retmin = ntlm_signseal_keys(in_flags, true,
                                         &ctx->exported_session_key,
-                                        &ctx->send.sign_key,
-                                        &ctx->recv.sign_key,
-                                        &ctx->send.seal_key,
-                                        &ctx->recv.seal_key,
-                                        &ctx->send.seal_handle,
-                                        &ctx->recv.seal_handle);
+                                        &ctx->crypto_state);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
@@ -736,8 +731,8 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     gssntlm_int_release_name(&ctx->source_name);
     gssntlm_int_release_name(&ctx->target_name);
 
-    RC4_FREE(&ctx->send.seal_handle);
-    RC4_FREE(&ctx->recv.seal_handle);
+    RC4_FREE(&ctx->crypto_state.send.seal_handle);
+    RC4_FREE(&ctx->crypto_state.recv.seal_handle);
 
     safezero((uint8_t *)ctx, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
@@ -1320,12 +1315,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                 NTLMSSP_NEGOTIATE_SEAL)) {
             retmin = ntlm_signseal_keys(ctx->neg_flags, false,
                                         &ctx->exported_session_key,
-                                        &ctx->send.sign_key,
-                                        &ctx->recv.sign_key,
-                                        &ctx->send.seal_key,
-                                        &ctx->recv.seal_key,
-                                        &ctx->send.seal_handle,
-                                        &ctx->recv.seal_handle);
+                                        &ctx->crypto_state);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
@@ -1483,8 +1473,9 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
                 return GSS_S_FAILURE;
             }
 
-            memcpy(&ctx->recv.seq_num, value->value, value->length);
-            ctx->send.seq_num = ctx->recv.seq_num;
+            memcpy(&ctx->crypto_state.recv.seq_num,
+                   value->value, value->length);
+            ctx->crypto_state.send.seq_num = ctx->crypto_state.recv.seq_num;
             return GSS_S_COMPLETE;
         } else {
             *minor_status = EACCES;

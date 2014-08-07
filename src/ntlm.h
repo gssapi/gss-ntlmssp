@@ -127,6 +127,21 @@ struct ntlm_key {
     size_t length;
 };
 
+struct ntlm_signseal_handle {
+    struct ntlm_key sign_key;
+    struct ntlm_key seal_key;
+    struct ntlm_rc4_handle *seal_handle;
+    uint32_t seq_num;
+};
+
+struct ntlm_signseal_state {
+    struct ntlm_signseal_handle send;
+    struct ntlm_signseal_handle recv;
+};
+
+#define NTLM_SEND 1
+#define NTLM_RECV 2
+
 /**
  * @brief   Turns a utf8 password into an NT Hash
  *
@@ -303,38 +318,25 @@ int ntlm_encrypted_session_key(struct ntlm_key *key,
  *
  * @param flags                 Incoming challenge/authenticate flags
  * @param client                Wheter this ia a client or a server
- * @param random_session_key    The session key
- * @param sign_send_key         Resulting Signing key for send ops
- * @param sign_recv_key         Resulting Signing key for recv ops
- * @param seal_send_key         Resulting Sealing key for send ops
- * @param seal_recv_key         Resulting Sealing key for recv ops
- * @param seal_send_handle      Handle for RC4 encryption (v1 sealing)
- * @param seal_recv_handle      Handle for RC4 decryption (v1 sealing)
+ * @param session_key           The session key
+ * @param signseal_state        Sign and seal keys and state
  *
  * @return 0 on success or error.
  */
 int ntlm_signseal_keys(uint32_t flags, bool client,
-                       struct ntlm_key *random_session_key,
-                       struct ntlm_key *sign_send_key,
-                       struct ntlm_key *sign_recv_key,
-                       struct ntlm_key *seal_send_key,
-                       struct ntlm_key *seal_recv_key,
-                       struct ntlm_rc4_handle **seal_send_handle,
-                       struct ntlm_rc4_handle **seal_recv_handle);
+                       struct ntlm_key *session_key,
+                       struct ntlm_signseal_state *signseal_state);
 
 /**
  * @brief   Regens the NTLM Seal key.
  *          Used only in connectionless mode. See MS-NLMP 3.4
  *
- * @param seal_key      The current sealing key
- * @param seal_handle   The current sealing handle
- * @param seq_num       The current (application provided) sequence number
+ * @param state         Sign and seal keys and state
+ * @param direction     Direction (NTLM_SEND or NTLM_RECV)
  *
  * @return 0 on success or error.
  */
-int ntlm_seal_regen(struct ntlm_key *seal_key,
-                    struct ntlm_rc4_handle **seal_handle,
-                    uint32_t seq_num);
+int ntlm_seal_regen(struct ntlm_signseal_state *state, int direction);
 
 /**
  * @brief   Verifies a 16 bit NT Response
@@ -365,53 +367,51 @@ int ntlmv2_verify_lm_response(struct ntlm_buffer *nt_response,
 /**
  * @brief Create NTLM signature for the provided message
  *
- * @param sign_key      Signing key
- * @param seq_num       Sequence number
- * @param handle        Encryption handle
  * @param flags         Negotiated flags
+ * @param state         Sign and seal keys and state
+ * @param direction     Direction (true for send)
  * @param message       Message buffer
  * @param signature     Preallocated byffer of 16 bytes for signature
  *
  * @return 0 on success, or an error
  */
-int ntlm_sign(struct ntlm_key *sign_key, uint32_t seq_num,
-              struct ntlm_rc4_handle *handle, uint32_t flags,
-              struct ntlm_buffer *message, struct ntlm_buffer *signature);
+int ntlm_sign(uint32_t flags, int direction,
+              struct ntlm_signseal_state *state,
+              struct ntlm_buffer *message,
+              struct ntlm_buffer *signature);
 
 /**
  * @brief   NTLM seal the provided message
  *
- * @param handle        Encryption handle
  * @param flags         Negotiated flags
- * @param sign_key      Signing key
- * @param seq_num       Sequence number
+ * @param state         Sign and seal keys and state
  * @param message       Message buffer
  * @param output        Output buffer
  * @param signature     Signature
  *
  * @return 0 on success, or an error
  */
-int ntlm_seal(struct ntlm_rc4_handle *handle, uint32_t flags,
-              struct ntlm_key *sign_key, uint32_t seq_num,
-              struct ntlm_buffer *message, struct ntlm_buffer *output,
+int ntlm_seal(uint32_t flags,
+              struct ntlm_signseal_state *state,
+              struct ntlm_buffer *message,
+              struct ntlm_buffer *output,
               struct ntlm_buffer *signature);
 
 /**
  * @brief   NTLM unseal the provided message
  *
- * @param handle        Encryption handle
  * @param flags         Negotiated flags
- * @param sign_key      Signing key
- * @param seq_num       Sequence number
+ * @param state         Sign and seal keys and state
  * @param message       Message buffer
  * @param output        Output buffer
  * @param signature     Signature
  *
  * @return 0 on success, or an error
  */
-int ntlm_unseal(struct ntlm_rc4_handle *handle, uint32_t flags,
-                struct ntlm_key *sign_key, uint32_t seq_num,
-                struct ntlm_buffer *message, struct ntlm_buffer *output,
+int ntlm_unseal(uint32_t flags,
+                struct ntlm_signseal_state *state,
+                struct ntlm_buffer *message,
+                struct ntlm_buffer *output,
                 struct ntlm_buffer *signature);
 
 /**

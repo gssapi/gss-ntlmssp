@@ -1423,12 +1423,7 @@ done:
 
 int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
 {
-    struct ntlm_key sign_send_key;
-    struct ntlm_key sign_recv_key;
-    struct ntlm_key seal_send_key;
-    struct ntlm_key seal_recv_key;
-    struct ntlm_rc4_handle *seal_send_handle;
-    struct ntlm_rc4_handle *seal_recv_handle;
+    struct ntlm_signseal_state state;
     uint8_t outbuf[data->Ciphertext.length];
     uint8_t signbuf[16];
     struct ntlm_buffer output = { outbuf, data->Ciphertext.length };
@@ -1436,42 +1431,42 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
     int ret;
 
     ret = ntlm_signseal_keys(data->flags, true,
-                             &data->KeyExchangeKey,
-                             &sign_send_key, &sign_recv_key,
-                             &seal_send_key, &seal_recv_key,
-                             &seal_send_handle, &seal_recv_handle);
+                             &data->KeyExchangeKey, &state);
     if (ret) return ret;
 
     if (data->ClientSealKey.length) {
-        if (memcmp(seal_send_key.data, data->ClientSealKey.data,
-                                       data->ClientSealKey.length) != 0) {
+        if (memcmp(state.send.seal_key.data,
+                   data->ClientSealKey.data,
+                   data->ClientSealKey.length) != 0) {
             fprintf(stderr, "Client Sealing Keys differ!\n");
             fprintf(stderr, "expected:\n%s",
                     hex_to_dump(data->ClientSealKey.data,
                                 data->ClientSealKey.length));
             fprintf(stderr, "obtained:\n%s",
-                    hex_to_dump(seal_send_key.data, sign_send_key.length));
+                    hex_to_dump(state.send.seal_key.data,
+                                state.send.seal_key.length));
             ret = EINVAL;
         }
     }
 
     if (data->ClientSignKey.length) {
-        if (memcmp(sign_send_key.data, data->ClientSignKey.data,
-                                       data->ClientSignKey.length) != 0) {
+        if (memcmp(state.send.sign_key.data,
+                   data->ClientSignKey.data,
+                   data->ClientSignKey.length) != 0) {
             fprintf(stderr, "Client Signing Keys differ!\n");
             fprintf(stderr, "expected:\n%s",
                     hex_to_dump(data->ClientSignKey.data,
                                 data->ClientSignKey.length));
             fprintf(stderr, "obtained:\n%s",
-                    hex_to_dump(sign_send_key.data, sign_send_key.length));
+                    hex_to_dump(state.send.sign_key.data,
+                                state.send.sign_key.length));
             ret = EINVAL;
         }
     }
 
     if (ret) return ret;
 
-    ret = ntlm_seal(seal_send_handle, data->flags,
-                    &sign_send_key, data->SeqNum,
+    ret = ntlm_seal(data->flags, &state,
                     &data->Plaintext, &output, &signature);
 
     if (ret) {
