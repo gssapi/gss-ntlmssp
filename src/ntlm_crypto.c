@@ -822,7 +822,6 @@ int ntlm_unseal(uint32_t flags,
                 struct ntlm_buffer *signature)
 {
     struct ntlm_signseal_handle *h;
-    struct ntlm_buffer msg_buffer;
     int ret;
 
     if (!(flags & NTLMSSP_NEGOTIATE_SEAL)) {
@@ -835,10 +834,7 @@ int ntlm_unseal(uint32_t flags,
         h = &state->recv;
     }
 
-    msg_buffer = *message;
-    msg_buffer.length -= NTLM_SIGNATURE_SIZE;
-
-    ret = RC4_UPDATE(h->seal_handle, &msg_buffer, output);
+    ret = RC4_UPDATE(h->seal_handle, message, output);
     if (ret) return ret;
 
     if (state->ext_sec) {

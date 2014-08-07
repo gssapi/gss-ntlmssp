@@ -160,10 +160,10 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
 
     message.data = input_message_buffer->value;
     message.length = input_message_buffer->length;
-    output.data = output_message_buffer->value;
-    output.length = input_message_buffer->length;
-    signature.data = &output.data[input_message_buffer->length];
+    signature.data = output_message_buffer->value;
     signature.length = NTLM_SIGNATURE_SIZE;
+    output.data = (uint8_t *)output_message_buffer->value + NTLM_SIGNATURE_SIZE;
+    output.length = input_message_buffer->length;
     retmin = ntlm_seal(ctx->neg_flags, &ctx->crypto_state,
                        &message, &output, &signature);
     if (retmin) {
@@ -214,8 +214,8 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    message.data = input_message_buffer->value;
-    message.length = input_message_buffer->length;
+    message.data = (uint8_t *)input_message_buffer->value + NTLM_SIGNATURE_SIZE;
+    message.length = input_message_buffer->length - NTLM_SIGNATURE_SIZE;
     output.data = output_message_buffer->value;
     output.length = output_message_buffer->length;
     retmin = ntlm_unseal(ctx->neg_flags, &ctx->crypto_state,
@@ -226,7 +226,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    if (memcmp(&message.data[output.length],
+    if (memcmp(input_message_buffer->value,
                signature.data, NTLM_SIGNATURE_SIZE) != 0) {
         safefree(output_message_buffer->value);
         return GSS_S_BAD_SIG;
