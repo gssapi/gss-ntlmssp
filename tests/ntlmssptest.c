@@ -1523,7 +1523,7 @@ static size_t repeatable_rand(uint8_t *buf, size_t max)
     return len;
 }
 
-int test_gssapi_1(bool user_env_file, bool use_cb)
+int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
     gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
@@ -1545,6 +1545,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb)
     uint8_t rand_cb[128];
     struct gss_channel_bindings_struct cbts = { 0 };
     gss_channel_bindings_t cbt = GSS_C_NO_CHANNEL_BINDINGS;
+    uint32_t req_flags;
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
@@ -1630,10 +1631,15 @@ int test_gssapi_1(bool user_env_file, bool use_cb)
         cbt = &cbts;
     }
 
+    if (no_seal) {
+        req_flags = GSS_C_INTEG_FLAG;
+    } else {
+        req_flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG;
+    }
+
     retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
                                       gss_srvname, GSS_C_NO_OID,
-                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
-                                      0, cbt,
+                                      req_flags, 0, cbt,
                                       GSS_C_NO_BUFFER, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
@@ -1675,8 +1681,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb)
 
     retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
                                       gss_srvname, GSS_C_NO_OID,
-                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
-                                      0, cbt,
+                                      req_flags, 0, cbt,
                                       &srv_token, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
@@ -2171,11 +2176,15 @@ int main(int argc, const char *argv[])
     setenv("LM_COMPAT_LEVEL", "0", 1);
 
     fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
-    ret = test_gssapi_1(true, false);
+    ret = test_gssapi_1(true, false, false);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation (no SEAL)\n");
+    ret = test_gssapi_1(true, false, true);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test GSSAPI conversation (with password)\n");
-    ret = test_gssapi_1(false, false);
+    ret = test_gssapi_1(false, false, false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test Connectionless exchange\n");
@@ -2186,15 +2195,19 @@ int main(int argc, const char *argv[])
     setenv("LM_COMPAT_LEVEL", "5", 1);
 
     fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
-    ret = test_gssapi_1(true, false);
+    ret = test_gssapi_1(true, false, false);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test GSSAPI conversation (no SEAL)\n");
+    ret = test_gssapi_1(true, false, true);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test GSSAPI conversation (with password)\n");
-    ret = test_gssapi_1(false, false);
+    ret = test_gssapi_1(false, false, false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test GSSAPI conversation (with CB)\n");
-    ret = test_gssapi_1(false, true);
+    ret = test_gssapi_1(false, true, false);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test Connectionless exchange\n");
