@@ -158,6 +158,9 @@ struct gssntlm_ctx {
 
 uint8_t gssntlm_required_security(int security_level,
                                   enum gssntlm_role role);
+bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx);
+bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx);
+bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx);
 
 uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,
                                   time_t *time_now);

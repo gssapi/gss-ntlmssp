@@ -338,7 +338,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
 
     ntlm_v1 = is_ntlm_v1(nt_chal_resp);
 
-    if (ntlm_v1 && !(ctx->sec_req & (SEC_DC_LM_OK | SEC_DC_NTLM_OK))) {
+    if (ntlm_v1 && !gssntlm_sec_lm_ok(ctx) && !gssntlm_sec_ntlm_ok(ctx)) {
         *minor = EPERM;
         return GSS_S_FAILURE;
     }
@@ -359,7 +359,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                                              &cred->cred.user.nt_hash,
                                              ext_sec, ctx->server_chal,
                                              client_chal);
-            if (retmin && ctx->sec_req & SEC_DC_LM_OK) {
+            if (retmin && gssntlm_sec_lm_ok(ctx)) {
                 retmin = ntlm_verify_lm_response(lm_chal_resp,
                                                  &cred->cred.user.lm_hash,
                                                  ext_sec, ctx->server_chal,
@@ -387,7 +387,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
             retmin = ntlmv2_verify_nt_response(nt_chal_resp,
                                                &ntlmv2_key,
                                                ctx->server_chal);
-            if (retmin && ctx->sec_req & SEC_DC_LM_OK) {
+            if (retmin && gssntlm_sec_lm_ok(ctx)) {
                 /* LMv2 Response */
                 retmin = ntlmv2_verify_lm_response(lm_chal_resp,
                                                    &ntlmv2_key,

@@ -65,6 +65,39 @@ uint8_t gssntlm_required_security(int security_level,
     return resp;
 }
 
+bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx)
+{
+    switch (ctx->role) {
+    case GSSNTLM_CLIENT:
+    case GSSNTLM_SERVER:
+        return (ctx->sec_req & SEC_LM_OK);
+    case GSSNTLM_DOMAIN_SERVER:
+        return true; /* defer decision to DC */
+    case GSSNTLM_DOMAIN_CONTROLLER:
+        return (ctx->sec_req & SEC_DC_LM_OK);
+    }
+    return false;
+}
+
+bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx)
+{
+    switch (ctx->role) {
+    case GSSNTLM_CLIENT:
+    case GSSNTLM_SERVER:
+        return (ctx->sec_req & SEC_NTLM_OK);
+    case GSSNTLM_DOMAIN_SERVER:
+        return true; /* defer decision to DC */
+    case GSSNTLM_DOMAIN_CONTROLLER:
+        return (ctx->sec_req & SEC_DC_NTLM_OK);
+    }
+    return false;
+}
+
+bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx)
+{
+    return (ctx->sec_req & SEC_EXT_SEC_OK);
+}
+
 uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx, time_t *time_now)
 {
     time_t now;
@@ -90,6 +123,6 @@ int gssntlm_get_lm_compatibility_level(void)
         return atoi(envvar);
     }
 
-    /* use the most secure setting by default */
-    return SEC_LEVEL_MAX;
+    /* use 3 by default for better compatibility */
+    return 3;
 }

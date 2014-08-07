@@ -212,11 +212,11 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             retmaj = GSS_S_FAILURE;
             goto done;
         }
-        if (!(ctx->sec_req & SEC_LM_OK)) {
+        if (!gssntlm_sec_lm_ok(ctx)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
-        if (!(ctx->sec_req & SEC_EXT_SEC_OK)) {
+        if (!gssntlm_ext_sec_ok(ctx)) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
 
@@ -322,7 +322,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
 
         /* mask unacceptable flags */
-        if (!(ctx->sec_req & SEC_LM_OK)) {
+        if (!gssntlm_sec_lm_ok(ctx)) {
             in_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
         }
         if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) {
@@ -606,11 +606,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         ctx->neg_flags = NTLMSSP_DEFAULT_ALLOWED_SERVER_FLAGS;
         /* Fixme: How do we allow anonymous negotition ? */
 
-        if ((ctx->sec_req & SEC_LM_OK) || (ctx->sec_req & SEC_DC_LM_OK)) {
+        if (gssntlm_sec_lm_ok(ctx)) {
             ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_LM_KEY;
         }
-        if (ctx->sec_req & SEC_EXT_SEC_OK) {
+        if (gssntlm_ext_sec_ok(ctx)) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
         }
 
