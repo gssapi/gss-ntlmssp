@@ -519,7 +519,6 @@ struct {
 
 struct t_gsswrapex_data {
     uint32_t flags;
-    uint32_t SeqNum;
     struct ntlm_buffer Plaintext;
     struct ntlm_key KeyExchangeKey;
     struct ntlm_key ClientSealKey;
@@ -548,7 +547,6 @@ struct t_gsswrapex_data T_GSSWRAPv1noESS = {
       NTLMSSP_NEGOTIATE_56 |
       NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL
     ),
-    0,
     {
       .data = T_GSSWRAPv1noESS_Plaintext_data,
       .length = sizeof(T_GSSWRAPv1noESS_Plaintext_data)
@@ -599,7 +597,6 @@ struct t_gsswrapex_data T_GSSWRAPEXv1 = {
       NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL |
       NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY
     ),
-    0,
     {
       .data = T_GSSWRAPEXv1_Plaintext_data,
       .length = sizeof(T_GSSWRAPEXv1_Plaintext_data)
@@ -656,7 +653,6 @@ struct t_gsswrapex_data T_GSSWRAPEXv2 = {
       NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL |
       NTLMSSP_NEGOTIATE_KEY_EXCH | NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY
     ),
-    0,
     {
       .data = T_GSSWRAPEXv2_Plaintext_data,
       .length = sizeof(T_GSSWRAPEXv2_Plaintext_data)
