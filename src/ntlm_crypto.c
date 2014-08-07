@@ -418,83 +418,100 @@ static int ntlm_key_derivation_function(struct ntlm_key *key,
 #define NTLM_MODE_CLIENT true
 #define NTLM_MODE_SERVER false
 
-static int ntlm_signkey(uint32_t flags, bool mode,
-                        struct ntlm_key *random_session_key,
+static int ntlm_signkey(bool mode,
+                        struct ntlm_key *session_key,
                         struct ntlm_key *signing_key)
 {
     const char *mc;
 
-    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-        if (mode == NTLM_MODE_CLIENT) {
-            mc = "session key to client-to-server signing key magic constant";
-        } else {
-            mc = "session key to server-to-client signing key magic constant";
-        }
-        return ntlm_key_derivation_function(random_session_key,
-                                            mc, signing_key);
+    if (mode == NTLM_MODE_CLIENT) {
+        mc = "session key to client-to-server signing key magic constant";
     } else {
-        signing_key->length = 0;
+        mc = "session key to server-to-client signing key magic constant";
     }
-    return 0;
+    return ntlm_key_derivation_function(session_key,
+                                        mc, signing_key);
 }
 
 static int ntlm_sealkey(uint32_t flags, bool mode,
-                        struct ntlm_key *random_session_key,
+                        struct ntlm_key *session_key,
                         struct ntlm_key *sealing_key)
 {
     struct ntlm_key key;
     const char *mc;
 
-    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-        if (flags & NTLMSSP_NEGOTIATE_128) {
-            key.length = 16;
-        } else if (flags & NTLMSSP_NEGOTIATE_56) {
-            key.length = 7;
-        } else {
-            key.length = 5;
-        }
-        memcpy(key.data, random_session_key->data, key.length);
+    if (flags & NTLMSSP_NEGOTIATE_128) {
+        key.length = 16;
+    } else if (flags & NTLMSSP_NEGOTIATE_56) {
+        key.length = 7;
+    } else {
+        key.length = 5;
+    }
+    memcpy(key.data, session_key->data, key.length);
 
-        if (mode == NTLM_MODE_CLIENT) {
-            mc = "session key to client-to-server sealing key magic constant";
-        } else {
-            mc = "session key to server-to-client sealing key magic constant";
-        }
+    if (mode == NTLM_MODE_CLIENT) {
+        mc = "session key to client-to-server sealing key magic constant";
+    } else {
+        mc = "session key to server-to-client sealing key magic constant";
+    }
 
-        return ntlm_key_derivation_function(&key, mc, sealing_key);
+    return ntlm_key_derivation_function(&key, mc, sealing_key);
+}
 
-    } else if (flags & NTLMSSP_NEGOTIATE_LM_KEY) {
+static void no_ext_sec_sealkey(uint32_t flags,
+                               struct ntlm_key *session_key,
+                               struct ntlm_buffer *sealing_key)
+{
+    if (flags & NTLMSSP_NEGOTIATE_LM_KEY) {
         if (flags & NTLMSSP_NEGOTIATE_56) {
-            memcpy(sealing_key->data, random_session_key->data, 7);
+            memcpy(sealing_key->data, session_key->data, 7);
             sealing_key->data[7] = 0xA0;
         } else {
-            memcpy(sealing_key->data, random_session_key->data, 5);
+            memcpy(sealing_key->data, session_key->data, 5);
             sealing_key->data[5] = 0xE5;
             sealing_key->data[6] = 0x38;
             sealing_key->data[7] = 0xB0;
         }
         sealing_key->length = 8;
     } else {
-        *sealing_key = *random_session_key;
+        memcpy(sealing_key->data, session_key->data, 16);
+        sealing_key->length = session_key->length;
     }
-    return 0;
 }
 
-int ntlm_signseal_keys(uint32_t flags, bool client,
-                       struct ntlm_key *session_key,
-                       struct ntlm_signseal_state *state)
+static int no_ext_sec_handle(uint32_t flags,
+                             struct ntlm_key *session_key,
+                             struct ntlm_rc4_handle **seal_handle)
+{
+    uint8_t skbuf[16];
+    struct ntlm_buffer sealing_key = { skbuf, 16 };
+
+    no_ext_sec_sealkey(flags, session_key, &sealing_key);
+
+    return RC4_INIT(&sealing_key, NTLM_CIPHER_ENCRYPT, seal_handle);
+}
+
+
+static int ext_sec_keys(uint32_t flags, bool client,
+                        struct ntlm_key *session_key,
+                        struct ntlm_signseal_state *state)
 {
     struct ntlm_buffer rc4_key;
     bool mode;
     int ret;
 
+    state->ext_sec = true;
+    if (flags & NTLMSSP_NEGOTIATE_DATAGRAM) {
+        state->datagram = true;
+    }
+
     /* send key */
     mode = client ? NTLM_MODE_CLIENT : NTLM_MODE_SERVER;
-    ret = ntlm_signkey(flags, mode, session_key, &state->send.sign_key);
+    ret = ntlm_signkey(mode, session_key, &state->send.sign_key);
     if (ret) return ret;
     /* recv key */
     mode = client ? NTLM_MODE_SERVER : NTLM_MODE_CLIENT;
-    ret = ntlm_signkey(flags, mode, session_key, &state->recv.sign_key);
+    ret = ntlm_signkey(mode, session_key, &state->recv.sign_key);
     if (ret) return ret;
 
     /* send key */
@@ -519,21 +536,30 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
     return 0;
 }
 
-int ntlm_seal_regen(struct ntlm_signseal_state *state, int direction)
+int ntlm_signseal_keys(uint32_t flags, bool client,
+                       struct ntlm_key *session_key,
+                       struct ntlm_signseal_state *state)
 {
-    struct ntlm_signseal_handle *h;
+
+    memset(state, 0, sizeof(struct ntlm_signseal_state));
+
+    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
+        state->datagram = (flags & NTLMSSP_NEGOTIATE_DATAGRAM);
+        return ext_sec_keys(flags, client, session_key, state);
+    } else {
+        return no_ext_sec_handle(flags, session_key,
+                                 &state->send.seal_handle);
+    }
+}
+
+static int ntlm_seal_regen(struct ntlm_signseal_handle *h)
+{
     struct ntlm_buffer payload;
     struct ntlm_buffer result;
     uint8_t inbuf[20];
     uint8_t outbuf[16];
     uint32_t le;
     int ret;
-
-    if (direction == NTLM_SEND) {
-        h = &state->send;
-    } else {
-        h = &state->recv;
-    }
 
     RC4_FREE(&h->seal_handle);
 
@@ -713,20 +739,35 @@ int ntlm_sign(uint32_t flags, int direction,
               struct ntlm_buffer *signature)
 {
     struct ntlm_signseal_handle *h;
+    int ret;
 
-    if (direction == NTLM_SEND) {
+    if (direction == NTLM_SEND || !state->ext_sec) {
         h = &state->send;
     } else {
         h = &state->recv;
     }
 
-    if ((flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)
-        && (flags & NTLMSSP_NEGOTIATE_SIGN)) {
-        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
-                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                           message, signature);
-    } else if (flags & NTLMSSP_NEGOTIATE_SIGN) {
-        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, message, signature);
+    if (flags & NTLMSSP_NEGOTIATE_SIGN) {
+        if (state->ext_sec) {
+            if (state->datagram) {
+                ret = ntlm_seal_regen(h);
+                if (ret) return ret;
+            }
+
+            ret = ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
+                              (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                              message, signature);
+        } else {
+            ret = ntlmv1_sign(h->seal_handle, 0, h->seq_num,
+                              message, signature);
+        }
+        if (ret) return ret;
+
+        if (!state->datagram) {
+            h->seq_num++;
+        }
+        return 0;
+
     } else if (flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN) {
         uint32_t le_seq = htole32(h->seq_num);
         memcpy(signature->data, &le_seq, 4);
@@ -755,13 +796,23 @@ int ntlm_seal(uint32_t flags,
     ret = RC4_UPDATE(h->seal_handle, message, output);
     if (ret) return ret;
 
-    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
-                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                           message, signature);
+    if (state->ext_sec) {
+        if (state->datagram) {
+            ret = ntlm_seal_regen(h);
+            if (ret) return ret;
+        }
+        ret = ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
+                          (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                          message, signature);
     } else {
-        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, message, signature);
+        ret = ntlmv1_sign(h->seal_handle, 0, h->seq_num, message, signature);
     }
+    if (ret) return ret;
+
+    if (!state->datagram) {
+        h->seq_num++;
+    }
+    return 0;
 }
 
 int ntlm_unseal(uint32_t flags,
@@ -778,7 +829,11 @@ int ntlm_unseal(uint32_t flags,
         return ENOTSUP;
     }
 
-    h = &state->recv;
+    if (!state->ext_sec) {
+        h = &state->send;
+    } else {
+        h = &state->recv;
+    }
 
     msg_buffer = *message;
     msg_buffer.length -= NTLM_SIGNATURE_SIZE;
@@ -786,13 +841,23 @@ int ntlm_unseal(uint32_t flags,
     ret = RC4_UPDATE(h->seal_handle, &msg_buffer, output);
     if (ret) return ret;
 
-    if (flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
-        return ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
-                           (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
-                           output, signature);
+    if (state->ext_sec) {
+        if (state->datagram) {
+            ret = ntlm_seal_regen(h);
+            if (ret) return ret;
+        }
+        ret = ntlmv2_sign(&h->sign_key, h->seq_num, h->seal_handle,
+                          (flags & NTLMSSP_NEGOTIATE_KEY_EXCH),
+                          output, signature);
     } else {
-        return ntlmv1_sign(h->seal_handle, 0, h->seq_num, output, signature);
+        ret = ntlmv1_sign(h->seal_handle, 0, h->seq_num, output, signature);
     }
+    if (ret) return ret;
+
+    if (!state->datagram) {
+        h->seq_num++;
+    }
+    return 0;
 }
 
 int ntlm_mic(struct ntlm_key *exported_session_key,

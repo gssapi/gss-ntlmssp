@@ -137,6 +137,8 @@ struct ntlm_signseal_handle {
 struct ntlm_signseal_state {
     struct ntlm_signseal_handle send;
     struct ntlm_signseal_handle recv;
+    bool datagram;
+    bool ext_sec;
 };
 
 #define NTLM_SEND 1
@@ -314,7 +316,7 @@ int ntlm_encrypted_session_key(struct ntlm_key *key,
                                struct ntlm_key *in, struct ntlm_key *out);
 
 /**
- * @brief   Computes all the sign and seal keys from the session key
+ * @brief   Computes the extended security keys from the session key
  *
  * @param flags                 Incoming challenge/authenticate flags
  * @param client                Wheter this ia a client or a server
@@ -328,15 +330,34 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
                        struct ntlm_signseal_state *signseal_state);
 
 /**
- * @brief   Regens the NTLM Seal key.
- *          Used only in connectionless mode. See MS-NLMP 3.4
+ * @brief   Verifies a NTLM v1 NT Response
  *
- * @param state         Sign and seal keys and state
- * @param direction     Direction (NTLM_SEND or NTLM_RECV)
+ * @param nt_response       The NT Response buffer
+ * @param nt_key            The NTLMv1 NT Key
+ * @param ext_sec           Whether Extended Security was negotiated
+ * @param server_chal[8]    The Server Challenge
+ * @param client_chal[8]    The Client Challenge
  *
- * @return 0 on success or error.
+ * @return 0 on success, or an error
  */
-int ntlm_seal_regen(struct ntlm_signseal_state *state, int direction);
+int ntlm_verify_nt_response(struct ntlm_buffer *nt_response,
+                            struct ntlm_key *nt_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8]);
+
+/**
+ * @brief   Verifies a NTLM v1 LM Response
+ *
+ * @param lm_response       The LM Response buffer
+ * @param lm_key            The NTLMv1 LM Key
+ * @param ext_sec           Whether Extended Security was negotiated
+ * @param server_chal[8]    The Server Challenge
+ * @param client_chal[8]    The Client Challenge
+ *
+ * @return 0 on success, or an error
+ */
+int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
+                            struct ntlm_key *lm_key, bool ext_sec,
+                            uint8_t server_chal[8], uint8_t client_chal[8]);
 
 /**
  * @brief   Verifies a 16 bit NT Response

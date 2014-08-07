@@ -48,15 +48,6 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
         return GSS_S_CALL_INACCESSIBLE_READ;
     }
 
-    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
-        /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_SEND);
-        if (retmin) {
-            *minor_status = retmin;
-            return GSS_S_FAILURE;
-        }
-    }
-
     message_token->value = malloc(NTLM_SIGNATURE_SIZE);
     if (!message_token->value) {
         *minor_status = ENOMEM;
@@ -75,11 +66,6 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
         *minor_status = retmin;
         safefree(message_token->value);
         return GSS_S_FAILURE;
-    }
-
-    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
-        /* increment seq_num upon succesful signature */
-        ctx->crypto_state.send.seq_num++;
     }
 
     return GSS_S_COMPLETE;
@@ -111,15 +97,6 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         *qop_state = GSS_C_QOP_DEFAULT;
     }
 
-    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
-        /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_RECV);
-        if (retmin) {
-            *minor_status = retmin;
-            return GSS_S_FAILURE;
-        }
-    }
-
     message.data = message_buffer->value;
     message.length = message_buffer->length;
     retmin = ntlm_sign(ctx->neg_flags, NTLM_RECV,
@@ -133,11 +110,6 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
     if (memcmp(signature.data,
                message_token->value, NTLM_SIGNATURE_SIZE) != 0) {
         return GSS_S_BAD_SIG;
-    }
-
-    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
-        /* increment seq_num upon succesful signature */
-        ctx->crypto_state.recv.seq_num++;
     }
 
     return GSS_S_COMPLETE;
@@ -178,15 +150,6 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         /* ignore, always seal */
     }
 
-    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
-        /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_SEND);
-        if (retmin) {
-            *minor_status = retmin;
-            return GSS_S_FAILURE;
-        }
-    }
-
     output_message_buffer->length =
         input_message_buffer->length + NTLM_SIGNATURE_SIZE;
     output_message_buffer->value = malloc(output_message_buffer->length);
@@ -209,10 +172,6 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         return GSS_S_FAILURE;
     }
 
-    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
-        /* increment seq_num upon succesful encryption */
-        ctx->crypto_state.send.seq_num++;
-    }
     return GSS_S_COMPLETE;
 }
 
@@ -247,15 +206,6 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         *qop_state = GSS_C_QOP_DEFAULT;
     }
 
-    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
-        /* must regenerate seal key */
-        retmin = ntlm_seal_regen(&ctx->crypto_state, NTLM_RECV);
-        if (retmin) {
-            *minor_status = retmin;
-            return GSS_S_FAILURE;
-        }
-    }
-
     output_message_buffer->length =
         input_message_buffer->length - NTLM_SIGNATURE_SIZE;
     output_message_buffer->value = malloc(output_message_buffer->length);
@@ -282,10 +232,6 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSS_S_BAD_SIG;
     }
 
-    if (!(ctx->gss_flags & GSS_C_DATAGRAM_FLAG)) {
-        /* increment seq_num upon succesful encryption */
-        ctx->crypto_state.recv.seq_num++;
-    }
     return GSS_S_COMPLETE;
 }
 

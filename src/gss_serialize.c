@@ -709,6 +709,12 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
                       &ectx->recv, &ctx->crypto_state.recv);
     if (maj != GSS_S_COMPLETE) goto done;
 
+    /* We need to restoer also the general crypto status flags */
+    ctx->crypto_state.ext_sec =
+        (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
+    ctx->crypto_state.datagram =
+        (ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM);
+
     ctx->int_flags = ectx->int_flags;
 
     time = le64toh(ectx->expration_time);
