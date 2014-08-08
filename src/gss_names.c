@@ -558,7 +558,7 @@ uint32_t netbios_get_names(char *computer_name,
     }
 
     if (!nb_computer_name || !nb_domain_name) {
-        /* fetch only missing ones */
+        /* fetch only mising ones */
         ret = external_netbios_get_names(
                     nb_computer_name ? NULL : &nb_computer_name,
                     nb_domain_name ? NULL : &nb_domain_name);
@@ -582,14 +582,6 @@ uint32_t netbios_get_names(char *computer_name,
             *p = toupper(*p);
         }
         if (!nb_computer_name) {
-            ret = ENOMEM;
-            goto done;
-        }
-    }
-
-    if (!nb_domain_name) {
-        nb_domain_name = strdup("WORKGROUP");
-        if (!nb_domain_name) {
             ret = ENOMEM;
             goto done;
         }

@@ -19,7 +19,9 @@ uint32_t winbind_get_names(char **computer, char **domain)
     wbc_status = wbcInterfaceDetails(&details);
     if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
 
-    if (computer) {
+    if (computer &&
+        details->netbios_name &&
+        (details->netbios_name[0] != 0)) {
         *computer = strdup(details->netbios_name);
         if (!*computer) {
             ret = ENOMEM;
@@ -27,7 +29,9 @@ uint32_t winbind_get_names(char **computer, char **domain)
         }
     }
 
-    if (domain) {
+    if (domain &&
+        details->netbios_domain &&
+        (details->netbios_domain[0] != 0)) {
         *domain = strdup(details->netbios_domain);
         if (!*domain) {
             ret = ENOMEM;
@@ -39,7 +43,7 @@ uint32_t winbind_get_names(char **computer, char **domain)
 
 done:
     if (ret) {
-        if (computer) free(*computer);
+        if (computer) safefree(*computer);
     }
     wbcFreeMemory(details);
     return ret;

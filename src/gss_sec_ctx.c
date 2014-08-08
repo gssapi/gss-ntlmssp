@@ -603,7 +603,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        ctx->neg_flags = NTLMSSP_DEFAULT_ALLOWED_SERVER_FLAGS;
+        ctx->neg_flags = NTLMSSP_DEFAULT_SERVER_FLAGS;
         /* Fixme: How do we allow anonymous negotition ? */
 
         if (gssntlm_sec_lm_ok(ctx)) {
@@ -667,12 +667,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY) {
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
-        }
-
-        /* TODO: support Domain type */
-        if (true) {
-            ctx->neg_flags |= NTLMSSP_TARGET_TYPE_SERVER;
-            ctx->neg_flags &= ~NTLMSSP_TARGET_TYPE_DOMAIN;
         }
 
         if (ctx->neg_flags & NTLMSSP_REQUEST_TARGET) {
@@ -753,14 +747,12 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        switch (ctx->role) {
-        case GSSNTLM_DOMAIN_SERVER:
-        case GSSNTLM_DOMAIN_CONTROLLER:
+        if (nb_domain_name) {
             chal_target_name = nb_domain_name;
-            break;
-        default:
+            ctx->neg_flags |= NTLMSSP_TARGET_TYPE_DOMAIN;
+        } else {
             chal_target_name = nb_computer_name;
-            break;
+            ctx->neg_flags |= NTLMSSP_TARGET_TYPE_SERVER;
         }
 
         retmin = ntlm_encode_chal_msg(ctx->ntlm, ctx->neg_flags,
