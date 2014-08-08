@@ -979,12 +979,14 @@ int ntlm_decode_neg_msg(struct ntlm_ctx *ctx,
 
     neg_flags = le32toh(msg->neg_flags);
 
-    if (neg_flags & NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED) {
+    if (domain &&
+        (neg_flags & NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED)) {
         ret = ntlm_decode_oem_str(&msg->domain_name, buffer,
                                   payload_offs, &dom);
         if (ret) goto done;
     }
-    if (neg_flags & NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED) {
+    if (workstation &&
+        (neg_flags & NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED)) {
         ret = ntlm_decode_oem_str(&msg->workstation_name, buffer,
                                   payload_offs, &wks);
         if (ret) goto done;
@@ -996,8 +998,8 @@ done:
         safefree(wks);
     } else {
         *flags = neg_flags;
-        *domain = dom;
-        *workstation = wks;
+        if (domain) *domain = dom;
+        if (workstation) *workstation = wks;
     }
     return ret;
 }

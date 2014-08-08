@@ -521,8 +521,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     struct gssntlm_ctx *ctx;
     struct gssntlm_cred *cred;
     int lm_compat_lvl = -1;
-    char *workstation = NULL;
-    char *domain = NULL;
     struct ntlm_buffer challenge = { 0 };
     struct gssntlm_name *server_name = NULL;
     char *computer_name = NULL;
@@ -674,7 +672,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             }
 
             retmin = ntlm_decode_neg_msg(ctx->ntlm, &ctx->nego_msg, &in_flags,
-                                         &domain, &workstation);
+                                         NULL, NULL);
             if (retmin) {
                 retmaj = GSS_S_DEFECTIVE_TOKEN;
                 goto done;
@@ -1003,8 +1001,6 @@ done:
     safefree(computer_name);
     safefree(nb_computer_name);
     safefree(nb_domain_name);
-    safefree(workstation);
-    safefree(domain);
     safefree(usr_name);
     safefree(dom_name);
     safefree(wks_name);
