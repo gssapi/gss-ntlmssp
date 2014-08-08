@@ -217,7 +217,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        /* only in connecionless mode we may receive an input buffer
+        /* only in connectionless mode we may receive an input buffer
          * on the the first call, if DATAGRAM is not selected and
          * we have a buffer here, somethings wrong */
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) {
@@ -368,9 +368,33 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 retmaj = GSS_S_FAILURE;
                 goto done;
             }
+            if ((in_flags & NTLMSSP_NEGOTIATE_OEM) &&
+                (in_flags & NTLMSSP_NEGOTIATE_UNICODE)) {
+                /* prefer Unicode */
+                in_flags &= ~NTLMSSP_NEGOTIATE_OEM;
+            }
         } else {
             in_flags &= ~NTLMSSP_NEGOTIATE_DATAGRAM;
+
+            if ((in_flags & NTLMSSP_NEGOTIATE_OEM) &&
+                (in_flags & NTLMSSP_NEGOTIATE_UNICODE)) {
+                /* server sent both?? This is broken, proceed only if there
+                 * are no strings set in the challenge packet and downgrade
+                 * to OEM charset hoping the server will cope */
+                if (in_flags & (NTLMSSP_NEGOTIATE_TARGET_INFO |
+                                NTLMSSP_TARGET_TYPE_SERVER |
+                                NTLMSSP_TARGET_TYPE_DOMAIN)) {
+                    retmaj = GSS_S_FAILURE;
+                    goto done;
+                } else {
+                    in_flags &= ~NTLMSSP_NEGOTIATE_UNICODE;
+                }
+            }
         }
+
+        /* Now that everything has been checked clear non
+         * negotiated flags */
+        ctx->neg_flags &= in_flags;
 
        retmaj = gssntlm_cli_auth(&retmin, ctx, cred, &target_info,
                                   in_flags, input_chan_bindings);
