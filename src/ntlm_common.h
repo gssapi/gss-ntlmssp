@@ -98,6 +98,16 @@ struct wire_chal_msg {
 };
 #pragma pack(pop)
 
+/* We have evidence of at least one old broken server
+ * that send shorter CHALLENGE msgs like this: */
+#pragma pack(push, 1)
+struct wire_chal_msg_old {
+    struct wire_msg_hdr header;
+    struct wire_field_hdr target_name;
+    uint32_t neg_flags;
+    uint8_t server_challenge[8];
+};
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 struct wire_auth_msg {

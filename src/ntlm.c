@@ -881,7 +881,8 @@ int ntlm_decode_msg_type(struct ntlm_ctx *ctx,
         }
         break;
     case CHALLENGE_MESSAGE:
-        if (buffer->length < sizeof(struct wire_chal_msg)) {
+        if (buffer->length < sizeof(struct wire_chal_msg) &&
+            buffer->length != sizeof(struct wire_chal_msg_old)) {
             return ERR_DECODE;
         }
         break;
@@ -1122,6 +1123,15 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
 
     memcpy(challenge->data, msg->server_challenge, 8);
     challenge->length = 8;
+
+    /* if we allowed a broken short challenge message from an old
+     * server we must stop here */
+    if (buffer->length < sizeof(struct wire_chal_msg)) {
+        if (flags & NTLMSSP_NEGOTIATE_TARGET_INFO) {
+            ret = ERR_DECODE;
+        }
+        goto done;
+    }
 
     if (flags & NTLMSSP_NEGOTIATE_TARGET_INFO) {
         ret = ntlm_decode_field(&msg->target_info, buffer,
