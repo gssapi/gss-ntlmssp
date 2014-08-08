@@ -154,8 +154,13 @@ struct gssntlm_ctx {
     time_t expiration_time;
 };
 
-uint8_t gssntlm_required_security(int security_level,
-                                  enum gssntlm_role role);
+uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx);
+
+void gssntlm_set_role(struct gssntlm_ctx *ctx,
+                      int desired, char *nb_domain_name);
+bool gssntlm_role_is_client(struct gssntlm_ctx *ctx);
+bool gssntlm_role_is_server(struct gssntlm_ctx *ctx);
+
 bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx);

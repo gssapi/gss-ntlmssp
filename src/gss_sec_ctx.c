@@ -127,8 +127,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         ctx->gss_flags = req_flags;
 
-        ctx->role = GSSNTLM_CLIENT;
-
         ctx->neg_flags = NTLMSSP_DEFAULT_CLIENT_FLAGS;
 
         /*
@@ -204,10 +202,12 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        gssntlm_set_role(ctx, GSSNTLM_CLIENT, nb_domain_name);
+
         ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -285,7 +285,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
     } else {
 
-        if (ctx->role != GSSNTLM_CLIENT) {
+        if (!gssntlm_role_is_client(ctx)) {
             retmaj = GSS_S_NO_CONTEXT;
             goto done;
         }
@@ -631,13 +631,10 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        /* FIXME: add call to determine if we are any other type of
-         * server, including setting up callbacks to perform validation
-         * against a remote DC */
-        ctx->role = GSSNTLM_SERVER;
+        gssntlm_set_role(ctx, GSSNTLM_SERVER, nb_domain_name);
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx->role);
+        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
             retmaj = GSS_S_FAILURE;
             goto done;
@@ -779,7 +776,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     } else {
         ctx = (struct gssntlm_ctx *)(*context_handle);
 
-        if (ctx->role != GSSNTLM_SERVER) {
+        if (!gssntlm_role_is_server(ctx)) {
+            retmin = EINVAL;
             retmaj = GSS_S_NO_CONTEXT;
             goto done;
         }
@@ -1060,7 +1058,7 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
     }
 
     if (locally_initiated) {
-        if (ctx->role == GSSNTLM_CLIENT) {
+        if (gssntlm_role_is_client(ctx)) {
             *locally_initiated = 1;
         } else {
             *locally_initiated = 0;

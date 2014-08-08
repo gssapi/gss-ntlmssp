@@ -28,8 +28,7 @@ const gss_OID_desc gssntlm_oid = {
     .elements = discard_const(GSS_NTLMSSP_OID_STRING)
 };
 
-uint8_t gssntlm_required_security(int security_level,
-                                  enum gssntlm_role role)
+uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx)
 {
     uint8_t resp;
 
@@ -51,10 +50,10 @@ uint8_t gssntlm_required_security(int security_level,
         break;
     case 4:
         resp |= SEC_NTLM_OK | SEC_EXT_SEC_OK;
-        if (role == GSSNTLM_DOMAIN_CONTROLLER) resp &= ~SEC_DC_LM_OK;
+        if (ctx->role == GSSNTLM_DOMAIN_CONTROLLER) resp &= ~SEC_DC_LM_OK;
         break;
     case 5:
-        if (role == GSSNTLM_DOMAIN_CONTROLLER) resp = SEC_DC_V2_OK;
+        if (ctx->role == GSSNTLM_DOMAIN_CONTROLLER) resp = SEC_DC_V2_OK;
         resp |= SEC_V2_ONLY | SEC_EXT_SEC_OK;
         break;
     default:
@@ -63,6 +62,36 @@ uint8_t gssntlm_required_security(int security_level,
     }
 
     return resp;
+}
+
+void gssntlm_set_role(struct gssntlm_ctx *ctx,
+                      int desired, char *nb_domain_name)
+{
+    if (desired == GSSNTLM_CLIENT) {
+        ctx->role = GSSNTLM_CLIENT;
+    } else if (nb_domain_name && *nb_domain_name) {
+        ctx->role = GSSNTLM_DOMAIN_SERVER;
+    } else {
+        ctx->role = GSSNTLM_SERVER;
+    }
+}
+
+bool gssntlm_role_is_client(struct gssntlm_ctx *ctx)
+{
+    return (ctx->role == GSSNTLM_CLIENT);
+}
+
+bool gssntlm_role_is_server(struct gssntlm_ctx *ctx)
+{
+    switch (ctx->role) {
+    case GSSNTLM_SERVER:
+    case GSSNTLM_DOMAIN_SERVER:
+    case GSSNTLM_DOMAIN_CONTROLLER:
+        return true;
+    default:
+        break;
+    }
+    return false;
 }
 
 bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx)
