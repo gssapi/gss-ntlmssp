@@ -44,7 +44,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     char *nb_computer_name = NULL;
     char *nb_domain_name = NULL;
     struct gssntlm_name *client_name = NULL;
-    const char *domain = NULL;
     uint32_t in_flags;
     uint32_t msg_type;
     char *trgt_name = NULL;
@@ -162,12 +161,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                               NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
 
-        if (cred->type == GSSNTLM_CRED_USER &&
-            cred->cred.user.user.data.user.domain) {
-            ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED;
-            domain = cred->cred.user.user.data.user.domain;
-        }
-
         /* acquire our own name */
         if (!client_name) {
             gss_buffer_desc tmpbuf;
@@ -203,8 +196,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         }
 
         gssntlm_set_role(ctx, GSSNTLM_CLIENT, nb_domain_name);
-
-        ctx->neg_flags |= NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED;
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
@@ -252,7 +243,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             }
 
             retmin = ntlm_encode_neg_msg(ctx->ntlm, ctx->neg_flags,
-                                         domain, ctx->workstation, &ctx->nego_msg);
+                                         NULL, NULL, &ctx->nego_msg);
             if (retmin) {
                 retmaj = GSS_S_FAILURE;
                 goto done;
