@@ -397,3 +397,14 @@ OM_uint32 gss_import_cred(OM_uint32 *minor_status,
 {
     return gssntlm_import_cred(minor_status, token, cred_handle);
 }
+
+OM_uint32 gss_display_status(OM_uint32 *minor_status,
+                             OM_uint32 status_value,
+                             int status_type,
+                             gss_OID mech_type,
+                             OM_uint32 *message_context,
+                             gss_buffer_t status_string)
+{
+    return gssntlm_display_status(minor_status, status_value, status_type,
+                                  mech_type, message_context, status_string);
+}

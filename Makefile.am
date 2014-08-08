@@ -72,6 +72,7 @@ GN_MECHGLUE_OBJ = \
     src/crypto.c \
     src/ntlm_crypto.c \
     src/ntlm.c \
+    src/gss_err.c \
     src/gss_spi.c \
     src/gss_names.c \
     src/gss_creds.c \

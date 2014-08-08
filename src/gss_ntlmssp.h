@@ -389,4 +389,12 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
 uint32_t gssntlm_import_cred(uint32_t *minor_status,
                              gss_buffer_t token,
                              gss_cred_id_t *cred_handle);
+
+
+uint32_t gssntlm_display_status(uint32_t *minor_status,
+				uint32_t status_value,
+				int status_type,
+				gss_OID mech_type,
+				uint32_t *message_context,
+				gss_buffer_t status_string);
 #endif /* _GSS_NTLMSSP_H_ */
