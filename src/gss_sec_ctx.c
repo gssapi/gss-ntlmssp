@@ -591,6 +591,46 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        /* acquire our own name */
+        if (!server_name) {
+            gss_buffer_desc tmpbuf;
+            tmpbuf.value = discard_const("");
+            tmpbuf.length = 0;
+            retmaj = gssntlm_import_name_by_mech(&retmin,
+                                                 &gssntlm_oid,
+                                                 &tmpbuf,
+                                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                                 (gss_name_t *)&server_name);
+            if (retmaj) goto done;
+        }
+
+        retmin = gssntlm_copy_name(server_name, &ctx->target_name);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        computer_name = strdup(server_name->data.server.name);
+        if (!computer_name) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        retmin = netbios_get_names(computer_name,
+                                   &nb_computer_name, &nb_domain_name);
+        if (retmin) {
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
+        ctx->workstation = strdup(nb_computer_name);
+        if (!ctx->workstation) {
+            retmin = ENOMEM;
+            retmaj = GSS_S_FAILURE;
+            goto done;
+        }
+
         /* FIXME: add call to determine if we are any other type of
          * server, including setting up callbacks to perform validation
          * against a remote DC */
@@ -688,46 +728,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         challenge.length = 8;
         retmin = RAND_BUFFER(&challenge);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
-        /* acquire our own name */
-        if (!server_name) {
-            gss_buffer_desc tmpbuf;
-            tmpbuf.value = discard_const("");
-            tmpbuf.length = 0;
-            retmaj = gssntlm_import_name_by_mech(&retmin,
-                                                 &gssntlm_oid,
-                                                 &tmpbuf,
-                                                 GSS_C_NT_HOSTBASED_SERVICE,
-                                                 (gss_name_t *)&server_name);
-            if (retmaj) goto done;
-        }
-
-        retmin = gssntlm_copy_name(server_name, &ctx->target_name);
-        if (retmin) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
-        computer_name = strdup(server_name->data.server.name);
-        if (!computer_name) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
-        retmin = netbios_get_names(computer_name,
-                                   &nb_computer_name, &nb_domain_name);
-        if (retmin) {
-            retmaj = GSS_S_FAILURE;
-            goto done;
-        }
-
-        ctx->workstation = strdup(nb_computer_name);
-        if (!ctx->workstation) {
-            retmin = ENOMEM;
             retmaj = GSS_S_FAILURE;
             goto done;
         }
