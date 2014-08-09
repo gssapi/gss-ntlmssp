@@ -29,48 +29,50 @@
 #include "../src/gssapi_ntlmssp.h"
 #include "../src/gss_ntlmssp.h"
 
-const char *hex_to_str_8(uint8_t *d)
+const char *hex_to_dump(const uint8_t *d, size_t s)
 {
-    static char hex_to_str_8_str[17];
-    snprintf(hex_to_str_8_str, 17,
-             "%02x %02x %02x %02x %02x %02x %02x %02x",
-             d[0], d[1], d[2],  d[3],  d[4],  d[5],  d[6],  d[7]);
-    return hex_to_str_8_str;
-}
-
-const char *hex_to_str_16(uint8_t *d)
-{
-    static char hex_to_str_16_str[33];
-    snprintf(hex_to_str_16_str, 33,
-             "%02x%02x%02x%02x%02x%02x%02x%02x"
-             "%02x%02x%02x%02x%02x%02x%02x%02x",
-             d[0], d[1], d[2],  d[3],  d[4],  d[5],  d[6],  d[7],
-             d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
-    return hex_to_str_16_str;
-}
-
-const char *hex_to_dump(uint8_t *d, size_t s)
-{
-    static char hex_to_dump_str[1024];
+    static char hex_to_dump_str[1536];
     char format[] = " %02x";
-    size_t t, i, j, p;
+    size_t t, i, j, k, p;
+    bool print_trail = false;
+    bool next_line = false;
 
     if (s > 256) t = 256;
     else t = s;
 
-    snprintf(hex_to_dump_str, 4, format, d[0]);
-    for (i = 1, p = 3; i < t; i++) {
+    for (i = 0, p = 0; i < t; i++) {
         snprintf(&hex_to_dump_str[p], 4, format, d[i]);
         p += 3;
-        if (((i + 1) % 16) == 0) {
-            hex_to_dump_str[p++] = ' ';
-            hex_to_dump_str[p++] = ' ';
-            for (j = i - 15; j < i; j++) {
-                if (isalnum(d[j])) hex_to_dump_str[p++] = d[j];
-                else hex_to_dump_str[p++] = '.';
+        k = (i + 1) % 16;
+        if (i + 1 == t) {
+            print_trail = true;
+            next_line = false;
+        } else if (k == 0) {
+            print_trail = true;
+            next_line = true;
+        }
+        if (print_trail) {
+            for (j = 16 - k + 1; j > 0; j--) {
+                hex_to_dump_str[p++] = ' ';
+                hex_to_dump_str[p++] = ' ';
+                hex_to_dump_str[p++] = ' ';
             }
+            hex_to_dump_str[p++] = '|';
+            if (k == 0) k = 16;
+            for (j = 0; j < 16; j++) {
+                if (k > 0) {
+                    if (isalnum(d[j])) hex_to_dump_str[p++] = d[j];
+                    else hex_to_dump_str[p++] = '.';
+                    k--;
+                } else hex_to_dump_str[p++] = ' ';
+            }
+            hex_to_dump_str[p++] = '|';
+            print_trail = false;
+        }
+        if (next_line) {
             hex_to_dump_str[p++] = '\n';
             hex_to_dump_str[p] = '\0';
+            next_line = false;
         }
     }
     if (t < s) {
@@ -80,6 +82,40 @@ const char *hex_to_dump(uint8_t *d, size_t s)
         hex_to_dump_str[p + 1] = '\0';
     }
     return hex_to_dump_str;
+}
+
+static int test_difference(const char *text,
+                           const void *expected, size_t expected_len,
+                           const void *obtained, size_t obtained_len)
+{
+    if (expected_len == 0) expected_len = strlen((const char *)expected);
+    if (obtained_len == 0) obtained_len = strlen((const char *)obtained);
+    if ((expected_len != obtained_len) ||
+        (memcmp(expected, obtained, expected_len) != 0)) {
+        fprintf(stderr, "%s differ!\n", text);
+        fprintf(stderr, "expected\n%s", hex_to_dump(expected, expected_len));
+        fprintf(stderr, "obtained\n%s", hex_to_dump(obtained, obtained_len));
+        return EINVAL;
+    }
+    return 0;
+}
+
+static int test_buffers(const char *text,
+                        struct ntlm_buffer *expected,
+                        struct ntlm_buffer *obtained)
+{
+    return test_difference(text,
+                           expected->data, expected->length,
+                           obtained->data, obtained->length);
+}
+
+static int test_keys(const char *text,
+                     struct ntlm_key *expected,
+                     struct ntlm_key *obtained)
+{
+    return test_difference(text,
+                           expected->data, expected->length,
+                           obtained->data, obtained->length);
 }
 
 /* Test Data as per para 4.2 of MS-NLMP */
@@ -687,6 +723,7 @@ struct t_gsswrapex_data T_GSSWRAPEXv2 = {
       .length = sizeof(T_GSSWRAPEXv2_Signature_data)
     },
 };
+
 int test_LMOWFv1(struct ntlm_ctx *ctx)
 {
     struct ntlm_key result = { .length = 16 };
@@ -695,16 +732,7 @@ int test_LMOWFv1(struct ntlm_ctx *ctx)
     ret = LMOWFv1(T_Passwd, &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv1.ResponseKeyLM.data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv1.ResponseKeyLM.data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results", &T_NTLMv1.ResponseKeyLM, &result);
 }
 
 int test_NTOWFv1(struct ntlm_ctx *ctx)
@@ -715,16 +743,7 @@ int test_NTOWFv1(struct ntlm_ctx *ctx)
     ret = NTOWFv1(T_Passwd, &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv1.ResponseKeyNT.data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv1.ResponseKeyNT.data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results", &T_NTLMv1.ResponseKeyNT, &result);
 }
 
 int test_SessionBaseKeyV1(struct ntlm_ctx *ctx)
@@ -735,16 +754,8 @@ int test_SessionBaseKeyV1(struct ntlm_ctx *ctx)
     ret = ntlm_session_base_key(&T_NTLMv1.ResponseKeyNT, &session_base_key);
     if (ret) return ret;
 
-    if (memcmp(session_base_key.data, T_NTLMv1.SessionBaseKey.data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv1.SessionBaseKey.data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(session_base_key.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results",
+                        &T_NTLMv1.SessionBaseKey, &session_base_key);
 }
 
 int test_LMResponseV1(struct ntlm_ctx *ctx)
@@ -758,16 +769,10 @@ int test_LMResponseV1(struct ntlm_ctx *ctx)
                                    &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv1.LMv1Response, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv1.LMv1Response));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_difference("results",
+                           T_NTLMv1.LMv1Response,
+                           sizeof(T_NTLMv1.LMv1Response),
+                           result.data, result.length);
 }
 
 int test_NTResponseV1(struct ntlm_ctx *ctx)
@@ -781,16 +786,10 @@ int test_NTResponseV1(struct ntlm_ctx *ctx)
                                    &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv1.NTLMv1Response, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv1.NTLMv1Response));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_difference("results",
+                           T_NTLMv1.NTLMv1Response,
+                           sizeof(T_NTLMv1.NTLMv1Response),
+                           result.data, result.length);
 }
 
 int test_NTOWFv2(struct ntlm_ctx *ctx)
@@ -805,16 +804,7 @@ int test_NTOWFv2(struct ntlm_ctx *ctx)
     ret = NTOWFv2(ctx, &nt_hash, T_User, T_UserDom, &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv2.ResponseKeyNT.data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv2.ResponseKeyNT.data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results", &T_NTLMv2.ResponseKeyNT, &result);
 }
 
 int test_LMResponseV2(struct ntlm_ctx *ctx)
@@ -827,14 +817,11 @@ int test_LMResponseV2(struct ntlm_ctx *ctx)
                                      &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv2.LMv2Response, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv2.LMv2Response));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
+    ret = test_difference("results",
+                          T_NTLMv2.LMv2Response,
+                          sizeof(T_NTLMv2.LMv2Response),
+                          result.data,
+                          sizeof(T_NTLMv2.LMv2Response));
 
     free(result.data);
     return ret;
@@ -851,14 +838,11 @@ int test_NTResponseV2(struct ntlm_ctx *ctx)
                                      T_time, &target_info, &result);
     if (ret) return ret;
 
-    if (memcmp(result.data, T_NTLMv2.NTLMv2Response, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv2.NTLMv2Response));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(result.data));
-        ret = EINVAL;
-    }
+    ret = test_difference("results",
+                          T_NTLMv2.NTLMv2Response,
+                          sizeof(T_NTLMv2.NTLMv2Response),
+                          result.data,
+                          sizeof(T_NTLMv2.NTLMv2Response));
 
     free(result.data);
     return ret;
@@ -874,16 +858,7 @@ int test_SessionBaseKeyV2(struct ntlm_ctx *ctx)
                                   &nt_response, &session_base_key);
     if (ret) return ret;
 
-    if (memcmp(session_base_key.data, T_NTLMv2.SessionBaseKey.data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(T_NTLMv2.SessionBaseKey.data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(session_base_key.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results", &T_NTLMv2.SessionBaseKey, &session_base_key);
 }
 
 int test_EncryptedSessionKey(struct ntlm_ctx *ctx,
@@ -901,17 +876,8 @@ int test_EncryptedSessionKey(struct ntlm_ctx *ctx,
                                      &encrypted_random_session_key);
     if (ret) return ret;
 
-    if (memcmp(encrypted_random_session_key.data,
-               encrypted_session_key->data, 16) != 0) {
-        fprintf(stderr, "results differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_16(encrypted_session_key->data));
-        fprintf(stderr, "obtained %s\n",
-                        hex_to_str_16(encrypted_random_session_key.data));
-        ret = EINVAL;
-    }
-
-    return ret;
+    return test_keys("results", encrypted_session_key,
+                                &encrypted_random_session_key);
 }
 
 int test_EncryptedSessionKey1(struct ntlm_ctx *ctx)
@@ -967,6 +933,7 @@ int test_DecodeChallengeMessageV1(struct ntlm_ctx *ctx)
     char *target_name = NULL;
     uint8_t chal[8];
     struct ntlm_buffer challenge = { chal, 8 };
+    int err;
     int ret;
 
     ret = ntlm_decode_msg_type(ctx, &chal_msg, &type);
@@ -977,26 +944,14 @@ int test_DecodeChallengeMessageV1(struct ntlm_ctx *ctx)
                                &challenge, NULL);
     if (ret) return ret;
 
-    if (flags != T_NTLMv1.ChallengeFlags) {
-        fprintf(stderr, "flags differ!\n");
-        fprintf(stderr, "expected %d\n", T_NTLMv1.ChallengeFlags);
-        fprintf(stderr, "obtained %d\n", flags);
-        ret = EINVAL;
-    }
+    err = test_difference("flags", &T_NTLMv1.ChallengeFlags, 4, &flags, 4);
+    if (err) ret = err;
 
-    if (strcmp(target_name, T_Server_Name) != 0) {
-        fprintf(stderr, "Target Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_Server_Name);
-        fprintf(stderr, "obtained %s\n", target_name);
-        ret = EINVAL;
-    }
+    err = test_difference("Target Names", T_Server_Name, 0, target_name, 0);
+    if (err) ret = err;
 
-    if (memcmp(chal, T_ServerChallenge, 8) != 0) {
-        fprintf(stderr, "Challenges differ!\n");
-        fprintf(stderr, "expected %s\n", hex_to_str_8(T_ServerChallenge));
-        fprintf(stderr, "obtained %s\n", hex_to_str_8(chal));
-        ret = EINVAL;
-    }
+    err = test_difference("Challenges", T_ServerChallenge, 8, chal, 8);
+    if (err) ret = err;
 
     free(target_name);
     return ret;
@@ -1012,18 +967,10 @@ int test_EncodeChallengeMessageV1(struct ntlm_ctx *ctx)
                                &challenge, NULL, &message);
     if (ret) return ret;
 
-    if ((message.length != 0x44) ||
-        (memcmp(message.data, T_NTLMv1.ChallengeMessage,
-                              sizeof(T_NTLMv1.ChallengeMessage)) != 0)) {
-        fprintf(stderr, "Challenge Messages differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv1.ChallengeMessage,
-                                    sizeof(T_NTLMv1.ChallengeMessage)));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(message.data, message.length));
-        ret = EINVAL;
-    }
-
+    ret = test_difference("Challenge Messages",
+                          T_NTLMv1.ChallengeMessage,
+                          sizeof(T_NTLMv1.ChallengeMessage),
+                          message.data, message.length);
     free(message.data);
     return ret;
 }
@@ -1038,6 +985,7 @@ int test_DecodeChallengeMessageV2(struct ntlm_ctx *ctx)
     uint8_t chal[8];
     struct ntlm_buffer challenge = { chal, 8 };
     struct ntlm_buffer target_info = { 0 };
+    int err;
     int ret;
 
     ret = ntlm_decode_msg_type(ctx, &chal_msg, &type);
@@ -1048,36 +996,19 @@ int test_DecodeChallengeMessageV2(struct ntlm_ctx *ctx)
                                &challenge, &target_info);
     if (ret) return ret;
 
-    if (flags != T_NTLMv2.ChallengeFlags) {
-        fprintf(stderr, "flags differ!\n");
-        fprintf(stderr, "expected %d\n", T_NTLMv2.ChallengeFlags);
-        fprintf(stderr, "obtained %d\n", flags);
-        ret = EINVAL;
-    }
+    err = test_difference("flags", &T_NTLMv2.ChallengeFlags, 4, &flags, 4);
+    if (err) ret = err;
 
-    if (strcmp(target_name, T_Server_Name) != 0) {
-        fprintf(stderr, "Target Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_Server_Name);
-        fprintf(stderr, "obtained %s\n", target_name);
-        ret = EINVAL;
-    }
+    err = test_difference("Target Names", T_Server_Name, 0, target_name, 0);
+    if (err) ret = err;
 
-    if (memcmp(chal, T_ServerChallenge, 8) != 0) {
-        fprintf(stderr, "Challenges differ!\n");
-        fprintf(stderr, "expected %s\n", hex_to_str_8(T_ServerChallenge));
-        fprintf(stderr, "obtained %s\n", hex_to_str_8(chal));
-        ret = EINVAL;
-    }
+    err = test_difference("Challenges", T_ServerChallenge, 8, chal, 8);
+    if (err) ret = err;
 
-    if ((target_info.length != 36) ||
-        (memcmp(target_info.data, T_NTLMv2.TargetInfo, 36) != 0)) {
-        fprintf(stderr, "Target Infos differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.TargetInfo, 36));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(target_info.data, target_info.length));
-        ret = EINVAL;
-    }
+    err = test_difference("Target Infos",
+                          T_NTLMv2.TargetInfo, 36,
+                          target_info.data, target_info.length);
+    if (err) ret = err;
 
     free(target_name);
     free(target_info.data);
@@ -1095,18 +1026,10 @@ int test_EncodeChallengeMessageV2(struct ntlm_ctx *ctx)
                                &challenge, &target_info, &message);
     if (ret) return ret;
 
-    if ((message.length != sizeof(T_NTLMv2.ChallengeMessage)) ||
-        (memcmp(message.data, T_NTLMv2.ChallengeMessage,
-                              sizeof(T_NTLMv2.ChallengeMessage)) != 0)) {
-        fprintf(stderr, "Challenge Messages differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.ChallengeMessage,
-                                    sizeof(T_NTLMv2.ChallengeMessage)));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(message.data, message.length));
-        ret = EINVAL;
-    }
-
+    ret = test_difference("Challenge Messages",
+                          T_NTLMv2.ChallengeMessage,
+                          sizeof(T_NTLMv2.ChallengeMessage),
+                          message.data, message.length);
     free(message.data);
     return ret;
 }
@@ -1121,6 +1044,7 @@ int test_DecodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
     char *usr = NULL;
     char *wks = NULL;
     struct ntlm_buffer enc_sess_key = { 0 };
+    int err;
     int ret;
 
     ret = ntlm_decode_msg_type(ctx, &auth_msg, &type);
@@ -1133,60 +1057,49 @@ int test_DecodeAuthenticateMessageV2(struct ntlm_ctx *ctx)
                                &enc_sess_key, NULL, NULL);
     if (ret) return ret;
 
-    if ((lm_chalresp.length != 24) ||
-        (memcmp(lm_chalresp.data, T_NTLMv2.LMv2Response, 16) != 0)) {
-
-        fprintf(stderr, "LM Challenges differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.LMv2Response, 16));
-        fprintf(stderr, "obtained:\n%s",
+    if (lm_chalresp.length != 24) {
+        fprintf(stderr, "Expected a 24 bytes long LM Challenge\n");
+        fprintf(stderr, "Obtained %s",
                         hex_to_dump(lm_chalresp.data, lm_chalresp.length));
         ret = EINVAL;
+    } else {
+        err = test_difference("LM Challenges",
+                              T_NTLMv2.LMv2Response,
+                              sizeof(T_NTLMv2.LMv2Response),
+                              lm_chalresp.data,
+                              sizeof(T_NTLMv2.LMv2Response));
+        if (err) ret = err;
     }
 
-    if ((nt_chalresp.length != 84) ||
-        (memcmp(nt_chalresp.data, T_NTLMv2.NTLMv2Response, 16) != 0)) {
-
-        fprintf(stderr, "NT Challenges differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.NTLMv2Response, 16));
-        fprintf(stderr, "obtained:\n%s",
+    if (nt_chalresp.length != 84) {
+        fprintf(stderr, "Expected a 84 bytes long NT Challenge\n");
+        fprintf(stderr, "Obtained %s",
                         hex_to_dump(nt_chalresp.data, nt_chalresp.length));
         ret = EINVAL;
+    } else {
+        err = test_difference("NT Challenges",
+                              T_NTLMv2.NTLMv2Response,
+                              sizeof(T_NTLMv2.LMv2Response),
+                              nt_chalresp.data,
+                              sizeof(T_NTLMv2.LMv2Response));
+        if (err) ret = err;
     }
 
-    if (strcmp(dom, T_UserDom) != 0) {
-        fprintf(stderr, "Domain Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_UserDom);
-        fprintf(stderr, "obtained %s\n", dom);
-        ret = EINVAL;
-    }
+    err = test_difference("Domain Names", T_UserDom, 0, dom, 0);
+    if (err) ret = err;
 
-    if (strcmp(usr, T_User) != 0) {
-        fprintf(stderr, "User Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_User);
-        fprintf(stderr, "obtained %s\n", usr);
-        ret = EINVAL;
-    }
+    err = test_difference("User Names", T_User, 0, usr, 0);
+    if (err) ret = err;
 
-    if (strcmp(wks, T_Workstation) != 0) {
-        fprintf(stderr, "Workstation Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_Workstation);
-        fprintf(stderr, "obtained %s\n", wks);
-        ret = EINVAL;
-    }
+    err = test_difference("Workstation Names", T_Workstation, 0, wks, 0);
+    if (err) ret = err;
 
-    if ((enc_sess_key.length != 16) ||
-        (memcmp(enc_sess_key.data,
-                T_NTLMv2.EncryptedSessionKey.data, 16) != 0)) {
-
-        fprintf(stderr, "EncryptedSessionKey differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2.EncryptedSessionKey.data, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(enc_sess_key.data, enc_sess_key.length));
-        ret = EINVAL;
-    }
+    err = test_difference("EncryptedSessionKey",
+                          T_NTLMv2.EncryptedSessionKey.data,
+                          T_NTLMv2.EncryptedSessionKey.length,
+                          enc_sess_key.data,
+                          enc_sess_key.length);
+    if (err) ret = err;
 
     free(lm_chalresp.data);
     free(nt_chalresp.data);
@@ -1220,6 +1133,7 @@ int test_DecodeChallengeMessageV2CBT(struct ntlm_ctx *ctx)
     uint8_t chal[8];
     struct ntlm_buffer challenge = { chal, 8 };
     struct ntlm_buffer target_info = { 0 };
+    int err;
     int ret;
 
     ret = ntlm_decode_msg_type(ctx, &chal_msg, &type);
@@ -1230,39 +1144,26 @@ int test_DecodeChallengeMessageV2CBT(struct ntlm_ctx *ctx)
                                &challenge, &target_info);
     if (ret) return ret;
 
-    if (flags != T_NTLMv2_CBT.ChallengeFlags) {
-        fprintf(stderr, "flags differ!\n");
-        fprintf(stderr, "expected 0x%x\n", T_NTLMv2_CBT.ChallengeFlags);
-        fprintf(stderr, "obtained 0x%x\n", flags);
-        ret = EINVAL;
-    }
+    err = test_difference("flags",
+                          &T_NTLMv2_CBT.ChallengeFlags, 4,
+                          &flags, 4);
+    if (err) ret = err;
 
-    if (strcmp(target_name, T_NTLMv2_CBT.Domain) != 0) {
-        fprintf(stderr, "Target Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Server);
-        fprintf(stderr, "obtained %s\n", target_name);
-        ret = EINVAL;
-    }
+    err = test_difference("Target Names",
+                          T_NTLMv2_CBT.Domain, 0, target_name, 0);
+    if (err) ret = err;
 
-    if (memcmp(chal, T_NTLMv2_CBT.ServerChallenge, 8) != 0) {
-        fprintf(stderr, "Challenges differ!\n");
-        fprintf(stderr, "expected %s\n",
-                        hex_to_str_8(T_NTLMv2_CBT.ServerChallenge));
-        fprintf(stderr, "obtained %s\n", hex_to_str_8(chal));
-        ret = EINVAL;
-    }
+    err = test_difference("Challenges",
+                          T_NTLMv2_CBT.ServerChallenge,
+                          sizeof(T_NTLMv2_CBT.ServerChallenge),
+                          chal, 8);
+    if (err) ret = err;
 
-    if ((target_info.length != sizeof(T_NTLMv2_CBT.TargetInfo)) ||
-        (memcmp(target_info.data, T_NTLMv2_CBT.TargetInfo,
-                                  sizeof(T_NTLMv2_CBT.TargetInfo)) != 0)) {
-        fprintf(stderr, "Target Infos differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2_CBT.TargetInfo,
-                                    sizeof(T_NTLMv2_CBT.TargetInfo)));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(target_info.data, target_info.length));
-        ret = EINVAL;
-    }
+    err = test_difference("Target Infos",
+                          T_NTLMv2_CBT.TargetInfo,
+                          sizeof(T_NTLMv2_CBT.TargetInfo),
+                          target_info.data, target_info.length);
+    if (err) ret = err;
 
     free(target_name);
     free(target_info.data);
@@ -1282,18 +1183,10 @@ int test_EncodeChallengeMessageV2CBT(struct ntlm_ctx *ctx)
                                &target_info, &message);
     if (ret) return ret;
 
-    if ((message.length != sizeof(T_NTLMv2_CBT.ChallengeMessage)) ||
-        (memcmp(message.data, T_NTLMv2_CBT.ChallengeMessage,
-                              sizeof(T_NTLMv2_CBT.ChallengeMessage)) != 0)) {
-        fprintf(stderr, "Challenge Messages differ!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2_CBT.ChallengeMessage,
-                                    sizeof(T_NTLMv2_CBT.ChallengeMessage)));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(message.data, message.length));
-        ret = EINVAL;
-    }
-
+    ret = test_difference("Challenge Messages",
+                          T_NTLMv2_CBT.ChallengeMessage,
+                          sizeof(T_NTLMv2_CBT.ChallengeMessage),
+                          message.data, message.length);
     free(message.data);
     return ret;
 }
@@ -1315,6 +1208,7 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
     struct ntlm_buffer target_info = { 0 };
     struct ntlm_buffer cb = { 0 };
     int ret, c;
+    int err;
 
     ret = ntlm_decode_msg_type(ctx, &auth_msg, &type);
     if (ret) return ret;
@@ -1335,26 +1229,15 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
         ret = EINVAL;
     }
 
-    if (strcmp(dom, T_NTLMv2_CBT.Domain) != 0) {
-        fprintf(stderr, "Domain Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Domain);
-        fprintf(stderr, "obtained %s\n", dom);
-        ret = EINVAL;
-    }
+    err = test_difference("Domain Names", T_NTLMv2_CBT.Domain, 0, dom, 0);
+    if (err) ret = err;
 
-    if (strcmp(usr, T_NTLMv2_CBT.User) != 0) {
-        fprintf(stderr, "User Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.User);
-        fprintf(stderr, "obtained %s\n", usr);
-        ret = EINVAL;
-    }
+    err = test_difference("User Names", T_NTLMv2_CBT.User, 0, usr, 0);
+    if (err) ret = err;
 
-    if (strcmp(wks, T_NTLMv2_CBT.Workstation) != 0) {
-        fprintf(stderr, "Workstation Names differ!\n");
-        fprintf(stderr, "expected %s\n", T_NTLMv2_CBT.Workstation);
-        fprintf(stderr, "obtained %s\n", wks);
-        ret = EINVAL;
-    }
+    err = test_difference("Workstation Names",
+                          T_NTLMv2_CBT.Workstation, 0, wks, 0);
+    if (err) ret = err;
 
     if (enc_sess_key.length != 0) {
         fprintf(stderr, "Encrypted Random Session Key not null (%zd)!\n",
@@ -1362,16 +1245,10 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
         ret = EINVAL;
     }
 
-    if ((mic.length != 16) ||
-        (memcmp(mic.data, T_NTLMv2_CBT.MIC, 16) != 0)) {
-
-        fprintf(stderr, "MIC differs!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2_CBT.MIC, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(mic.data, mic.length));
-        ret = EINVAL;
-    }
+    err = test_difference("MIC",
+                          T_NTLMv2_CBT.MIC, sizeof(T_NTLMv2_CBT.MIC),
+                          mic.data, mic.length);
+    if (err) ret = err;
 
     ret = NTOWFv2(ctx, &T_NTLMv2_CBT.NTLMHash,
                   T_NTLMv2_CBT.User, T_NTLMv2_CBT.Domain,
@@ -1395,15 +1272,10 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
         fprintf(stderr, "NTLMv2 ifailed to decode target info!\n");
     }
 
-    if ((cb.length != 16) ||
-        (memcmp(cb.data, T_NTLMv2_CBT.CBSum, 16) != 0)) {
-        fprintf(stderr, "CBTs differs!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(T_NTLMv2_CBT.CBSum, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(cb.data, cb.length));
-        ret = EINVAL;
-    }
+    err = test_difference("CBTs",
+                          T_NTLMv2_CBT.CBSum, sizeof(T_NTLMv2_CBT.CBSum),
+                          cb.data, cb.length);
+    if (err) ret = err;
 
 done:
     free(lm_chalresp.data);
@@ -1425,39 +1297,22 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
     struct ntlm_buffer output = { outbuf, data->Ciphertext.length };
     struct ntlm_buffer signature = { signbuf, 16 };
     int ret;
+    int err;
 
     ret = ntlm_signseal_keys(data->flags, true,
                              &data->KeyExchangeKey, &state);
     if (ret) return ret;
 
     if (data->ClientSealKey.length) {
-        if (memcmp(state.send.seal_key.data,
-                   data->ClientSealKey.data,
-                   data->ClientSealKey.length) != 0) {
-            fprintf(stderr, "Client Sealing Keys differ!\n");
-            fprintf(stderr, "expected:\n%s",
-                    hex_to_dump(data->ClientSealKey.data,
-                                data->ClientSealKey.length));
-            fprintf(stderr, "obtained:\n%s",
-                    hex_to_dump(state.send.seal_key.data,
-                                state.send.seal_key.length));
-            ret = EINVAL;
-        }
+        err = test_keys("Client Sealing Keys",
+                        &data->ClientSealKey, &state.send.seal_key);
+        if (err) ret = err;
     }
 
     if (data->ClientSignKey.length) {
-        if (memcmp(state.send.sign_key.data,
-                   data->ClientSignKey.data,
-                   data->ClientSignKey.length) != 0) {
-            fprintf(stderr, "Client Signing Keys differ!\n");
-            fprintf(stderr, "expected:\n%s",
-                    hex_to_dump(data->ClientSignKey.data,
-                                data->ClientSignKey.length));
-            fprintf(stderr, "obtained:\n%s",
-                    hex_to_dump(state.send.sign_key.data,
-                                state.send.sign_key.length));
-            ret = EINVAL;
-        }
+        err = test_keys("Client Signing Keys",
+                        &data->ClientSignKey, &state.send.sign_key);
+        if (err) ret = err;
     }
 
     if (ret) return ret;
@@ -1470,25 +1325,11 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
         return ret;
     }
 
-    if (memcmp(output.data, data->Ciphertext.data,
-                            data->Ciphertext.length) != 0) {
-        fprintf(stderr, "Ciphertext differs!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(data->Ciphertext.data,
-                                    data->Ciphertext.length));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(output.data, output.length));
-        ret = EINVAL;
-    }
+    err = test_buffers("Ciphertext", &data->Ciphertext, &output);
+    if (err) ret = err;
 
-    if (memcmp(signature.data, data->Signature.data, 16) != 0) {
-        fprintf(stderr, "Signature differs!\n");
-        fprintf(stderr, "expected:\n%s",
-                        hex_to_dump(data->Signature.data, 16));
-        fprintf(stderr, "obtained:\n%s",
-                        hex_to_dump(signature.data, signature.length));
-        ret = EINVAL;
-    }
+    err = test_buffers("Signature", &data->Signature, &signature);
+    if (err) ret = err;
 
     return ret;
 }
