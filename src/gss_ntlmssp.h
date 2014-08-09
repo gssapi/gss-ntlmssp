@@ -21,6 +21,7 @@
 #include "ntlm.h"
 #include "crypto.h"
 #include "gssapi_ntlmssp.h"
+#include "debug.h"
 
 #define MAX_CHALRESP_LIFETIME 36 * 60 * 60 /* 36 hours in seconds */
 

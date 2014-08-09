@@ -1975,6 +1975,9 @@ int main(int argc, const char *argv[])
     struct ntlm_ctx *ctx;
     int ret;
 
+    /* enable trace debugging by dfault in tests */
+    setenv("GSSNTLMSSP_DEBUG", "tests-trace.log", 0);
+
     ret = ntlm_init_ctx(&ctx);
     if (ret) goto done;
 

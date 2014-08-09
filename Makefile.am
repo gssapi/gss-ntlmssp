@@ -72,6 +72,7 @@ GN_MECHGLUE_OBJ = \
     src/crypto.c \
     src/ntlm_crypto.c \
     src/ntlm.c \
+    src/debug.c \
     src/gss_err.c \
     src/gss_spi.c \
     src/gss_names.c \
@@ -88,6 +89,7 @@ dist_noinst_HEADERS = \
     src/crypto.h \
     src/ntlm_common.h \
     src/ntlm.h \
+    src/debug.h \
     src/gss_ntlmssp.h \
     src/gss_ntlmssp_winbind.h
 
