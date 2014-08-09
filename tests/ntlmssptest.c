@@ -1523,6 +1523,77 @@ static size_t repeatable_rand(uint8_t *buf, size_t max)
     return len;
 }
 
+#define CASE(X) case X: return #X
+
+const char *gss_maj_to_str(uint32_t err)
+{
+    switch (err) {
+    CASE(GSS_S_COMPLETE);
+    /* caling errors */
+    CASE(GSS_S_CALL_INACCESSIBLE_READ);
+    CASE(GSS_S_CALL_INACCESSIBLE_WRITE);
+    CASE(GSS_S_CALL_BAD_STRUCTURE);
+    /* routine errors */
+    CASE(GSS_S_BAD_MECH);
+    CASE(GSS_S_BAD_NAME);
+    CASE(GSS_S_BAD_NAMETYPE);
+    CASE(GSS_S_BAD_BINDINGS);
+    CASE(GSS_S_BAD_STATUS);
+    CASE(GSS_S_BAD_SIG);
+    CASE(GSS_S_NO_CRED);
+    CASE(GSS_S_NO_CONTEXT);
+    CASE(GSS_S_DEFECTIVE_TOKEN);
+    CASE(GSS_S_CREDENTIALS_EXPIRED);
+    CASE(GSS_S_CONTEXT_EXPIRED);
+    CASE(GSS_S_BAD_QOP);
+    CASE(GSS_S_UNAUTHORIZED);
+    CASE(GSS_S_UNAVAILABLE);
+    CASE(GSS_S_DUPLICATE_ELEMENT);
+    CASE(GSS_S_NAME_NOT_MN);
+    CASE(GSS_S_BAD_MECH_ATTR);
+    /* supplementary info */
+    CASE(GSS_S_CONTINUE_NEEDED);
+    CASE(GSS_S_DUPLICATE_TOKEN);
+    CASE(GSS_S_OLD_TOKEN);
+    CASE(GSS_S_UNSEQ_TOKEN);
+    CASE(GSS_S_GAP_TOKEN);
+    default:
+        return "Unknown Error";
+    }
+}
+
+static void print_min_status(uint32_t err)
+{
+    gss_buffer_desc buf;
+    uint32_t msgctx = 0;
+    uint32_t retmaj;
+    uint32_t retmin;
+
+    do {
+        retmaj = gssntlm_display_status(&retmin, err, GSS_C_MECH_CODE,
+                                        NULL, &msgctx, &buf);
+        if (retmaj) {
+            fprintf(stderr, "!!gssntlm_display_status failed for err=%d", err);
+            msgctx = 0;
+        } else {
+            fprintf(stderr, "%.*s%.*s",
+                            (int)buf.length, (char *)buf.value,
+                            msgctx, " ");
+            (void)gss_release_buffer(&retmin, &buf);
+        }
+    } while (msgctx);
+}
+
+static void print_gss_error(const char *text, uint32_t maj, uint32_t min)
+{
+
+    fprintf(stderr, "%s Major Error: [%s] Minor Error: [",
+                    text, gss_maj_to_str(maj));
+    print_min_status(min);
+    fprintf(stderr, "]\n");
+    fflush(stderr);
+}
+
 int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
@@ -1562,8 +1633,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                  GSS_C_NT_USER_NAME,
                                  &gss_username);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_name(username) failed! (%d, %s)",
-                        retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1572,8 +1643,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                       GSS_C_INITIATE, &cli_cred, NULL, NULL);
         if (retmaj != GSS_S_COMPLETE) {
-            fprintf(stderr, "gssntlm_acquire_cred(username) failed! (%d/%d, %s)",
-                            retmaj, retmin, strerror(retmin));
+            print_gss_error("gssntlm_acquire_cred(username) failed!",
+                            retmaj, retmin);
             ret = EINVAL;
             goto done;
         }
@@ -1588,8 +1659,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                                     GSS_C_INITIATE,
                                                     &cli_cred, NULL, NULL);
         if (retmaj != GSS_S_COMPLETE) {
-            fprintf(stderr, "gssntlm_acquire_cred_with_password failed! (%d/%d, %s)",
-                            retmaj, retmin, strerror(retmin));
+            print_gss_error("gssntlm_acquire_cred_with_password failed!",
+                            retmaj, retmin);
             ret = EINVAL;
             goto done;
         }
@@ -1598,8 +1669,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     retmaj = gssntlm_inquire_cred_by_mech(&retmin, cli_cred, GSS_C_NO_OID,
                                           NULL, NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_cred_by_mech failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_cred_by_mech failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1609,8 +1680,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                  GSS_C_NT_HOSTBASED_SERVICE,
                                  &gss_srvname);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_name(srvname) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1618,8 +1689,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                   GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                   GSS_C_ACCEPT, &srv_cred, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_acquire_cred(srvname) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1643,8 +1714,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                       GSS_C_NO_BUFFER, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
-        fprintf(stderr, "gssntlm_init_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1654,8 +1725,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
-        fprintf(stderr, "gssntlm_accept_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1665,15 +1736,15 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     /* test importing and exporting context before it is fully estabished */
     retmaj = gssntlm_export_sec_context(&retmin, &srv_ctx, &ctx_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_export_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_export_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
     retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &srv_ctx);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1685,8 +1756,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                       &srv_token, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_init_sec_context 2 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_init_sec_context 2 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1698,8 +1769,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_accept_sec_context 2 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_accept_sec_context 2 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1710,15 +1781,15 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     /* test importing and exporting context after it is fully estabished */
     retmaj = gssntlm_export_sec_context(&retmin, &cli_ctx, &ctx_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_export_sec_context 2 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_export_sec_context 2 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
     retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &cli_ctx);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_sec_context 2 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_sec_context 2 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1726,16 +1797,16 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     retmaj = gssntlm_get_mic(&retmin, cli_ctx, 0, &message, &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_get_mic(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_get_mic(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_verify_mic(&retmin, srv_ctx, &message, &cli_token, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_verify_mic(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_verify_mic(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1744,16 +1815,16 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     retmaj = gssntlm_get_mic(&retmin, srv_ctx, 0, &message, &srv_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_get_mic(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_get_mic(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &srv_token, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_verify_mic(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_verify_mic(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1762,8 +1833,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL, &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_wrap(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_wrap(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1771,16 +1842,16 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     retmaj = gssntlm_unwrap(&retmin, srv_ctx,
                             &cli_token, &srv_token, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_unwrap(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_unwrap(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     if (memcmp(message.value, srv_token.value, srv_token.length) != 0) {
-        fprintf(stderr, "sealing and unsealing failed to return the "
-                        "same result (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("sealing and unsealing failed to return the "
+                        "same result",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1795,16 +1866,16 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
                                      &gss_username, &gss_srvname,
                                      NULL, NULL, NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_inquire_context failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_inquire_context failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_display_name(&retmin, gss_username, &nbuf, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_display_name failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_display_name failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1866,8 +1937,8 @@ int test_gssapi_cl(void)
                                  GSS_C_NT_USER_NAME,
                                  &gss_username);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_name(username) failed! (%d, %s)",
-                        retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1881,8 +1952,8 @@ int test_gssapi_cl(void)
                                                 GSS_C_INITIATE,
                                                 &cli_cred, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_acquire_cred_with_password failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_acquire_cred_with_password failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1892,8 +1963,8 @@ int test_gssapi_cl(void)
                                  GSS_C_NT_HOSTBASED_SERVICE,
                                  &gss_srvname);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_import_name(srvname) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
         return EINVAL;
     }
 
@@ -1901,8 +1972,8 @@ int test_gssapi_cl(void)
                                   GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                   GSS_C_ACCEPT, &srv_cred, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_acquire_cred(srvname) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1912,8 +1983,8 @@ int test_gssapi_cl(void)
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_CONTINUE_NEEDED) {
-        fprintf(stderr, "gssntlm_accept_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1929,8 +2000,8 @@ int test_gssapi_cl(void)
                                       &srv_token, NULL, &cli_token,
                                       NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_init_sec_context 1 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1942,8 +2013,8 @@ int test_gssapi_cl(void)
                                         NULL, NULL, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_accept_sec_context 2 failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_accept_sec_context 2 failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1961,8 +2032,8 @@ int test_gssapi_cl(void)
                                             &set_seqnum_oid,
                                             &set_seqnum_buf);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_set_sec_context_option(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_set_sec_context_option(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1971,24 +2042,24 @@ int test_gssapi_cl(void)
                                             &set_seqnum_oid,
                                             &set_seqnum_buf);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_set_sec_context_option(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_set_sec_context_option(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_get_mic(&retmin, cli_ctx, 0, &message, &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_get_mic(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_get_mic(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_verify_mic(&retmin, srv_ctx, &message, &cli_token, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_verify_mic(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_verify_mic(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -1997,16 +2068,16 @@ int test_gssapi_cl(void)
 
     retmaj = gssntlm_get_mic(&retmin, srv_ctx, 0, &message, &srv_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_get_mic(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_get_mic(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &srv_token, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_verify_mic(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_verify_mic(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -2015,8 +2086,8 @@ int test_gssapi_cl(void)
 
     retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL, &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_wrap(cli) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_wrap(cli) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
@@ -2024,16 +2095,16 @@ int test_gssapi_cl(void)
     retmaj = gssntlm_unwrap(&retmin, srv_ctx,
                             &cli_token, &srv_token, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        fprintf(stderr, "gssntlm_unwrap(srv) failed! (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("gssntlm_unwrap(srv) failed!",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
 
     if (memcmp(message.value, srv_token.value, srv_token.length) != 0) {
-        fprintf(stderr, "sealing and unsealing failed to return the "
-                        "same result (%d/%d, %s)",
-                        retmaj, retmin, strerror(retmin));
+        print_gss_error("sealing and unsealing failed to return the "
+                        "same result",
+                        retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
