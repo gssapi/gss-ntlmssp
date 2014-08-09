@@ -27,7 +27,13 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
         return GSS_S_CALL_INACCESSIBLE_READ;
     }
 
+    if (status_type != GSS_C_MECH_CODE) {
+        *minor_status = EINVAL;
+        return GSS_S_BAD_STATUS;
+    }
+
     *minor_status = 0;
+    *message_context = 0;
     status_string->length = 0;
     status_string->value = NULL;
 
