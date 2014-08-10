@@ -82,8 +82,11 @@ GN_MECHGLUE_OBJ = \
     src/gss_serialize.c \
     src/external.c \
     src/gss_auth.c \
-    src/winbind.c \
     src/gss_ntlmssp.c
+
+if BUILD_WBCLIENT
+   GN_MECHGLUE_OBJ += src/winbind.c
+endif
 
 dist_noinst_HEADERS = \
     src/crypto.h \

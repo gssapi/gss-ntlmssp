@@ -56,3 +56,20 @@ AC_ARG_ENABLE([all-experimental-features],
                               [build all experimental features])],
               [build_all_experimental_features=$enableval],
               [build_all_experimental_features=no])
+
+AC_DEFUN([WITH_WBCLIENT],
+         [AC_ARG_WITH([wbclient],
+                      [AC_HELP_STRING([--with-wbclient],
+                                      [Build with WBClient support [yes]])
+                      ],
+                      [],
+                      with_wbclient=yes)
+
+          if test x"$with_wbclient" = xyes; then
+              HAVE_WBCLIENT=1
+              AC_SUBST(HAVE_WBCLIENT)
+              AC_DEFINE_UNQUOTED(HAVE_WBCLIENT, 1, [Build with WBClient support])
+          fi
+
+          AM_CONDITIONAL([BUILD_WBCLIENT], [test x"$with_wbclient" = xyes])
+         ])

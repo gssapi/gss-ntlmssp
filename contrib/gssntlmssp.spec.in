@@ -23,6 +23,7 @@ BuildRequires: pkgconfig
 BuildRequires: krb5-devel >= 1.11.5
 BuildRequires: libunistring-devel
 BuildRequires: openssl-devel
+BuildRequires: libwbclient-devel
 
 %description
 A GSSAPI Mechanism that implements NTLMSSP
@@ -42,6 +43,7 @@ Adds a header file with definition for custom GSSAPI extensions for NTLMSSP
 %build
 autoreconf -fiv
 %configure \
+    --with-wbclient \
     --disable-static \
     --disable-rpath
 

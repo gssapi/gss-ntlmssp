@@ -56,6 +56,7 @@ WITH_DISTRO_VERSION
 WITH_TEST_DIR
 WITH_MANPAGES
 WITH_XML_CATALOG
+WITH_WBCLIENT
 
 m4_include([external/pkg.m4])
 m4_include([external/docbook.m4])
@@ -63,6 +64,7 @@ m4_include([external/sizes.m4])
 m4_include([external/ax_pthread.m4])
 m4_include([external/m4_ax_check_openssl.m4])
 m4_include([external/ax_check_zlib.m4])
+m4_include([external/wbclient.m4])
 
 AX_PTHREAD(,[AC_MSG_ERROR([Could not find Pthreads support])])
 
@@ -102,13 +104,9 @@ AC_SUBST([CRYPTO_LIBS])
 
 AX_CHECK_ZLIB(,[AC_MSG_ERROR([Could not find Zlib support])])
 
-PKG_CHECK_MODULES(WBC, wbclient,
-                  [AC_DEFINE([HAVE_WBCLIENT], [1],
-                             [Wbclient support is available])],
-                  AC_MSG_WARN("Samba's wbclient headers are not available"))
-AC_SUBST(WBC_CFLAGS)
-AC_SUBST(WBC_LIBS)
-
+if test x$HAVE_WBCLIENT != x; then
+    AM_CHECK_WBCLIENT
+fi
 
 if test x$HAVE_MANPAGES != x; then
     CHECK_XML_TOOLS

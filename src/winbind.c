@@ -2,7 +2,6 @@
 
 #include "config.h"
 
-#if HAVE_WBCLIENT
 #include <errno.h>
 #include <string.h>
 #include "gss_ntlmssp.h"
@@ -249,4 +248,3 @@ uint32_t winbind_srv_auth(char *user, char *domain,
     wbcFreeMemory(wbc_info);
     return 0;
 }
-#endif
