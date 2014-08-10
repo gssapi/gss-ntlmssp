@@ -26,6 +26,7 @@ enum ntlm_err_code {
     ERR_DECODE,
     ERR_ENCODE,
     ERR_CRYPTO,
+    ERR_LAST
 };
 #define NTLM_ERR_MASK 0x4E54FFFF
 #define IS_NTLM_ERR_CODE(x) (((x) & NTLM_ERR_MASK) ? true : false)

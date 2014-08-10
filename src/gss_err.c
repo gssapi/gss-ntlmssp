@@ -9,7 +9,18 @@
 
 #include "gss_ntlmssp.h"
 
-#define UNKNOWN_ERROR "Unknown Error"
+/* Untl we get gettext support */
+#define _(x) x
+
+/* the order is determined by ntlm_err_code order */
+static const char *err_strs[] = {
+    _("Unknown Error"),
+    _("Failed to decode data"), /* ERR_DECODE */
+    _("Failed to encode data"), /* ERR_ENCODE */
+    _("Crypto routine failure"), /* ERR_CRYPTO */
+};
+
+#define UNKNOWN_ERROR err_strs[0]
 
 uint32_t gssntlm_display_status(uint32_t *minor_status,
                                 uint32_t status_value,
@@ -39,6 +50,14 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
 
     if (!status_value) {
         /* There must have been *some* error. No point saying 'Success' */
+        goto done;
+    }
+
+    if (status_value > ERR_BASE && status_value < ERR_LAST) {
+        status_string->value = strdup(err_strs[status_value - ERR_BASE]);
+        if (!status_string->value) {
+            return GSSERRS(ENOMEM, GSS_S_FAILURE);
+        }
         goto done;
     }
 

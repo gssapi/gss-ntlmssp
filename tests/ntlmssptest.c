@@ -1425,6 +1425,17 @@ static void print_min_status(uint32_t err)
     } while (msgctx);
 }
 
+int test_Errors(void)
+{
+    int i;
+    for (i = ERR_BASE; i < ERR_LAST; i++) {
+        fprintf(stderr, "%x: ", i);
+        print_min_status(i);
+        fprintf(stderr, "\n");
+    }
+    return 0;
+}
+
 static void print_gss_error(const char *text, uint32_t maj, uint32_t min)
 {
 
@@ -1977,6 +1988,10 @@ int main(int argc, const char *argv[])
 
     /* enable trace debugging by dfault in tests */
     setenv("GSSNTLMSSP_DEBUG", "tests-trace.log", 0);
+
+    fprintf(stdout, "Test errors\n");
+    ret = test_Errors();
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     ret = ntlm_init_ctx(&ctx);
     if (ret) goto done;
