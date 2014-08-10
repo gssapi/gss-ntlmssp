@@ -23,6 +23,7 @@
 #include "gssapi_ntlmssp.h"
 #include "debug.h"
 
+#define DEF_NB_DOMAIN "WORKSTATION"
 #define MAX_CHALRESP_LIFETIME 36 * 60 * 60 /* 36 hours in seconds */
 
 #define SEC_LEVEL_MIN 0
@@ -177,6 +178,7 @@ void gssntlm_set_role(struct gssntlm_ctx *ctx,
                       int desired, char *nb_domain_name);
 bool gssntlm_role_is_client(struct gssntlm_ctx *ctx);
 bool gssntlm_role_is_server(struct gssntlm_ctx *ctx);
+bool gssntlm_role_is_domain_member(struct gssntlm_ctx *ctx);
 
 bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx);

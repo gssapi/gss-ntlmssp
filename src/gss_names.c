@@ -607,6 +607,14 @@ uint32_t netbios_get_names(char *computer_name,
         }
     }
 
+    if (!nb_domain_name) {
+        nb_domain_name = strdup(DEF_NB_DOMAIN);
+        if (!nb_domain_name) {
+            ret = ENOMEM;
+            goto done;
+        }
+    }
+
     ret = 0;
 
 done:

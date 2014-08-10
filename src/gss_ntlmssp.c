@@ -69,7 +69,8 @@ void gssntlm_set_role(struct gssntlm_ctx *ctx,
 {
     if (desired == GSSNTLM_CLIENT) {
         ctx->role = GSSNTLM_CLIENT;
-    } else if (nb_domain_name && *nb_domain_name) {
+    } else if (nb_domain_name && *nb_domain_name &&
+               strcmp(nb_domain_name, DEF_NB_DOMAIN) != 0) {
         ctx->role = GSSNTLM_DOMAIN_SERVER;
     } else {
         ctx->role = GSSNTLM_SERVER;
@@ -85,6 +86,18 @@ bool gssntlm_role_is_server(struct gssntlm_ctx *ctx)
 {
     switch (ctx->role) {
     case GSSNTLM_SERVER:
+    case GSSNTLM_DOMAIN_SERVER:
+    case GSSNTLM_DOMAIN_CONTROLLER:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool gssntlm_role_is_domain_member(struct gssntlm_ctx *ctx)
+{
+    switch (ctx->role) {
     case GSSNTLM_DOMAIN_SERVER:
     case GSSNTLM_DOMAIN_CONTROLLER:
         return true;

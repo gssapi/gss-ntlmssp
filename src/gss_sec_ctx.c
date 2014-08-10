@@ -752,7 +752,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        if (nb_domain_name) {
+        if (gssntlm_role_is_domain_member(ctx)) {
             chal_target_name = nb_domain_name;
             ctx->neg_flags |= NTLMSSP_TARGET_TYPE_DOMAIN;
         } else {
