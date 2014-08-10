@@ -68,17 +68,17 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     if (target_name) {
         server = (struct gssntlm_name *)target_name;
         if (server->type != GSSNTLM_NAME_SERVER) {
-            return GSSERRS(0, GSS_S_BAD_NAMETYPE);
+            return GSSERRS(ERR_NOSRVNAME, GSS_S_BAD_NAMETYPE);
         }
         if (!server->data.server.name ||
             !server->data.server.name[0]) {
-            return GSSERRS(0, GSS_S_BAD_NAME);
+            return GSSERRS(ERR_NONAME, GSS_S_BAD_NAME);
         }
     }
 
     if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
         if (req_flags & GSS_C_ANON_FLAG) {
-            set_GSSERRS(0, GSS_S_UNAVAILABLE);
+            set_GSSERRS(ERR_NOARG, GSS_S_UNAVAILABLE);
             goto done;
         } else {
             retmaj = gssntlm_acquire_cred(&retmin,
@@ -92,7 +92,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         cred = (struct gssntlm_cred *)claimant_cred_handle;
         if (cred->type != GSSNTLM_CRED_USER &&
             cred->type != GSSNTLM_CRED_EXTERNAL) {
-            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+            set_GSSERRS(ERR_NOARG, GSS_S_CRED_UNAVAIL);
             goto done;
         }
     }
@@ -195,7 +195,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
-            set_GSSERR(EINVAL);
+            set_GSSERR(ERR_BADLMLVL);
             goto done;
         }
         if (!gssntlm_sec_lm_ok(ctx)) {
@@ -232,7 +232,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         } else {
 
             if (input_token && input_token->length != 0) {
-                set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
+                set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
 
@@ -263,13 +263,13 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
     if (ctx == NULL) {
         /* this should not happen */
-        set_GSSERR(EFAULT);
+        set_GSSERR(ERR_IMPOSSIBLE);
         goto done;
 
     } else {
 
         if (!gssntlm_role_is_client(ctx)) {
-            set_GSSERRS(0, GSS_S_NO_CONTEXT);
+            set_GSSERRS(ERR_WRONGCTX, GSS_S_NO_CONTEXT);
             goto done;
         }
 
@@ -289,7 +289,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         if (msg_type != CHALLENGE_MESSAGE ||
                 ctx->stage != NTLMSSP_STAGE_NEGOTIATE) {
-            set_GSSERRS(0, GSS_S_NO_CONTEXT);
+            set_GSSERRS(ERR_WRONGMSG, GSS_S_NO_CONTEXT);
             goto done;
         }
 
@@ -327,36 +327,36 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_128) &&
             (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_128))) {
-            set_GSSERR(0);
+            set_GSSERR(ERR_REQNEGFLAG);
             goto done;
         }
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_SEAL))) {
-            set_GSSERR(0);
+            set_GSSERR(ERR_REQNEGFLAG);
             goto done;
         }
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_SIGN))) {
-            set_GSSERR(0);
+            set_GSSERR(ERR_REQNEGFLAG);
             goto done;
         }
 
         if (!(in_flags & (NTLMSSP_NEGOTIATE_OEM |
                           NTLMSSP_NEGOTIATE_UNICODE))) {
             /* no common understanding */
-            set_GSSERR(0);
+            set_GSSERR(ERR_FAILNEGFLAGS);
             goto done;
         }
 
         if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
             if (!(in_flags & NTLMSSP_NEGOTIATE_DATAGRAM)) {
                 /* no common understanding */
-                set_GSSERR(0);
+                set_GSSERR(ERR_FAILNEGFLAGS);
                 goto done;
             }
             if (!(in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
                 /* no common understanding */
-                set_GSSERR(0);
+                set_GSSERR(ERR_FAILNEGFLAGS);
                 goto done;
             }
             if ((in_flags & NTLMSSP_NEGOTIATE_OEM) &&
@@ -375,7 +375,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 if (in_flags & (NTLMSSP_NEGOTIATE_TARGET_INFO |
                                 NTLMSSP_TARGET_TYPE_SERVER |
                                 NTLMSSP_TARGET_TYPE_DOMAIN)) {
-                    set_GSSERR(0);
+                    set_GSSERR(ERR_BADNEGFLAGS);
                     goto done;
                 } else {
                     in_flags &= ~NTLMSSP_NEGOTIATE_UNICODE;
@@ -458,11 +458,11 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     int ret;
 
     if (!context_handle) {
-        set_GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        set_GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
         goto done;
     }
     if (*context_handle == NULL) {
-        set_GSSERRS(0, GSS_S_NO_CONTEXT);
+        set_GSSERRS(ERR_NOARG, GSS_S_NO_CONTEXT);
         goto done;
     }
 
@@ -503,14 +503,14 @@ uint32_t gssntlm_context_time(uint32_t *minor_status,
     uint32_t retmaj;
 
     if (context_handle == GSS_C_NO_CONTEXT) {
-        set_GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        set_GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
         goto done;
     }
 
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, &now);
     if (retmaj) {
-        set_GSSERRS(0, retmaj);
+        set_GSSERRS(ERR_BADCTX, retmaj);
         goto done;
     }
 
@@ -565,10 +565,10 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     struct ntlm_buffer av_cb = { 0 };
 
     if (context_handle == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (output_token == GSS_C_NO_BUFFER) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     if (src_name) *src_name = GSS_C_NO_NAME;
@@ -580,11 +580,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     if (acceptor_cred_handle) {
         cred = (struct gssntlm_cred *)acceptor_cred_handle;
         if (cred->type != GSSNTLM_CRED_SERVER) {
-            set_GSSERRS(0, GSS_S_DEFECTIVE_CREDENTIAL);
+            set_GSSERRS(ERR_NOSRVCRED, GSS_S_DEFECTIVE_CREDENTIAL);
             goto done;
         }
         if (cred->cred.server.name.type != GSSNTLM_NAME_SERVER) {
-            set_GSSERRS(0, GSS_S_DEFECTIVE_CREDENTIAL);
+            set_GSSERRS(ERR_NOSRVNAME, GSS_S_DEFECTIVE_CREDENTIAL);
             goto done;
         }
         retmaj = gssntlm_duplicate_name(&retmin,
@@ -645,7 +645,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
-            set_GSSERR(EINVAL);
+            set_GSSERR(ERR_BADLMLVL);
             goto done;
         }
 
@@ -706,7 +706,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_OEM;
         } else if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_OEM)) {
             /* no agreement */
-            set_GSSERR(0);
+            set_GSSERR(ERR_FAILNEGFLAGS);
             goto done;
         }
 
@@ -784,13 +784,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         ctx = (struct gssntlm_ctx *)(*context_handle);
 
         if (!gssntlm_role_is_server(ctx)) {
-            set_GSSERRS(EINVAL, GSS_S_NO_CONTEXT);
+            set_GSSERRS(ERR_WRONGCTX, GSS_S_NO_CONTEXT);
             goto done;
         }
 
         if ((input_token == GSS_C_NO_BUFFER) ||
             (input_token->length == 0)) {
-            set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
+            set_GSSERRS(ERR_NOTOKEN, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -810,7 +810,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         if (msg_type != AUTHENTICATE_MESSAGE ||
                 ctx->stage != NTLMSSP_STAGE_CHALLENGE) {
-            set_GSSERRS(0, GSS_S_NO_CONTEXT);
+            set_GSSERRS(ERR_WRONGMSG, GSS_S_NO_CONTEXT);
             goto done;
         }
 
@@ -837,7 +837,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) &&
             !(ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
-            set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
+            set_GSSERRS(ERR_BADNEGFLAGS, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -847,7 +847,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
              (lm_chal_resp.length == 0))) {
             /* Anonymous auth */
             /* FIXME: not supported for now */
-            set_GSSERR(EINVAL);
+            set_GSSERR(ERR_NOTSUPPORTED);
             goto done;
 
         } else {
@@ -867,7 +867,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             ulen = strlen(usr_name);
             dlen = strlen(dom_name);
             if (ulen + dlen + 2 > 1024) {
-                set_GSSERR(EINVAL);
+                set_GSSERR(ERR_NAMETOOLONG);
                 goto done;
             }
             strncpy(useratdom, usr_name, ulen);
@@ -898,7 +898,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             /* We can't handle winbind credentials yet */
             if (usr_cred->type != GSSNTLM_CRED_USER &&
                 usr_cred->type != GSSNTLM_CRED_EXTERNAL) {
-                set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+                set_GSSERRS(ERR_NOUSRCRED, GSS_S_DEFECTIVE_CREDENTIAL);
                 goto done;
             }
 
@@ -946,7 +946,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 input_chan_bindings->acceptor_addrtype != 0 ||
                 input_chan_bindings->acceptor_address.length != 0 ||
                 input_chan_bindings->application_data.length == 0) {
-                set_GSSERRS(EINVAL, GSS_S_BAD_BINDINGS);
+                set_GSSERRS(ERR_BADARG, GSS_S_BAD_BINDINGS);
                 goto done;
             }
             unhashed_cb.length = input_chan_bindings->application_data.length;
@@ -1026,7 +1026,7 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
 
     ctx = (struct gssntlm_ctx *)context_handle;
     if (!ctx) {
-        return GSSERRS(0, GSS_S_NO_CONTEXT);
+        return GSSERRS(ERR_NOARG, GSS_S_NO_CONTEXT);
     }
 
     if (src_name) {
@@ -1101,10 +1101,10 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
     uint32_t retmaj;
 
     if (context_handle == NULL || *context_handle == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (desired_object == GSS_C_NO_OID) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     ctx = (struct gssntlm_ctx *)*context_handle;
@@ -1114,7 +1114,7 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
         if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
 
             if (value->length != 4) {
-                set_GSSERR(EINVAL);
+                set_GSSERR(ERR_BADARG);
                 goto done;
             }
 
@@ -1124,12 +1124,12 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
             set_GSSERRS(0, GSS_S_COMPLETE);
             goto done;
         } else {
-            set_GSSERRS(EACCES, GSS_S_UNAUTHORIZED);
+            set_GSSERRS(ERR_WRONGCTX, GSS_S_FAILURE);
             goto done;
         }
     }
 
-    set_GSSERRS(EINVAL, GSS_S_UNAVAILABLE);
+    set_GSSERRS(ERR_BADARG, GSS_S_UNAVAILABLE);
 
 done:
     return GSSERR();
@@ -1151,13 +1151,13 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
     uint8_t mic_set;
 
     if (context_handle == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (desired_object == GSS_C_NO_OID) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (!data_set) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     ctx = (struct gssntlm_ctx *)context_handle;

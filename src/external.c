@@ -13,7 +13,7 @@ uint32_t external_netbios_get_names(char **computer, char **domain)
 #if HAVE_WBCLIENT
     return winbind_get_names(computer, domain);
 #else
-    return ENOSYS;
+    return ERR_NOTAVAIL;
 #endif
 }
 
@@ -23,7 +23,7 @@ uint32_t external_get_creds(struct gssntlm_name *name,
 #if HAVE_WBCLIENT
     return winbind_get_creds(name, cred);
 #else
-    return ENOSYS;
+    return ERR_NOTAVAIL;
 #endif
 }
 
@@ -40,7 +40,7 @@ uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
                             &ctx->nego_msg, &ctx->chal_msg, &ctx->auth_msg,
                             &ctx->exported_session_key);
 #else
-    return ENOSYS;
+    return ERR_NOTAVAIL;
 #endif
 }
 
@@ -75,6 +75,6 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                             ctx->workstation, chal_ptr,
                             nt_chal_resp, lm_chal_resp, session_base_key);
 #else
-    return ENOSYS;
+    return ERR_NOTAVAIL;
 #endif
 }

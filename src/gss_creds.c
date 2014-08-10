@@ -354,7 +354,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
                 cred_usage = GSS_C_INITIATE;
                 break;
             default:
-                set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+                set_GSSERRS(ERR_BADCRED, GSS_S_CRED_UNAVAIL);
                 goto done;
             }
         }
@@ -362,7 +362,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
 
     if (cred_usage == GSS_C_INITIATE) {
         if (name != NULL && name->type != GSSNTLM_NAME_USER) {
-            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+            set_GSSERRS(ERR_NOUSRNAME, GSS_S_BAD_NAMETYPE);
             goto done;
         }
 
@@ -375,20 +375,22 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             }
         }
         if (retmin) {
-            set_GSSERRS(retmin, GSS_S_CRED_UNAVAIL);
+            set_GSSERR(retmin);
         }
     } else if (cred_usage == GSS_C_ACCEPT) {
         if (name != NULL && name->type != GSSNTLM_NAME_SERVER) {
-            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+            set_GSSERRS(ERR_NOSRVNAME, GSS_S_BAD_NAMETYPE);
             goto done;
         }
 
         retmin = get_server_creds(name, cred);
         if (retmin) {
-            set_GSSERRS(retmin, GSS_S_CRED_UNAVAIL);
+            set_GSSERR(retmin);
         }
+    } else if (cred_usage == GSS_C_BOTH) {
+        set_GSSERRS(ERR_NOTSUPPORTED, GSS_S_CRED_UNAVAIL);
     } else {
-        set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
+        set_GSSERRS(ERR_BADARG, GSS_S_CRED_UNAVAIL);
     }
 
     set_GSSERRS(0, GSS_S_COMPLETE);
@@ -480,14 +482,14 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
     uint32_t maj, min;
 
     if (cred_handle == GSS_C_NO_CREDENTIAL) {
-        set_GSSERRS(0, GSS_S_NO_CRED);
+        set_GSSERRS(ERR_NOARG, GSS_S_NO_CRED);
         goto done;
     }
 
     cred = (struct gssntlm_cred *)cred_handle;
 
     if (cred->type == GSSNTLM_CRED_NONE) {
-        set_GSSERRS(0, GSS_S_NO_CRED);
+        set_GSSERRS(ERR_BADARG, GSS_S_NO_CRED);
         goto done;
     }
 
@@ -592,7 +594,7 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
         if (acceptor_lifetime) *acceptor_lifetime = lifetime;
         break;
     default:
-        return GSSERRS(EINVAL, GSS_S_FAILURE);
+        return GSSERRS(ERR_BADARG, GSS_S_FAILURE);
     }
 
     if (cred_usage) *cred_usage = usage;

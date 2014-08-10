@@ -18,6 +18,32 @@ static const char *err_strs[] = {
     _("Failed to decode data"), /* ERR_DECODE */
     _("Failed to encode data"), /* ERR_ENCODE */
     _("Crypto routine failure"), /* ERR_CRYPTO */
+    _("A required argument is missing"), /* ERR_NOARG */
+    _("Invalid value in argument"), /* ERR_BADARG */
+    _("Name is empty"), /* ERR_NONAME */
+    _("Not a server name"), /* ERR_NOSRVNAME */
+    _("Not a user name"), /* ERR_NOUSRNAME */
+    _("Bad LM compatibility Level"), /* ERR_BADLMLEVEL */
+    _("An impossible error occurred"), /* ERR_IMPOSSIBLE */
+    _("Invalid or incomplete context"), /* ERR_BADCTX */
+    _("Wrong context type"), /* ERR_WRONGCTX */
+    _("Wrong message type"), /* ERR_WRONGMSG */
+    _("A required Negotiate flag was no provided"), /* ERR_REQNEGFLAG */
+    _("Failed to negotiate a common set of flags"), /* ERR_FAILNEGFLAGS */
+    _("Invalid combinations of negotiate flags"), /* ERR_BADNEGFLAGS */
+    _("Not a server credential type"), /* ERR_NOSRVCRED */
+    _("Not a user redential type"), /* ERR_NOUSRCRED */
+    _("Invalid or unknown credential"), /* ERR_BADCRED */
+    _("Empty or missing token"), /* ERR_NOTOKEN */
+    _("Feature not supported"), /* ERR_NOTSUPPORTED */
+    _("Feature not available"), /* ERR_NOTAVAIL */
+    _("Name is too long"), /* ERR_NAMETOOLONG */
+    _("Required channel bingings are not available"), /* ERR_NOBINDINGS */
+    _("Server and client clocks are too far apart"), /* ERR_TIMESKEW */
+    _("Expired"), /* ERR_EXPIRED */
+    _("Invalid key length"), /* ERR_KEYLEN */
+    _("NTLM version 1 not allowed"), /* ERR_NONTLMV1 */
+    _("User not found"), /* ERR_NOUSRFOUND */
 };
 
 #define UNKNOWN_ERROR err_strs[0]
@@ -36,11 +62,11 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
     int err;
 
     if (!status_string) {
-        return GSSERRS(EINVAL, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (status_type != GSS_C_MECH_CODE) {
-        return GSSERRS(EINVAL, GSS_S_BAD_STATUS);
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_STATUS);
     }
 
     *minor_status = 0;

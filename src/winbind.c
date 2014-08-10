@@ -14,7 +14,7 @@ uint32_t winbind_get_names(char **computer, char **domain)
 {
     struct wbcInterfaceDetails *details = NULL;
     wbcErr wbc_status;
-    int ret = ENOENT;
+    int ret = ERR_NOTAVAIL;
 
     wbc_status = wbcInterfaceDetails(&details);
     if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
@@ -56,7 +56,7 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     struct wbcCredentialCacheInfo *result;
     struct wbcInterfaceDetails *details = NULL;
     wbcErr wbc_status;
-    int ret = ENOENT;
+    int ret = ERR_NOTAVAIL;
 
     if (name && name->data.user.domain) {
         params.domain_name = name->data.user.domain;
@@ -124,13 +124,13 @@ uint32_t winbind_cli_auth(char *user, char *domain,
     struct wire_auth_msg *w_auth_msg;
     struct wire_chal_msg *w_chal_msg;
     wbcErr wbc_status;
-    int ret = EINVAL;
+    int ret;
     int i;
 
     if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
         /* Winbind doesn't support this (yet). We'd want to pass our
          * own client_target_info in with the request. */
-        ret = EINVAL;
+        ret = ERR_NOTSUPPORTED;
         goto done;
     }
 
@@ -166,7 +166,7 @@ uint32_t winbind_cli_auth(char *user, char *domain,
 
     wbc_status = wbcCredentialCache(&params, &result, NULL);
     if (!WBC_ERROR_IS_OK(wbc_status)) {
-        ret = ENOENT;
+        ret = ERR_NOTAVAIL;
         goto done;
     }
     for (i = 0; i < result->num_blobs; i++) {
@@ -179,7 +179,7 @@ uint32_t winbind_cli_auth(char *user, char *domain,
 
     if (!auth_blob || auth_blob->blob.length < sizeof(*auth_msg) ||
         !sesskey_blob || sesskey_blob->blob.length != 16 ) {
-        ret = EIO;
+        ret = ERR_KEYLEN;
         goto done;
     }
     /* We need to 'correct' the flags in the auth message that
@@ -219,7 +219,7 @@ uint32_t winbind_srv_auth(char *user, char *domain,
     wbcErr wbc_status;
 
     if (ntlmv2_key->length != 16) {
-        return EINVAL;
+        return ERR_KEYLEN;
     }
 
     wbc_params.account_name = user;

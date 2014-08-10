@@ -37,13 +37,13 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return GSSERRS(0, retmaj);
+        return GSSERRS(ERR_BADCTX, retmaj);
     }
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSSERRS(0, GSS_S_BAD_QOP);
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_QOP);
     }
     if (!message_buffer->value || message_buffer->length == 0) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_BADARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     message_token->value = malloc(NTLM_SIGNATURE_SIZE);
@@ -82,10 +82,10 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return GSSERRS(0, retmaj);
+        return GSSERRS(ERR_BADCTX, retmaj);
     }
     if (!message_buffer->value || message_buffer->length == 0) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (qop_state) {
         *qop_state = GSS_C_QOP_DEFAULT;
@@ -125,13 +125,13 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return GSSERRS(0, retmaj);
+        return GSSERRS(ERR_BADCTX, retmaj);
     }
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSSERRS(0, GSS_S_BAD_QOP);
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_QOP);
     }
     if (!input_message_buffer->value || input_message_buffer->length == 0) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_BADARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (conf_state) {
         *conf_state = 0;
@@ -181,10 +181,10 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return GSSERRS(0, retmaj);
+        return GSSERRS(ERR_BADCTX, retmaj);
     }
     if (!input_message_buffer->value || input_message_buffer->length == 0) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_BADARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (conf_state) {
         *conf_state = 0;
@@ -208,7 +208,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
                          &message, &output, &signature);
     if (retmin) {
         safefree(output_message_buffer->value);
-        return GSSERRS(0, GSS_S_FAILURE);
+        return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
     if (memcmp(input_message_buffer->value,
@@ -233,11 +233,11 @@ uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return GSSERRS(0, retmaj);
+        return GSSERRS(ERR_BADCTX, retmaj);
     }
 
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSSERRS(0, GSS_S_BAD_QOP);
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_QOP);
     }
 
     if (req_output_size < 16) {

@@ -88,7 +88,7 @@ static uint32_t get_enterprise_name(uint32_t *minor_status,
     char *e;
 
     if (len > MAX_NAME_LEN) {
-        return GSSERRS(EINVAL, GSS_S_BAD_NAME);
+        return GSSERRS(ERR_NAMETOOLONG, GSS_S_BAD_NAME);
     }
     buf = alloca(len + 1);
 
@@ -121,7 +121,7 @@ static uint32_t uid_to_name(uint32_t *minor_status, uid_t uid, char **name)
 
     pw = getpwuid(uid);
     if (pw) {
-        return GSSERRS(ENOENT, GSS_S_FAILURE);
+        return GSSERRS(ERR_NOUSRFOUND, GSS_S_FAILURE);
     }
     *name = strdup(pw->pw_name);
     if (!*name) {
@@ -149,7 +149,7 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
 
     /* TODO: check mech_type == gssntlm_oid */
     if (mech_type == GSS_C_NO_OID) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     name = calloc(1, sizeof(struct gssntlm_name));
@@ -245,7 +245,7 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         name->data.user.domain = NULL;
 
         if (input_name_buffer->length > 12) {
-            set_GSSERR(EINVAL);
+            set_GSSERR(ERR_BADARG);
             goto done;
         }
         memcpy(struid, input_name_buffer->value, input_name_buffer->length);
@@ -253,7 +253,7 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         errno = 0;
         uid = strtol(struid, NULL, 10);
         if (errno) {
-            set_GSSERR(errno);
+            set_GSSERR(ERR_BADARG);
             goto done;
         }
         retmaj = uid_to_name(&retmin, uid, &name->data.user.name);
@@ -262,9 +262,9 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         set_GSSERRS(0, GSS_S_COMPLETE);
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_EXPORT_NAME)) {
         /* TODO */
-        set_GSSERRS(0, GSS_S_UNAVAILABLE);
+        set_GSSERRS(ERR_NOTSUPPORTED, GSS_S_BAD_NAMETYPE);
     } else {
-        set_GSSERRS(EINVAL, GSS_S_BAD_MECH);
+        set_GSSERRS(ERR_BADARG, GSS_S_BAD_NAMETYPE);
     }
 
 done:
@@ -348,7 +348,7 @@ uint32_t gssntlm_duplicate_name(uint32_t *minor_status,
     uint32_t retmaj;
 
     if (input_name == GSS_C_NO_NAME || dest_name == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     in = (struct gssntlm_name *)input_name;
@@ -407,7 +407,7 @@ uint32_t gssntlm_release_name(uint32_t *minor_status,
     uint32_t retmin;
 
     if (!input_name) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     gssntlm_int_release_name((struct gssntlm_name *)*input_name);
@@ -428,7 +428,7 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
     int ret;
 
     if (input_name == GSS_C_NO_NAME || output_name_buffer == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     in = (struct gssntlm_name *)input_name;
@@ -436,7 +436,7 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
 
     switch (in->type) {
     case GSSNTLM_NAME_NULL:
-        return GSSERRS(0, GSS_S_BAD_NAME);
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_NAME);
     case GSSNTLM_NAME_ANON:
         out->value = strdup("NT AUTHORITY\\ANONYMOUS LOGON");
         if (!out->value) {
@@ -503,7 +503,7 @@ uint32_t gssntlm_localname(uint32_t *minor_status,
 
     in = (struct gssntlm_name *)name;
     if (in->type != GSSNTLM_NAME_USER) {
-        set_GSSERR(EINVAL);
+        set_GSSERRS(ERR_BADARG, GSS_S_BAD_NAME);
         goto done;
     }
 
@@ -584,7 +584,7 @@ uint32_t netbios_get_names(char *computer_name,
                     nb_domain_name ? NULL : &nb_domain_name);
         if ((ret != 0) &&
             (ret != ENOENT) &&
-            (ret != ENOSYS)) {
+            (ret != ERR_NOTAVAIL)) {
             goto done;
         }
     }

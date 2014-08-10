@@ -253,18 +253,18 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
     int ret;
 
     if (context_handle == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (interprocess_token == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     ctx = (struct gssntlm_ctx *)*context_handle;
-    if (ctx == NULL) return GSSERRS(0, GSS_S_NO_CONTEXT);
+    if (ctx == NULL) return GSSERRS(ERR_BADARG, GSS_S_NO_CONTEXT);
 
     if (ctx->expiration_time && ctx->expiration_time < time(NULL)) {
-        return GSSERRS(0, GSS_S_CONTEXT_EXPIRED);
+        return GSSERRS(ERR_EXPIRED, GSS_S_CONTEXT_EXPIRED);
     }
 
     /* serialize context */
@@ -459,11 +459,11 @@ static uint32_t import_data_buffer(uint32_t *minor_status,
         }
     } else {
         if (!*len) {
-            set_GSSERR(EINVAL);
+            set_GSSERR(ERR_BADARG);
             goto done;
         }
         if (rm->len > *len) {
-            set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+            set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
         memcpy(*dest, ptr, rm->len);
@@ -536,7 +536,7 @@ static uint32_t import_name(uint32_t *minor_status,
         break;
 
     default:
-        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
         break;
     }
 
@@ -814,12 +814,12 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
     int ret;
 
     if (token == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     cred = (struct gssntlm_cred *)cred_handle;
     if (cred_handle == NULL) {
-        return GSSERRS(0, GSS_S_NO_CRED);
+        return GSSERRS(ERR_NOARG, GSS_S_NO_CRED);
     }
 
     state.exp_size = NEW_SIZE(0, sizeof(struct export_cred));
@@ -912,15 +912,15 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
     uint32_t retmin;
 
     if (token == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (token->length < sizeof(struct export_cred)) {
-        return GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        return GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
     }
 
     if (cred_handle == NULL) {
-        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     cred = calloc(1, sizeof(struct gssntlm_cred));
@@ -936,7 +936,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
     state.exp_ptr = 0;
 
     if (ecred->version != le16toh(1)) {
-        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
 
@@ -954,7 +954,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         if (retmaj != GSS_S_COMPLETE) goto done;
 
         if (ecred->nt_hash.len > 16 || ecred->lm_hash.len > 16) {
-            set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+            set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -983,7 +983,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         if (retmaj != GSS_S_COMPLETE) goto done;
         break;
     default:
-        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
         break;
     }
 
