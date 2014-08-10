@@ -5,7 +5,7 @@
 #include "gss_ntlmssp.h"
 
 
-uint32_t gssntlm_cli_auth(uint32_t *minor,
+uint32_t gssntlm_cli_auth(uint32_t *minor_status,
                           struct gssntlm_ctx *ctx,
                           struct gssntlm_cred *cred,
                           struct ntlm_buffer *target_info,
@@ -23,8 +23,8 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
     struct ntlm_buffer mic = { micbuf, 16 };
     bool add_mic = false;
     bool key_exch;
-    uint32_t retmaj = GSS_S_FAILURE;
-    uint32_t retmin = 0;
+    uint32_t retmaj;
+    uint32_t retmin;
 
     switch (cred->type) {
 
@@ -35,8 +35,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             memset(&nt_chal_resp, 0, sizeof(nt_chal_resp));
             lm_chal_resp.data = malloc(1);
             if (!lm_chal_resp.data) {
-                retmin = ENOMEM;
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(ENOMEM);
                 goto done;
             }
             lm_chal_resp.data[0] = 0;
@@ -54,7 +53,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
 
             if (target_info->length == 0 &&
                 input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
-                retmaj = GSS_S_UNAVAILABLE;
+                set_GSSERRS(0, GSS_S_BAD_BINDINGS);
                 goto done;
             }
 
@@ -68,8 +67,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                         input_chan_bindings->acceptor_addrtype != 0 ||
                         input_chan_bindings->acceptor_address.length != 0 ||
                         input_chan_bindings->application_data.length == 0) {
-                        retmin = EINVAL;
-                        retmaj = GSS_S_BAD_BINDINGS;
+                        set_GSSERRS(EINVAL, GSS_S_BAD_BINDINGS);
                         goto done;
                     }
                     cb.length = input_chan_bindings->application_data.length;
@@ -91,9 +89,9 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                             &srv_time, add_mic_ptr);
                 if (retmin) {
                     if (retmin == ERR_DECODE) {
-                        retmaj = GSS_S_DEFECTIVE_TOKEN;
+                        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
                     } else {
-                        retmaj = GSS_S_FAILURE;
+                        set_GSSERR(0);
                     }
                     goto done;
                 }
@@ -102,8 +100,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                     long int tdiff;
                     tdiff = ntlm_timestamp_now() - srv_time;
                     if ((tdiff / 10000000) > MAX_CHALRESP_LIFETIME) {
-                        retmin = EINVAL;
-                        retmaj = GSS_S_CONTEXT_EXPIRED;
+                        set_GSSERRS(EINVAL, GSS_S_CONTEXT_EXPIRED);
                         goto done;
                     }
                 }
@@ -112,7 +109,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             /* Random client challenge */
             retmin = RAND_BUFFER(&cli_chal);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -122,7 +119,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                              cred->cred.user.user.data.user.domain,
                              &ntlmv2_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -132,7 +129,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                                 srv_time, &client_target_info,
                                                 &nt_chal_resp);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -144,7 +141,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                                     client_chal,
                                                     &lm_chal_resp);
                 if (retmin) {
-                    retmaj = GSS_S_FAILURE;
+                    set_GSSERR(retmin);
                     goto done;
                 }
             }
@@ -158,7 +155,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             retmin = ntlmv2_session_base_key(&ntlmv2_key, &nt_proof,
                                              &key_exchange_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         } else {
@@ -174,15 +171,14 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             lm_chal_resp.length = 24;
             lm_chal_resp.data = calloc(1, lm_chal_resp.length);
             if (!nt_chal_resp.data || !lm_chal_resp.data) {
-                retmin = ENOMEM;
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(ENOMEM);
                 goto done;
             }
 
             /* Random client challenge */
             retmin = RAND_BUFFER(&cli_chal);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -192,7 +188,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                               ext_sec, ctx->server_chal,
                                               client_chal, &nt_chal_resp);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -203,7 +199,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                                   ext_sec, ctx->server_chal,
                                                   client_chal, &lm_chal_resp);
                 if (retmin) {
-                    retmaj = GSS_S_FAILURE;
+                    set_GSSERR(retmin);
                     goto done;
                 }
             }
@@ -211,7 +207,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             retmin = ntlm_session_base_key(&cred->cred.user.nt_hash,
                                            &session_base_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -222,7 +218,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                            &session_base_key, &lm_chal_resp,
                            &key_exchange_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
@@ -232,7 +228,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
         retmin = ntlm_exported_session_key(&key_exchange_key, key_exch,
                                            &ctx->exported_session_key);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -241,7 +237,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                                 &ctx->exported_session_key,
                                                 &encrypted_random_session_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
@@ -260,7 +256,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
                                       add_mic ? &auth_mic : NULL,
                                       &ctx->auth_msg);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -272,7 +268,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             retmin = ntlm_mic(&ctx->exported_session_key, &ctx->nego_msg,
                               &ctx->chal_msg, &ctx->auth_msg, &mic);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
             /* now that we have the mic, copy it into the auth message */
@@ -282,30 +278,28 @@ uint32_t gssntlm_cli_auth(uint32_t *minor,
             ctx->int_flags |= NTLMSSP_CTX_FLAG_AUTH_WITH_MIC;
         }
 
-        retmin = 0;
-        retmaj = GSS_S_COMPLETE;
+        set_GSSERRS(0, GSS_S_COMPLETE);
         break;
 
     case GSSNTLM_CRED_EXTERNAL:
         retmin = external_cli_auth(ctx, cred, in_flags, input_chan_bindings);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
-        retmaj = GSS_S_COMPLETE;
+        set_GSSERRS(0, GSS_S_COMPLETE);
         break;
 
     default:
-        retmin = EINVAL;
-        retmaj = GSS_S_FAILURE;
+        set_GSSERR(EINVAL);
     }
 
 done:
     ntlm_free_buffer_data(&client_target_info);
     ntlm_free_buffer_data(&nt_chal_resp);
     ntlm_free_buffer_data(&lm_chal_resp);
-    *minor = retmin;
-    return retmaj;
+
+    return GSSERR();
 }
 
 
@@ -315,7 +309,7 @@ bool is_ntlm_v1(struct ntlm_buffer *nt_chal_resp)
 }
 
 
-uint32_t gssntlm_srv_auth(uint32_t *minor,
+uint32_t gssntlm_srv_auth(uint32_t *minor_status,
                           struct gssntlm_ctx *ctx,
                           struct gssntlm_cred *cred,
                           struct ntlm_buffer *nt_chal_resp,
@@ -332,15 +326,13 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
     int retries;
 
     if (key_exchange_key->length != 16) {
-        *minor = EINVAL;
-        return GSS_S_FAILURE;
+        return GSSERRS(EINVAL, GSS_S_FAILURE);
     }
 
     ntlm_v1 = is_ntlm_v1(nt_chal_resp);
 
     if (ntlm_v1 && !gssntlm_sec_lm_ok(ctx) && !gssntlm_sec_ntlm_ok(ctx)) {
-        *minor = EPERM;
-        return GSS_S_FAILURE;
+        return GSSERRS(EPERM, GSS_S_FAILURE);
     }
 
     ext_sec = (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
@@ -379,7 +371,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                              cred->cred.user.user.data.user.name,
                              domstr, &ntlmv2_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -397,7 +389,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         }
 
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -405,7 +397,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
             retmin = ntlm_session_base_key(&cred->cred.user.nt_hash,
                                            &session_base_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
             break;
@@ -420,7 +412,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         retmin = ntlmv2_session_base_key(&ntlmv2_key, &nt_proof,
                                          &session_base_key);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
         break;
@@ -429,14 +421,13 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
         retmin = external_srv_auth(ctx, cred, nt_chal_resp, lm_chal_resp,
                                    &session_base_key);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
         break;
 
     default:
-        retmin = EINVAL;
-        retmaj = GSS_S_FAILURE;
+        set_GSSERR(EINVAL);
         goto done;
     }
 
@@ -448,7 +439,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                        &session_base_key, lm_chal_resp,
                        key_exchange_key);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
     } else {
@@ -456,10 +447,8 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                session_base_key.data, session_base_key.length);
     }
 
-    retmaj = GSS_S_COMPLETE;
-    retmin = 0;
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
-    *minor = retmin;
-    return retmaj;
+    return GSSERR();
 }

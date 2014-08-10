@@ -57,29 +57,28 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     ctx = (struct gssntlm_ctx *)(*context_handle);
 
     /* reset return values */
-    *minor_status = 0;
     if (actual_mech_type) *actual_mech_type = NULL;
     if (ret_flags) *ret_flags = 0;
     if (time_rec) *time_rec = 0;
 
     if (output_token == GSS_C_NO_BUFFER) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     if (target_name) {
         server = (struct gssntlm_name *)target_name;
         if (server->type != GSSNTLM_NAME_SERVER) {
-            return GSS_S_BAD_NAMETYPE;
+            return GSSERRS(0, GSS_S_BAD_NAMETYPE);
         }
         if (!server->data.server.name ||
             !server->data.server.name[0]) {
-            return GSS_S_BAD_NAME;
+            return GSSERRS(0, GSS_S_BAD_NAME);
         }
     }
 
     if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
         if (req_flags & GSS_C_ANON_FLAG) {
-            retmaj = GSS_S_UNAVAILABLE;
+            set_GSSERRS(0, GSS_S_UNAVAILABLE);
             goto done;
         } else {
             retmaj = gssntlm_acquire_cred(&retmin,
@@ -93,8 +92,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         cred = (struct gssntlm_cred *)claimant_cred_handle;
         if (cred->type != GSSNTLM_CRED_USER &&
             cred->type != GSSNTLM_CRED_EXTERNAL) {
-            retmin = EINVAL;
-            retmaj = GSS_S_CRED_UNAVAIL;
+            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
             goto done;
         }
     }
@@ -104,22 +102,21 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         /* first call */
         ctx = calloc(1, sizeof(struct gssntlm_ctx));
         if (!ctx) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
         retmin = gssntlm_copy_name(&cred->cred.user.user,
                                    &ctx->source_name);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
         if (server) {
             retmin = gssntlm_copy_name(server, &ctx->target_name);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
@@ -176,22 +173,20 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         computer_name = strdup(client_name->data.server.name);
         if (!computer_name) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
         retmin = netbios_get_names(computer_name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
         ctx->workstation = strdup(nb_computer_name);
         if (!ctx->workstation) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
@@ -200,7 +195,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(EINVAL);
             goto done;
         }
         if (!gssntlm_sec_lm_ok(ctx)) {
@@ -213,7 +208,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         retmin = ntlm_init_ctx(&ctx->ntlm);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -231,35 +226,33 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
                 /* and return the ball */
                 ctx->stage = NTLMSSP_STAGE_NEGOTIATE;
-                retmaj = GSS_S_CONTINUE_NEEDED;
+                set_GSSERRS(0, GSS_S_CONTINUE_NEEDED);
                 goto done;
             }
         } else {
 
             if (input_token && input_token->length != 0) {
-                retmin = EINVAL;
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
 
             retmin = ntlm_encode_neg_msg(ctx->ntlm, ctx->neg_flags,
                                          NULL, NULL, &ctx->nego_msg);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
             output_token->value = malloc(ctx->nego_msg.length);
             if (!output_token->value) {
-                retmin = ENOMEM;
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(ENOMEM);
                 goto done;
             }
             memcpy(output_token->value, ctx->nego_msg.data, ctx->nego_msg.length);
             output_token->length = ctx->nego_msg.length;
 
             ctx->stage = NTLMSSP_STAGE_NEGOTIATE;
-            retmaj = GSS_S_CONTINUE_NEEDED;
+            set_GSSERRS(0, GSS_S_CONTINUE_NEEDED);
             goto done;
         }
 
@@ -270,21 +263,19 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
     if (ctx == NULL) {
         /* this should not happen */
-        retmin = EFAULT;
-        retmaj = GSS_S_FAILURE;
+        set_GSSERR(EFAULT);
         goto done;
 
     } else {
 
         if (!gssntlm_role_is_client(ctx)) {
-            retmaj = GSS_S_NO_CONTEXT;
+            set_GSSERRS(0, GSS_S_NO_CONTEXT);
             goto done;
         }
 
         ctx->chal_msg.data = malloc(input_token->length);
         if (!ctx->chal_msg.data) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
         memcpy(ctx->chal_msg.data, input_token->value, input_token->length);
@@ -292,13 +283,13 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->chal_msg, &msg_type);
         if (retmin) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
         if (msg_type != CHALLENGE_MESSAGE ||
                 ctx->stage != NTLMSSP_STAGE_NEGOTIATE) {
-            retmaj = GSS_S_NO_CONTEXT;
+            set_GSSERRS(0, GSS_S_NO_CONTEXT);
             goto done;
         }
 
@@ -308,7 +299,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         retmin = ntlm_decode_chal_msg(ctx->ntlm, &ctx->chal_msg, &in_flags,
                                       &trgt_name, &challenge, &target_info);
         if (retmin) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -336,36 +327,36 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_128) &&
             (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_128))) {
-            retmaj = GSS_S_UNAVAILABLE;
+            set_GSSERR(0);
             goto done;
         }
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_SEAL))) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(0);
             goto done;
         }
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) &&
             (!(in_flags & NTLMSSP_NEGOTIATE_SIGN))) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(0);
             goto done;
         }
 
         if (!(in_flags & (NTLMSSP_NEGOTIATE_OEM |
                           NTLMSSP_NEGOTIATE_UNICODE))) {
             /* no common understanding */
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(0);
             goto done;
         }
 
         if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
             if (!(in_flags & NTLMSSP_NEGOTIATE_DATAGRAM)) {
                 /* no common understanding */
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(0);
                 goto done;
             }
             if (!(in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
                 /* no common understanding */
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(0);
                 goto done;
             }
             if ((in_flags & NTLMSSP_NEGOTIATE_OEM) &&
@@ -384,7 +375,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                 if (in_flags & (NTLMSSP_NEGOTIATE_TARGET_INFO |
                                 NTLMSSP_TARGET_TYPE_SERVER |
                                 NTLMSSP_TARGET_TYPE_DOMAIN)) {
-                    retmaj = GSS_S_FAILURE;
+                    set_GSSERR(0);
                     goto done;
                 } else {
                     in_flags &= ~NTLMSSP_NEGOTIATE_UNICODE;
@@ -405,7 +396,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                                         &ctx->exported_session_key,
                                         &ctx->crypto_state);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
@@ -421,8 +412,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
         output_token->value = malloc(ctx->auth_msg.length);
         if (!output_token->value) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
         memcpy(output_token->value, ctx->auth_msg.data, ctx->auth_msg.length);
@@ -432,14 +422,13 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
         ctx->int_flags |= NTLMSSP_CTX_FLAG_ESTABLISHED;
 
-        retmaj = GSS_S_COMPLETE;
+        set_GSSERRS(0, GSS_S_COMPLETE);
     }
 
 done:
     if ((retmaj != GSS_S_COMPLETE) &&
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
         gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
-        *minor_status = retmin;
     } else {
         if (ret_flags) *ret_flags = ctx->gss_flags;
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
@@ -455,7 +444,8 @@ done:
     safefree(nb_domain_name);
     safefree(trgt_name);
     ntlm_free_buffer_data(&target_info);
-    return retmaj;
+
+    return GSSERR();
 }
 
 uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
@@ -463,12 +453,18 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
                                     gss_buffer_t output_token)
 {
     struct gssntlm_ctx *ctx;
+    uint32_t retmin;
+    uint32_t retmaj;
     int ret;
 
-    *minor_status = 0;
-
-    if (!context_handle) return GSS_S_CALL_INACCESSIBLE_READ;
-    if (*context_handle == NULL) return GSS_S_NO_CONTEXT;
+    if (!context_handle) {
+        set_GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        goto done;
+    }
+    if (*context_handle == NULL) {
+        set_GSSERRS(0, GSS_S_NO_CONTEXT);
+        goto done;
+    }
 
     ctx = (struct gssntlm_ctx *)*context_handle;
 
@@ -492,11 +488,9 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     safezero((uint8_t *)ctx, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
 
-    if (ret) {
-        *minor_status = ret;
-        return GSS_S_FAILURE;
-    }
-    return GSS_S_COMPLETE;
+    set_GSSERRS(ret, ret ? GSS_S_FAILURE : GSS_S_COMPLETE);
+done:
+    return GSSERR();
 }
 
 uint32_t gssntlm_context_time(uint32_t *minor_status,
@@ -505,20 +499,25 @@ uint32_t gssntlm_context_time(uint32_t *minor_status,
 {
     struct gssntlm_ctx *ctx;
     time_t now;
+    uint32_t retmin;
     uint32_t retmaj;
 
-    *minor_status = 0;
-
     if (context_handle == GSS_C_NO_CONTEXT) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        set_GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+        goto done;
     }
 
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, &now);
-    if (retmaj) return retmaj;
+    if (retmaj) {
+        set_GSSERRS(0, retmaj);
+        goto done;
+    }
 
     *time_rec = ctx->expiration_time - now;
-    return GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+done:
+    return GSSERR();
 }
 
 uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
@@ -556,8 +555,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     char *wks_name = NULL;
     struct gssntlm_name *gss_usrname = NULL;
     struct gssntlm_cred *usr_cred = NULL;
-    uint32_t retmin = 0;
-    uint32_t retmaj = 0;
+    uint32_t retmin;
+    uint32_t retmaj;
     uint32_t tmpmin;
     uint32_t in_flags;
     uint32_t msg_type;
@@ -565,13 +564,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     struct ntlm_buffer unhashed_cb = { 0 };
     struct ntlm_buffer av_cb = { 0 };
 
-    if (context_handle == NULL) return GSS_S_CALL_INACCESSIBLE_READ;
+    if (context_handle == NULL) {
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+    }
     if (output_token == GSS_C_NO_BUFFER) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
-    /* reset return values */
-    *minor_status = 0;
     if (src_name) *src_name = GSS_C_NO_NAME;
     if (mech_type) *mech_type = GSS_C_NO_OID;
     if (ret_flags) *ret_flags = 0;
@@ -581,11 +580,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     if (acceptor_cred_handle) {
         cred = (struct gssntlm_cred *)acceptor_cred_handle;
         if (cred->type != GSSNTLM_CRED_SERVER) {
-            retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+            set_GSSERRS(0, GSS_S_DEFECTIVE_CREDENTIAL);
             goto done;
         }
         if (cred->cred.server.name.type != GSSNTLM_NAME_SERVER) {
-            retmaj = GSS_S_DEFECTIVE_CREDENTIAL;
+            set_GSSERRS(0, GSS_S_DEFECTIVE_CREDENTIAL);
             goto done;
         }
         retmaj = gssntlm_duplicate_name(&retmin,
@@ -599,8 +598,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         /* first call */
         ctx = calloc(1, sizeof(struct gssntlm_ctx));
         if (!ctx) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
@@ -619,28 +617,26 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         retmin = gssntlm_copy_name(server_name, &ctx->target_name);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
         computer_name = strdup(server_name->data.server.name);
         if (!computer_name) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
         retmin = netbios_get_names(computer_name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
         ctx->workstation = strdup(nb_computer_name);
         if (!ctx->workstation) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
 
@@ -649,7 +645,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
         ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
         if (ctx->sec_req == 0xff) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(EINVAL);
             goto done;
         }
 
@@ -666,15 +662,14 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         retmin = ntlm_init_ctx(&ctx->ntlm);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
         if (input_token && input_token->length != 0) {
             ctx->nego_msg.data = malloc(input_token->length);
             if (!ctx->nego_msg.data) {
-                retmin = ENOMEM;
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(ENOMEM);
                 goto done;
             }
             memcpy(ctx->nego_msg.data, input_token->value, input_token->length);
@@ -682,14 +677,14 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
             retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->nego_msg, &msg_type);
             if (retmin || (msg_type != NEGOTIATE_MESSAGE)) {
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
 
             retmin = ntlm_decode_neg_msg(ctx->ntlm, &ctx->nego_msg, &in_flags,
                                          NULL, NULL);
             if (retmin) {
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
 
@@ -711,7 +706,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             ctx->neg_flags &= ~NTLMSSP_NEGOTIATE_OEM;
         } else if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_OEM)) {
             /* no agreement */
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(0);
             goto done;
         }
 
@@ -738,7 +733,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         challenge.length = 8;
         retmin = RAND_BUFFER(&challenge);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -753,7 +748,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                          NULL, NULL, NULL,
                                          &target_info);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -769,7 +764,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                       chal_target_name, &challenge,
                                       &target_info, &ctx->chal_msg);
         if (retmin) {
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(retmin);
             goto done;
         }
 
@@ -777,8 +772,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         output_token->value = malloc(ctx->chal_msg.length);
         if (!output_token->value) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
         memcpy(output_token->value, ctx->chal_msg.data, ctx->chal_msg.length);
@@ -790,22 +784,19 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         ctx = (struct gssntlm_ctx *)(*context_handle);
 
         if (!gssntlm_role_is_server(ctx)) {
-            retmin = EINVAL;
-            retmaj = GSS_S_NO_CONTEXT;
+            set_GSSERRS(EINVAL, GSS_S_NO_CONTEXT);
             goto done;
         }
 
         if ((input_token == GSS_C_NO_BUFFER) ||
             (input_token->length == 0)) {
-            retmin = EINVAL;
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
         ctx->auth_msg.data = malloc(input_token->length);
         if (!ctx->auth_msg.data) {
-            retmin = ENOMEM;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
             goto done;
         }
         memcpy(ctx->auth_msg.data, input_token->value, input_token->length);
@@ -813,13 +804,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         retmin = ntlm_decode_msg_type(ctx->ntlm, &ctx->auth_msg, &msg_type);
         if (retmin) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
         if (msg_type != AUTHENTICATE_MESSAGE ||
                 ctx->stage != NTLMSSP_STAGE_CHALLENGE) {
-            retmaj = GSS_S_NO_CONTEXT;
+            set_GSSERRS(0, GSS_S_NO_CONTEXT);
             goto done;
         }
 
@@ -829,7 +820,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                       &dom_name, &usr_name, &wks_name,
                                       &enc_sess_key, &target_info, &mic);
         if (retmin) {
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -839,15 +830,14 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                              NULL, NULL, &av_flags,
                                              NULL, NULL, &av_cb);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
 
         if ((ctx->neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM) &&
             !(ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)) {
-            retmin = EINVAL;
-            retmaj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(EINVAL, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
@@ -857,8 +847,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
              (lm_chal_resp.length == 0))) {
             /* Anonymous auth */
             /* FIXME: not supported for now */
-            retmin = EINVAL;
-            retmaj = GSS_S_FAILURE;
+            set_GSSERR(EINVAL);
             goto done;
 
         } else {
@@ -870,8 +859,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             if (!dom_name) {
                 dom_name = strdup("");
                 if (!dom_name) {
-                    retmin = ENOMEM;
-                    retmaj = GSS_S_FAILURE;
+                    set_GSSERR(ENOMEM);
                     goto done;
                 }
             }
@@ -879,8 +867,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             ulen = strlen(usr_name);
             dlen = strlen(dom_name);
             if (ulen + dlen + 2 > 1024) {
-                retmin = EINVAL;
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(EINVAL);
                 goto done;
             }
             strncpy(useratdom, usr_name, ulen);
@@ -911,14 +898,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             /* We can't handle winbind credentials yet */
             if (usr_cred->type != GSSNTLM_CRED_USER &&
                 usr_cred->type != GSSNTLM_CRED_EXTERNAL) {
-                retmin = EINVAL;
-                retmaj = GSS_S_CRED_UNAVAIL;
+                set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
                 goto done;
             }
 
             retmin = gssntlm_copy_name(gss_usrname, &ctx->source_name);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
 
@@ -936,7 +922,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                                 &encrypted_random_session_key,
                                                 &ctx->exported_session_key);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         } else {
@@ -949,7 +935,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                      &ctx->nego_msg, &ctx->chal_msg,
                                      &ctx->auth_msg, &mic);
             if (retmin) {
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
         }
@@ -960,8 +946,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 input_chan_bindings->acceptor_addrtype != 0 ||
                 input_chan_bindings->acceptor_address.length != 0 ||
                 input_chan_bindings->application_data.length == 0) {
-                retmin = EINVAL;
-                retmaj = GSS_S_BAD_BINDINGS;
+                set_GSSERRS(EINVAL, GSS_S_BAD_BINDINGS);
                 goto done;
             }
             unhashed_cb.length = input_chan_bindings->application_data.length;
@@ -970,7 +955,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             /* TODO: optionally allow to ignore CBT if av_cb is null ? */
             retmin = ntlm_verify_channel_bindings(&unhashed_cb, &av_cb);
             if (retmin) {
-                retmaj = GSS_S_DEFECTIVE_TOKEN;
+                set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
             }
         }
@@ -981,7 +966,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                         &ctx->exported_session_key,
                                         &ctx->crypto_state);
             if (retmin) {
-                retmaj = GSS_S_FAILURE;
+                set_GSSERR(retmin);
                 goto done;
             }
         }
@@ -990,15 +975,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             retmaj = gssntlm_duplicate_name(&retmin,
                                             (gss_name_t)&ctx->source_name,
                                             src_name);
-            if (retmaj) {
-                goto done;
-            }
+            if (retmaj) goto done;
         }
 
         ctx->stage = NTLMSSP_STAGE_DONE;
         ctx->expiration_time = time(NULL) + MAX_CHALRESP_LIFETIME;
         ctx->int_flags |= NTLMSSP_CTX_FLAG_ESTABLISHED;
-        retmaj = GSS_S_COMPLETE;
+        set_GSSERRS(0, GSS_S_COMPLETE);
     }
 
 done:
@@ -1006,7 +989,6 @@ done:
     if ((retmaj != GSS_S_COMPLETE) &&
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
         gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
-        *minor_status = retmin;
     } else {
         if (ret_flags) *ret_flags = ctx->gss_flags;
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
@@ -1023,7 +1005,8 @@ done:
     ntlm_free_buffer_data(&lm_chal_resp);
     ntlm_free_buffer_data(&enc_sess_key);
     ntlm_free_buffer_data(&target_info);
-    return retmaj;
+
+    return GSSERR();
 }
 
 uint32_t gssntlm_inquire_context(uint32_t *minor_status,
@@ -1041,23 +1024,23 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
     uint32_t retmin;
     time_t now;
 
-    *minor_status = 0;
-
     ctx = (struct gssntlm_ctx *)context_handle;
-    if (!ctx) return GSS_S_NO_CONTEXT;
+    if (!ctx) {
+        return GSSERRS(0, GSS_S_NO_CONTEXT);
+    }
 
     if (src_name) {
         retmaj = gssntlm_duplicate_name(&retmin,
                                         (gss_name_t)&ctx->source_name,
                                         src_name);
-        if (retmaj) return retmaj;
+        if (retmaj) goto done;
     }
 
     if (targ_name) {
         retmaj = gssntlm_duplicate_name(&retmin,
                                         (gss_name_t)&ctx->target_name,
                                         targ_name);
-        if (retmaj) return retmaj;
+        if (retmaj) goto done;
     }
 
     if (mech_type) {
@@ -1097,7 +1080,10 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
         }
     }
 
-    return GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+
+done:
+    return GSSERR();
 }
 
 gss_OID_desc set_seq_num_oid = {
@@ -1111,42 +1097,42 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
                                         const gss_buffer_t value)
 {
     struct gssntlm_ctx *ctx;
+    uint32_t retmin;
+    uint32_t retmaj;
 
-    if (minor_status == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
-    }
     if (context_handle == NULL || *context_handle == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (desired_object == GSS_C_NO_OID) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     ctx = (struct gssntlm_ctx *)*context_handle;
-
-    *minor_status = 0;
 
     /* set seq num */
     if (gss_oid_equal(desired_object, &set_seq_num_oid)) {
         if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
 
             if (value->length != 4) {
-                *minor_status = EINVAL;
-                return GSS_S_FAILURE;
+                set_GSSERR(EINVAL);
+                goto done;
             }
 
             memcpy(&ctx->crypto_state.recv.seq_num,
                    value->value, value->length);
             ctx->crypto_state.send.seq_num = ctx->crypto_state.recv.seq_num;
-            return GSS_S_COMPLETE;
+            set_GSSERRS(0, GSS_S_COMPLETE);
+            goto done;
         } else {
-            *minor_status = EACCES;
-            return GSS_S_UNAUTHORIZED;
+            set_GSSERRS(EACCES, GSS_S_UNAUTHORIZED);
+            goto done;
         }
     }
 
-    *minor_status = EINVAL;
-    return GSS_S_UNAVAILABLE;
+    set_GSSERRS(EINVAL, GSS_S_UNAVAILABLE);
+
+done:
+    return GSSERR();
 }
 
 gss_OID_desc spnego_req_mic_oid = {
@@ -1161,25 +1147,20 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
 {
     struct gssntlm_ctx *ctx;
     gss_buffer_desc mic_buf;
-    uint32_t maj, min;
+    uint32_t retmaj, retmin, tmpmin;
     uint8_t mic_set;
 
-    if (minor_status == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
-    }
-
-    *minor_status = 0;
-
     if (context_handle == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (desired_object == GSS_C_NO_OID) {
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (!data_set) {
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     ctx = (struct gssntlm_ctx *)context_handle;
-
-    if (desired_object == GSS_C_NO_OID) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
-    }
-
     *data_set = GSS_C_NO_BUFFER_SET;
 
     /* the simple fact the spnego layer is asking means it can handle
@@ -1199,12 +1180,10 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
     mic_buf.value = &mic_set;
     mic_buf.length = sizeof(mic_set);
 
-    maj = gss_add_buffer_set_member(&min, &mic_buf, data_set);
-    if (maj != GSS_S_COMPLETE) {
-        *minor_status = min;
-        (void)gss_release_buffer_set(&min, data_set);
-        return maj;
+    retmaj = gss_add_buffer_set_member(&retmin, &mic_buf, data_set);
+    if (retmaj != GSS_S_COMPLETE) {
+        (void)gss_release_buffer_set(&tmpmin, data_set);
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(retmin, retmaj);
 }

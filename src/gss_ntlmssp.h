@@ -156,6 +156,21 @@ struct gssntlm_ctx {
     time_t expiration_time;
 };
 
+#define set_GSSERRS(min, maj) \
+    (void)DEBUG_GSS_ERRORS((retmaj = (maj)), (retmin = (min)))
+#define set_GSSERR(min) set_GSSERRS((min), GSS_S_FAILURE)
+
+static inline uint32_t gssntlmssp_ret_err(uint32_t *s, uint32_t n, uint32_t j)
+{
+    if (!s) return GSS_S_CALL_INACCESSIBLE_WRITE;
+    *s = n;
+    return j;
+}
+#define GSSERR() gssntlmssp_ret_err(minor_status, retmin, retmaj)
+#define GSSERRS(min, maj) \
+    DEBUG_GSS_ERRORS((retmaj = (maj)), (retmin = (min))) ? 0 : \
+     gssntlmssp_ret_err(minor_status, retmin, retmaj)
+
 uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx);
 
 void gssntlm_set_role(struct gssntlm_ctx *ctx,

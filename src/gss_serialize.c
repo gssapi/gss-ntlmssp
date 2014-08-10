@@ -245,34 +245,34 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                                     gss_buffer_t interprocess_token)
 {
     struct gssntlm_ctx *ctx;
-    struct export_state state;
+    struct export_state state = { NULL, 0, 0, 0, 0};
     struct export_ctx *ectx;
     uint64_t expiration;
+    uint32_t retmaj;
+    uint32_t retmin;
     int ret;
 
     if (context_handle == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (interprocess_token == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     ctx = (struct gssntlm_ctx *)*context_handle;
-    if (ctx == NULL) return GSS_S_NO_CONTEXT;
+    if (ctx == NULL) return GSSERRS(0, GSS_S_NO_CONTEXT);
 
     if (ctx->expiration_time && ctx->expiration_time < time(NULL)) {
-        return GSS_S_CONTEXT_EXPIRED;
+        return GSSERRS(0, GSS_S_CONTEXT_EXPIRED);
     }
-
-    *minor_status = 0;
 
     /* serialize context */
     state.exp_size = NEW_SIZE(0, sizeof(struct export_ctx));
     state.exp_struct = malloc(state.exp_size);
     if (!state.exp_struct) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        set_GSSERR(ENOMEM);
+        goto done;
     }
     ectx = (struct export_ctx *)state.exp_struct;
     state.exp_data = (char *)ectx->data - (char *)ectx;
@@ -323,7 +323,10 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
         ret = export_data_buffer(&state, ctx->workstation,
                                  strlen(ctx->workstation) + 1,
                                  &ectx->workstation);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
     }
 
     if (ctx->nego_msg.length > 0) {
@@ -331,7 +334,10 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                                  ctx->nego_msg.data,
                                  ctx->nego_msg.length,
                                  &ectx->nego_msg);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
     } else {
         ectx->nego_msg.ptr = 0;
         ectx->nego_msg.len = 0;
@@ -342,7 +348,10 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                                  ctx->chal_msg.data,
                                  ctx->chal_msg.length,
                                  &ectx->chal_msg);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
     } else {
         ectx->chal_msg.ptr = 0;
         ectx->chal_msg.len = 0;
@@ -353,17 +362,26 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                                  ctx->auth_msg.data,
                                  ctx->auth_msg.length,
                                  &ectx->auth_msg);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
     } else {
         ectx->auth_msg.ptr = 0;
         ectx->auth_msg.len = 0;
     }
 
     ret = export_name(&state, &ctx->source_name, &ectx->source);
-    if (ret) goto done;
+    if (ret) {
+        set_GSSERR(ret);
+        goto done;
+    }
 
     ret = export_name(&state, &ctx->target_name, &ectx->target);
-    if (ret) goto done;
+    if (ret) {
+        set_GSSERR(ret);
+        goto done;
+    }
 
     memcpy(ectx->server_chal, ctx->server_chal, 8);
 
@@ -374,26 +392,33 @@ uint32_t gssntlm_export_sec_context(uint32_t *minor_status,
                              ctx->exported_session_key.data,
                              ctx->exported_session_key.length,
                              &ectx->exported_session_key);
-    if (ret) goto done;
+    if (ret) {
+        set_GSSERR(ret);
+        goto done;
+    }
 
     ret = export_keys(&state, &ctx->crypto_state.send, &ectx->send);
-    if (ret) goto done;
+    if (ret) {
+        set_GSSERR(ret);
+        goto done;
+    }
 
     ret = export_keys(&state, &ctx->crypto_state.recv, &ectx->recv);
-    if (ret) goto done;
+    if (ret) {
+        set_GSSERR(ret);
+        goto done;
+    }
 
     ectx->int_flags = ctx->int_flags;
 
     expiration = ctx->expiration_time;
     ectx->expration_time = htole64(expiration);
 
-    ret = 0;
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
-    if (ret) {
-        *minor_status = ret;
+    if (retmaj) {
         free(state.exp_struct);
-        return GSS_S_FAILURE;
     } else {
         uint32_t min;
         interprocess_token->value = state.exp_struct;
@@ -401,9 +426,8 @@ done:
 
         /* Invalidate the current context once successfully exported */
         gssntlm_delete_sec_context(&min, context_handle, NULL);
-
-        return GSS_S_COMPLETE;
     }
+    return GSSERR();
 }
 
 static uint32_t import_data_buffer(uint32_t *minor_status,
@@ -411,10 +435,13 @@ static uint32_t import_data_buffer(uint32_t *minor_status,
                                    uint8_t **dest, size_t *len, bool alloc,
                                    struct relmem *rm, bool str)
 {
+    uint32_t retmaj;
+    uint32_t retmin;
     void *ptr;
 
     if (rm->ptr + rm->len > state->exp_len) {
-        return GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        goto done;
     }
     ptr = state->exp_struct + state->exp_data + rm->ptr;
     if (alloc) {
@@ -427,21 +454,25 @@ static uint32_t import_data_buffer(uint32_t *minor_status,
             }
         }
         if (!*dest) {
-            *minor_status = ENOMEM;
-            return GSS_S_FAILURE;
+            set_GSSERR(ENOMEM);
+            goto done;
         }
     } else {
         if (!*len) {
-            *minor_status = EINVAL;
-            return GSS_S_FAILURE;
+            set_GSSERR(EINVAL);
+            goto done;
         }
         if (rm->len > *len) {
-            return GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+            goto done;
         }
         memcpy(*dest, ptr, rm->len);
     }
     if (len) *len = rm->len;
-    return GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+
+done:
+    return GSSERR();
 }
 
 static uint32_t import_name(uint32_t *minor_status,
@@ -449,56 +480,70 @@ static uint32_t import_name(uint32_t *minor_status,
                             struct export_name *name,
                             struct gssntlm_name *imp_name)
 {
+    uint32_t retmaj;
+    uint32_t retmin;
     uint8_t *dest;
-    uint32_t maj;
 
     switch (name->type) {
     case EXP_NAME_NONE:
         memset(imp_name, 0, sizeof(struct gssntlm_name));
-        return GSS_S_COMPLETE;
+        break;
 
     case EXP_NAME_ANON:
         memset(imp_name, 0, sizeof(struct gssntlm_name));
         imp_name->type = GSSNTLM_NAME_ANON;
-        return GSS_S_COMPLETE;
+        break;
 
     case EXP_NAME_USER:
         imp_name->type = GSSNTLM_NAME_USER;
         dest = NULL;
         if (name->domain.len > 0) {
-            maj = import_data_buffer(minor_status, state,
+            retmaj = import_data_buffer(&retmin, state,
                                      &dest, NULL, true,
                                      &name->domain, true);
-            if (maj != GSS_S_COMPLETE) return maj;
+            if (retmaj != GSS_S_COMPLETE) {
+                set_GSSERRS(retmin, retmaj);
+                goto done;
+            }
         }
         imp_name->data.user.domain = (char *)dest;
         dest = NULL;
         if (name->name.len > 0) {
-            maj = import_data_buffer(minor_status, state,
+            retmaj = import_data_buffer(&retmin, state,
                                      &dest, NULL, true,
                                      &name->name, true);
-            if (maj != GSS_S_COMPLETE) return maj;
+            if (retmaj != GSS_S_COMPLETE) {
+                set_GSSERRS(retmin, retmaj);
+                goto done;
+            }
         }
         imp_name->data.user.name = (char *)dest;
-        return GSS_S_COMPLETE;
+        break;
 
     case EXP_NAME_SERV:
         imp_name->type = GSSNTLM_NAME_SERVER;
         dest = NULL;
         if (name->name.len > 0) {
-            maj = import_data_buffer(minor_status, state,
+            retmaj = import_data_buffer(&retmin, state,
                                      &dest, NULL, true,
                                      &name->name, true);
-            if (maj != GSS_S_COMPLETE) return maj;
+            if (retmaj != GSS_S_COMPLETE) {
+                set_GSSERRS(retmin, retmaj);
+                goto done;
+            }
         }
         imp_name->data.server.name = (char *)dest;
-        return GSS_S_COMPLETE;
+        break;
 
     default:
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         break;
     }
 
-    return GSS_S_DEFECTIVE_TOKEN;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+
+done:
+    return GSSERR();
 }
 
 static uint32_t import_keys(uint32_t *minor_status,
@@ -508,16 +553,17 @@ static uint32_t import_keys(uint32_t *minor_status,
 {
     struct ntlm_buffer in;
     uint8_t *dest;
-    uint32_t maj;
+    uint32_t retmaj;
+    uint32_t retmin;
     int ret;
 
     if (keys->sign_key.len > 0) {
         imp_keys->sign_key.length = 16; /* buf max size */
         dest = imp_keys->sign_key.data;
-        maj = import_data_buffer(minor_status, state,
+        retmaj = import_data_buffer(&retmin, state,
                                  &dest, &imp_keys->sign_key.length,
                                  false, &keys->sign_key, false);
-        if (maj != GSS_S_COMPLETE) return maj;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         memset(&imp_keys->sign_key, 0, sizeof(struct ntlm_key));
     }
@@ -525,25 +571,25 @@ static uint32_t import_keys(uint32_t *minor_status,
     if (keys->seal_key.len > 0) {
         imp_keys->seal_key.length = 16; /* buf max size */
         dest = imp_keys->seal_key.data;
-        maj = import_data_buffer(minor_status, state,
+        retmaj = import_data_buffer(&retmin, state,
                                  &dest, &imp_keys->seal_key.length,
                                  false, &keys->seal_key, false);
-        if (maj != GSS_S_COMPLETE) return maj;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         memset(&imp_keys->seal_key, 0, sizeof(struct ntlm_key));
     }
 
     if (keys->rc4_state.len > 0) {
-        maj = import_data_buffer(minor_status, state,
+        retmaj = import_data_buffer(&retmin, state,
                                  &in.data, &in.length, true,
                                  &keys->rc4_state, false);
-        if (maj != GSS_S_COMPLETE) return maj;
+        if (retmaj != GSS_S_COMPLETE) goto done;
         ret = RC4_IMPORT(&imp_keys->seal_handle, &in);
         safezero(in.data, in.length);
         safefree(in.data);
         if (ret) {
-            *minor_status = ret;
-            return GSS_S_FAILURE;
+            set_GSSERR(ret);
+            goto done;
         }
     } else {
         imp_keys->seal_handle = NULL;
@@ -551,46 +597,45 @@ static uint32_t import_keys(uint32_t *minor_status,
 
     imp_keys->seq_num = le32toh(keys->seq_num);
 
-    return GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+
+done:
+    return GSSERR();
 }
 
 uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
                                     gss_buffer_t interprocess_token,
                                     gss_ctx_id_t *context_handle)
 {
-    struct gssntlm_ctx *ctx;
+    struct gssntlm_ctx *ctx = NULL;
     struct export_state state;
     struct export_ctx *ectx;
     uint8_t *dest;
     uint64_t time;
-    uint32_t maj;
-
-    if (minor_status == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
-    }
-    *minor_status = 0;
+    uint32_t retmaj;
+    uint32_t retmin;
 
     if (interprocess_token == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (interprocess_token->length < sizeof(struct export_ctx)) {
-        return GSS_S_DEFECTIVE_TOKEN;
+        return GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
     }
 
     if (context_handle == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     ctx = calloc(1, sizeof(struct gssntlm_ctx));
     if (!ctx) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        set_GSSERR(ENOMEM);
+        goto done;
     }
-    *minor_status = ntlm_init_ctx(&ctx->ntlm);
-    if (*minor_status) {
-        free(ctx);
-        return GSS_S_FAILURE;
+    retmin = ntlm_init_ctx(&ctx->ntlm);
+    if (retmin) {
+        set_GSSERR(retmin);
+        goto done;
     }
 
     state.exp_struct = interprocess_token->value;
@@ -600,7 +645,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     state.exp_ptr = 0;
 
     if (ectx->version != le16toh(EXPORT_CTX_VER)) {
-        maj = GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
 
@@ -618,7 +663,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
         ctx->role = GSSNTLM_DOMAIN_CONTROLLER;
         break;
     default:
-        maj = GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
 
@@ -639,7 +684,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
         ctx->stage = NTLMSSP_STAGE_DONE;
         break;
     default:
-        maj = GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
 
@@ -647,49 +692,49 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
 
     dest = NULL;
     if (ectx->workstation.len > 0) {
-        maj = import_data_buffer(minor_status, &state, &dest, NULL,
+        retmaj = import_data_buffer(&retmin, &state, &dest, NULL,
                                  true, &ectx->workstation, true);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     }
     ctx->workstation = (char *)dest;
 
     if (ectx->nego_msg.len > 0) {
-        maj = import_data_buffer(minor_status, &state,
+        retmaj = import_data_buffer(&retmin, &state,
                                  &ctx->nego_msg.data, &ctx->nego_msg.length,
                                  true, &ectx->nego_msg, false);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         ctx->nego_msg.data = NULL;
         ctx->nego_msg.length = 0;
     }
 
     if (ectx->chal_msg.len > 0) {
-        maj = import_data_buffer(minor_status, &state,
+        retmaj = import_data_buffer(&retmin, &state,
                                  &ctx->chal_msg.data, &ctx->chal_msg.length,
                                  true, &ectx->chal_msg, false);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         ctx->chal_msg.data = NULL;
         ctx->chal_msg.length = 0;
     }
 
     if (ectx->auth_msg.len > 0) {
-        maj = import_data_buffer(minor_status, &state,
+        retmaj = import_data_buffer(&retmin, &state,
                                  &ctx->auth_msg.data, &ctx->auth_msg.length,
                                  true, &ectx->auth_msg, false);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         ctx->auth_msg.data = NULL;
         ctx->auth_msg.length = 0;
     }
 
-    maj = import_name(minor_status, &state,
+    retmaj = import_name(&retmin, &state,
                       &ectx->source, &ctx->source_name);
-    if (maj != GSS_S_COMPLETE) goto done;
+    if (retmaj != GSS_S_COMPLETE) goto done;
 
-    maj = import_name(minor_status, &state,
+    retmaj = import_name(&retmin, &state,
                       &ectx->target, &ctx->target_name);
-    if (maj != GSS_S_COMPLETE) goto done;
+    if (retmaj != GSS_S_COMPLETE) goto done;
 
     memcpy(ctx->server_chal, ectx->server_chal, 8);
 
@@ -699,21 +744,21 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     if (ectx->exported_session_key.len > 0) {
         ctx->exported_session_key.length = 16; /* buf max size */
         dest = ctx->exported_session_key.data;
-        maj = import_data_buffer(minor_status, &state, &dest,
+        retmaj = import_data_buffer(&retmin, &state, &dest,
                                  &ctx->exported_session_key.length,
                                  false, &ectx->workstation, true);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         memset(&ctx->exported_session_key, 0, sizeof(struct ntlm_key));
     }
 
-    maj = import_keys(minor_status, &state,
+    retmaj = import_keys(&retmin, &state,
                       &ectx->send, &ctx->crypto_state.send);
-    if (maj != GSS_S_COMPLETE) goto done;
+    if (retmaj != GSS_S_COMPLETE) goto done;
 
-    maj = import_keys(minor_status, &state,
+    retmaj = import_keys(&retmin, &state,
                       &ectx->recv, &ctx->crypto_state.recv);
-    if (maj != GSS_S_COMPLETE) goto done;
+    if (retmaj != GSS_S_COMPLETE) goto done;
 
     /* We need to restoer also the general crypto status flags */
     ctx->crypto_state.ext_sec =
@@ -726,16 +771,16 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
     time = le64toh(ectx->expration_time);
     ctx->expiration_time = time;
 
-    maj = GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
-    if (maj == GSS_S_COMPLETE) {
+    if (retmaj == GSS_S_COMPLETE) {
         *context_handle = (gss_ctx_id_t)ctx;
     } else {
         uint32_t min;
         gssntlm_delete_sec_context(&min, (gss_ctx_id_t *)&ctx, NULL);
     }
-    return maj;
+    return GSSERR();
 }
 
 #pragma pack(push, 1)
@@ -762,26 +807,26 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
                              gss_buffer_t token)
 {
     struct gssntlm_cred *cred;
-    struct export_state state;
+    struct export_state state = { NULL, 0, 0, 0, 0 };
     struct export_cred *ecred;
+    uint32_t retmaj;
+    uint32_t retmin;
     int ret;
 
-    if (token == NULL || minor_status == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    if (token == NULL) {
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
-
-    *minor_status = 0;
 
     cred = (struct gssntlm_cred *)cred_handle;
     if (cred_handle == NULL) {
-        return GSS_S_NO_CRED;
+        return GSSERRS(0, GSS_S_NO_CRED);
     }
 
     state.exp_size = NEW_SIZE(0, sizeof(struct export_cred));
     state.exp_struct = calloc(1, state.exp_size);
     if (!state.exp_struct) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        set_GSSERR(ENOMEM);
+        goto done;
     }
     ecred = (struct export_cred *)state.exp_struct;
     state.exp_data = (char *)ecred->data - (char *)ecred;
@@ -801,46 +846,59 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
         ecred->type = EXP_CRED_USER;
 
         ret = export_name(&state, &cred->cred.user.user, &ecred->name);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
 
         ret = export_data_buffer(&state,
                                  cred->cred.user.nt_hash.data,
                                  cred->cred.user.nt_hash.length,
                                  &ecred->nt_hash);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
 
         ret = export_data_buffer(&state,
                                  cred->cred.user.lm_hash.data,
                                  cred->cred.user.lm_hash.length,
                                  &ecred->lm_hash);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
         break;
     case GSSNTLM_CRED_SERVER:
         ecred->type = EXP_CRED_SERVER;
 
         ret = export_name(&state, &cred->cred.server.name, &ecred->name);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
         break;
     case GSSNTLM_CRED_EXTERNAL:
         ecred->type = EXP_CRED_EXTERNAL;
 
         ret = export_name(&state, &cred->cred.external.user, &ecred->name);
-        if (ret) goto done;
+        if (ret) {
+            set_GSSERR(ret);
+            goto done;
+        }
         break;
     }
 
-    ret = 0;
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
-    if (ret) {
-        *minor_status = ret;
+    if (retmaj) {
         free(state.exp_struct);
-        return GSS_S_FAILURE;
     } else {
         token->value = state.exp_struct;
         token->length = state.exp_len;
-        return GSS_S_COMPLETE;
     }
+    return GSSERR();
 }
 
 uint32_t gssntlm_import_cred(uint32_t *minor_status,
@@ -848,31 +906,27 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
                              gss_cred_id_t *cred_handle)
 {
     struct gssntlm_cred *cred;
-    struct export_state state;
+    struct export_state state = { NULL, 0, 0, 0, 0 };
     struct export_cred *ecred;
-    uint32_t maj;
-
-    if (minor_status == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
-    }
-    *minor_status = 0;
+    uint32_t retmaj;
+    uint32_t retmin;
 
     if (token == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (token->length < sizeof(struct export_cred)) {
-        return GSS_S_DEFECTIVE_TOKEN;
+        return GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
     }
 
     if (cred_handle == NULL) {
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_WRITE);
     }
 
     cred = calloc(1, sizeof(struct gssntlm_cred));
     if (!cred) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        set_GSSERR(ENOMEM);
+        goto done;
     }
 
     state.exp_struct = token->value;
@@ -882,7 +936,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
     state.exp_ptr = 0;
 
     if (ecred->version != le16toh(1)) {
-        maj = GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
 
@@ -895,52 +949,52 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         break;
     case EXP_CRED_USER:
         cred->type = GSSNTLM_CRED_USER;
-        maj = import_name(minor_status, &state, &ecred->name,
+        retmaj = import_name(&retmin, &state, &ecred->name,
                           &cred->cred.user.user);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
 
         if (ecred->nt_hash.len > 16 || ecred->lm_hash.len > 16) {
-            maj = GSS_S_DEFECTIVE_TOKEN;
+            set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
             goto done;
         }
 
-        maj = import_data_buffer(minor_status, &state,
+        retmaj = import_data_buffer(&retmin, &state,
                                  (uint8_t **)&cred->cred.user.nt_hash.data,
                                  &cred->cred.user.nt_hash.length,
                                  false, &ecred->nt_hash, false);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
 
-        maj = import_data_buffer(minor_status, &state,
+        retmaj = import_data_buffer(&retmin, &state,
                                  (uint8_t **)&cred->cred.user.lm_hash.data,
                                  &cred->cred.user.lm_hash.length,
                                  false, &ecred->lm_hash, false);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
         break;
     case EXP_CRED_SERVER:
         cred->type = GSSNTLM_CRED_SERVER;
-        maj = import_name(minor_status, &state, &ecred->name,
+        retmaj = import_name(&retmin, &state, &ecred->name,
                           &cred->cred.server.name);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
         break;
     case EXP_CRED_EXTERNAL:
         cred->type = GSSNTLM_CRED_EXTERNAL;
-        maj = import_name(minor_status, &state, &ecred->name,
+        retmaj = import_name(&retmin, &state, &ecred->name,
                           &cred->cred.external.user);
-        if (maj != GSS_S_COMPLETE) goto done;
+        if (retmaj != GSS_S_COMPLETE) goto done;
         break;
     default:
-        maj = GSS_S_DEFECTIVE_TOKEN;
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         break;
     }
 
-    maj = GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
-    if (maj == GSS_S_COMPLETE) {
+    if (retmaj == GSS_S_COMPLETE) {
         *cred_handle = (gss_cred_id_t)cred;
     } else {
         uint32_t min;
         gssntlm_release_cred(&min, (gss_cred_id_t *)&cred);
     }
-    return maj;
+    return GSSERR();
 }

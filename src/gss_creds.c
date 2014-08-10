@@ -328,15 +328,14 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
 {
     struct gssntlm_cred *cred;
     struct gssntlm_name *name;
-    uint32_t retmaj = GSS_S_COMPLETE;
-    uint32_t retmin = 0;
+    uint32_t retmaj;
+    uint32_t retmin;
 
     name = (struct gssntlm_name *)desired_name;
 
     cred = calloc(1, sizeof(struct gssntlm_cred));
     if (!cred) {
-        retmin = errno;
-        return GSS_S_FAILURE;
+        return GSSERRS(errno, GSS_S_FAILURE);
     }
 
     /* FIXME: should we split the cred union and allow GSS_C_BOTH ?
@@ -355,8 +354,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
                 cred_usage = GSS_C_INITIATE;
                 break;
             default:
-                retmin = EINVAL;
-                retmaj = GSS_S_CRED_UNAVAIL;
+                set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
                 goto done;
             }
         }
@@ -364,8 +362,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
 
     if (cred_usage == GSS_C_INITIATE) {
         if (name != NULL && name->type != GSSNTLM_NAME_USER) {
-            retmin = EINVAL;
-            retmaj = GSS_S_CRED_UNAVAIL;
+            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
             goto done;
         }
 
@@ -378,23 +375,23 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             }
         }
         if (retmin) {
-            retmaj = GSS_S_CRED_UNAVAIL;
+            set_GSSERRS(retmin, GSS_S_CRED_UNAVAIL);
         }
     } else if (cred_usage == GSS_C_ACCEPT) {
         if (name != NULL && name->type != GSSNTLM_NAME_SERVER) {
-            retmin = EINVAL;
-            retmaj = GSS_S_CRED_UNAVAIL;
+            set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
             goto done;
         }
 
         retmin = get_server_creds(name, cred);
         if (retmin) {
-            retmaj = GSS_S_CRED_UNAVAIL;
+            set_GSSERRS(retmin, GSS_S_CRED_UNAVAIL);
         }
     } else {
-        retmin = EINVAL;
-        retmaj = GSS_S_CRED_UNAVAIL;
+        set_GSSERRS(EINVAL, GSS_S_CRED_UNAVAIL);
     }
+
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
     if (retmaj) {
@@ -404,8 +401,8 @@ done:
         *output_cred_handle = (gss_cred_id_t)cred;
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
-    *minor_status = retmin;
-    return retmaj;
+
+    return GSSERR();
 }
 
 uint32_t gssntlm_acquire_cred(uint32_t *minor_status,
@@ -479,19 +476,20 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
                               gss_OID_set *mechanisms)
 {
     struct gssntlm_cred *cred;
+    uint32_t retmin, retmaj;
     uint32_t maj, min;
 
-    if (minor_status == NULL)
-        return GSS_S_CALL_INACCESSIBLE_WRITE;
-    *minor_status = 0;
-
-    if (cred_handle == GSS_C_NO_CREDENTIAL)
-        return GSS_S_NO_CRED;
+    if (cred_handle == GSS_C_NO_CREDENTIAL) {
+        set_GSSERRS(0, GSS_S_NO_CRED);
+        goto done;
+    }
 
     cred = (struct gssntlm_cred *)cred_handle;
 
-    if (cred->type == GSSNTLM_CRED_NONE)
-        return GSS_S_NO_CRED;
+    if (cred->type == GSSNTLM_CRED_NONE) {
+        set_GSSERRS(0, GSS_S_NO_CRED);
+        goto done;
+    }
 
     if (name) {
         switch (cred->type) {
@@ -500,22 +498,31 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
             *name = GSS_C_NO_NAME;
             break;
         case GSSNTLM_CRED_USER:
-            maj = gssntlm_duplicate_name(minor_status,
+            maj = gssntlm_duplicate_name(&min,
                                          (gss_name_t)&cred->cred.user.user,
                                          name);
-            if (maj != GSS_S_COMPLETE) return maj;
+            if (maj != GSS_S_COMPLETE) {
+                set_GSSERRS(min, maj);
+                goto done;
+            }
             break;
         case GSSNTLM_CRED_SERVER:
-            maj = gssntlm_duplicate_name(minor_status,
+            maj = gssntlm_duplicate_name(&min,
                                          (gss_name_t)&cred->cred.server.name,
                                          name);
-            if (maj != GSS_S_COMPLETE) return maj;
+            if (maj != GSS_S_COMPLETE) {
+                set_GSSERRS(min, maj);
+                goto done;
+            }
             break;
         case GSSNTLM_CRED_EXTERNAL:
-            maj = gssntlm_duplicate_name(minor_status,
-                                         (gss_name_t)&cred->cred.external.user,
-                                         name);
-            if (maj != GSS_S_COMPLETE) return maj;
+            maj = gssntlm_duplicate_name(&min,
+                                        (gss_name_t)&cred->cred.external.user,
+                                        name);
+            if (maj != GSS_S_COMPLETE) {
+                set_GSSERRS(min, maj);
+                goto done;
+            }
             break;
         }
     }
@@ -530,22 +537,27 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
     }
 
     if (mechanisms) {
-        maj = gss_create_empty_oid_set(minor_status, mechanisms);
+        maj = gss_create_empty_oid_set(&min, mechanisms);
         if (maj != GSS_S_COMPLETE) {
+            set_GSSERRS(min, maj);
             gss_release_name(&min, name);
-            return maj;
+            goto done;
         }
-        maj = gss_add_oid_set_member(minor_status,
+        maj = gss_add_oid_set_member(&min,
                                      discard_const(&gssntlm_oid),
                                      mechanisms);
         if (maj != GSS_S_COMPLETE) {
+            set_GSSERRS(min, maj);
             gss_release_oid_set(&min, mechanisms);
             gss_release_name(&min, name);
-            return maj;
+            goto done;
         }
     }
 
-    return GSS_S_COMPLETE;
+    set_GSSERRS(0, GSS_S_COMPLETE);
+
+done:
+    return GSSERR();
 }
 
 uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
@@ -558,11 +570,13 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
 {
     gss_cred_usage_t usage;
     uint32_t lifetime;
-    uint32_t maj;
+    uint32_t retmaj;
+    uint32_t retmin;
+    uint32_t maj, min;
 
-    maj = gssntlm_inquire_cred(minor_status, cred_handle, name,
+    maj = gssntlm_inquire_cred(&min, cred_handle, name,
                                &lifetime, &usage, NULL);
-    if (maj != GSS_S_COMPLETE) return maj;
+    if (maj != GSS_S_COMPLETE) return GSSERRS(min, maj);
 
     switch (usage) {
     case GSS_C_INITIATE:
@@ -578,10 +592,9 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
         if (acceptor_lifetime) *acceptor_lifetime = lifetime;
         break;
     default:
-        *minor_status = EINVAL;
-        return GSS_S_FAILURE;
+        return GSSERRS(EINVAL, GSS_S_FAILURE);
     }
 
     if (cred_usage) *cred_usage = usage;
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }

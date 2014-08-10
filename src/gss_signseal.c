@@ -34,24 +34,21 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
     struct ntlm_buffer signature;
     uint32_t retmaj, retmin;
 
-    *minor_status = 0;
-
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return retmaj;
+        return GSSERRS(0, retmaj);
     }
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSS_S_BAD_QOP;
+        return GSSERRS(0, GSS_S_BAD_QOP);
     }
     if (!message_buffer->value || message_buffer->length == 0) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     message_token->value = malloc(NTLM_SIGNATURE_SIZE);
     if (!message_token->value) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        return GSSERRS(ENOMEM, GSS_S_FAILURE);
     }
     message_token->length = NTLM_SIGNATURE_SIZE;
 
@@ -63,12 +60,11 @@ uint32_t gssntlm_get_mic(uint32_t *minor_status,
                        &ctx->crypto_state,
                        &message, &signature);
     if (retmin) {
-        *minor_status = retmin;
         safefree(message_token->value);
-        return GSS_S_FAILURE;
+        return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
 
 uint32_t gssntlm_verify_mic(uint32_t *minor_status,
@@ -83,15 +79,13 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
     struct ntlm_buffer signature = { token, NTLM_SIGNATURE_SIZE };
     uint32_t retmaj, retmin;
 
-    *minor_status = 0;
-
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return retmaj;
+        return GSSERRS(0, retmaj);
     }
     if (!message_buffer->value || message_buffer->length == 0) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (qop_state) {
         *qop_state = GSS_C_QOP_DEFAULT;
@@ -103,16 +97,15 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
                        &ctx->crypto_state,
                        &message, &signature);
     if (retmin) {
-        *minor_status = retmin;
-        return GSS_S_FAILURE;
+        return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
     if (memcmp(signature.data,
                message_token->value, NTLM_SIGNATURE_SIZE) != 0) {
-        return GSS_S_BAD_SIG;
+        return GSSERRS(0, GSS_S_BAD_SIG);
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
 
 uint32_t gssntlm_wrap(uint32_t *minor_status,
@@ -129,18 +122,16 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
     struct ntlm_buffer signature;
     uint32_t retmaj, retmin;
 
-    *minor_status = 0;
-
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return retmaj;
+        return GSSERRS(0, retmaj);
     }
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSS_S_BAD_QOP;
+        return GSSERRS(0, GSS_S_BAD_QOP);
     }
     if (!input_message_buffer->value || input_message_buffer->length == 0) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (conf_state) {
         *conf_state = 0;
@@ -154,8 +145,7 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         input_message_buffer->length + NTLM_SIGNATURE_SIZE;
     output_message_buffer->value = malloc(output_message_buffer->length);
     if (!output_message_buffer->value) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        return GSSERRS(ENOMEM, GSS_S_FAILURE);
     }
 
     message.data = input_message_buffer->value;
@@ -167,12 +157,11 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
     retmin = ntlm_seal(ctx->neg_flags, &ctx->crypto_state,
                        &message, &output, &signature);
     if (retmin) {
-        *minor_status = retmin;
         safefree(output_message_buffer->value);
-        return GSS_S_FAILURE;
+        return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
 
 uint32_t gssntlm_unwrap(uint32_t *minor_status,
@@ -189,15 +178,13 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     struct ntlm_buffer signature = { sig, NTLM_SIGNATURE_SIZE };
     uint32_t retmaj, retmin;
 
-    *minor_status = 0;
-
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return retmaj;
+        return GSSERRS(0, retmaj);
     }
     if (!input_message_buffer->value || input_message_buffer->length == 0) {
-        return GSS_S_CALL_INACCESSIBLE_READ;
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
     }
     if (conf_state) {
         *conf_state = 0;
@@ -210,8 +197,7 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         input_message_buffer->length - NTLM_SIGNATURE_SIZE;
     output_message_buffer->value = malloc(output_message_buffer->length);
     if (!output_message_buffer->value) {
-        *minor_status = ENOMEM;
-        return GSS_S_FAILURE;
+        return GSSERRS(ENOMEM, GSS_S_FAILURE);
     }
 
     message.data = (uint8_t *)input_message_buffer->value + NTLM_SIGNATURE_SIZE;
@@ -221,18 +207,17 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     retmin = ntlm_unseal(ctx->neg_flags, &ctx->crypto_state,
                          &message, &output, &signature);
     if (retmin) {
-        *minor_status = retmin;
         safefree(output_message_buffer->value);
-        return GSS_S_FAILURE;
+        return GSSERRS(0, GSS_S_FAILURE);
     }
 
     if (memcmp(input_message_buffer->value,
                signature.data, NTLM_SIGNATURE_SIZE) != 0) {
         safefree(output_message_buffer->value);
-        return GSS_S_BAD_SIG;
+        return GSSERRS(0, GSS_S_BAD_SIG);
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
 
 uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
@@ -243,18 +228,16 @@ uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
                                  uint32_t *max_input_size)
 {
     struct gssntlm_ctx *ctx;
-    uint32_t retmaj;
-
-    *minor_status = 0;
+    uint32_t retmaj, retmin;
 
     ctx = (struct gssntlm_ctx *)context_handle;
     retmaj = gssntlm_context_is_valid(ctx, NULL);
     if (retmaj != GSS_S_COMPLETE) {
-        return retmaj;
+        return GSSERRS(0, retmaj);
     }
 
     if (qop_req != GSS_C_QOP_DEFAULT) {
-        return GSS_S_BAD_QOP;
+        return GSSERRS(0, GSS_S_BAD_QOP);
     }
 
     if (req_output_size < 16) {
@@ -263,5 +246,5 @@ uint32_t gssntlm_wrap_size_limit(uint32_t *minor_status,
         *max_input_size = req_output_size - NTLM_SIGNATURE_SIZE;
     }
 
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }

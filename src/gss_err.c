@@ -18,18 +18,18 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
                                 uint32_t *message_context,
                                 gss_buffer_t status_string)
 {
+    uint32_t retmaj;
+    uint32_t retmin;
     /* if you can't say it in ~6 lines of text we don't bother */
     char buf[512];
     int err;
 
-    if (!minor_status || !status_string) {
-        *minor_status = EINVAL;
-        return GSS_S_CALL_INACCESSIBLE_READ;
+    if (!status_string) {
+        return GSSERRS(EINVAL, GSS_S_CALL_INACCESSIBLE_READ);
     }
 
     if (status_type != GSS_C_MECH_CODE) {
-        *minor_status = EINVAL;
-        return GSS_S_BAD_STATUS;
+        return GSSERRS(EINVAL, GSS_S_BAD_STATUS);
     }
 
     *minor_status = 0;
@@ -80,10 +80,9 @@ done:
     if (!status_string->value) {
         status_string->value = strdup(UNKNOWN_ERROR);
         if (!status_string->value) {
-            *minor_status = ENOMEM;
-            return GSS_S_FAILURE;
+            return GSSERRS(ENOMEM, GSS_S_FAILURE);
         }
     }
     status_string->length = strlen(status_string->value);
-    return GSS_S_COMPLETE;
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
