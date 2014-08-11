@@ -35,11 +35,11 @@ static const char *err_strs[] = {
     N_("Invalid or incomplete context"), /* ERR_BADCTX */
     N_("Wrong context type"), /* ERR_WRONGCTX */
     N_("Wrong message type"), /* ERR_WRONGMSG */
-    N_("A required Negotiate flag was no provided"), /* ERR_REQNEGFLAG */
+    N_("A required Negotiate flag was not provided"), /* ERR_REQNEGFLAG */
     N_("Failed to negotiate a common set of flags"), /* ERR_FAILNEGFLAGS */
     N_("Invalid combinations of negotiate flags"), /* ERR_BADNEGFLAGS */
     N_("Not a server credential type"), /* ERR_NOSRVCRED */
-    N_("Not a user redential type"), /* ERR_NOUSRCRED */
+    N_("Not a user credential type"), /* ERR_NOUSRCRED */
     N_("Invalid or unknown credential"), /* ERR_BADCRED */
     N_("Empty or missing token"), /* ERR_NOTOKEN */
     N_("Feature not supported"), /* ERR_NOTSUPPORTED */
