@@ -1,5 +1,7 @@
 /* Copyright (C) 2014 GSS-NTLMSSP contributors, see COPYING for license */
 
+#include "config.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -99,7 +101,7 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
 #else
     {
         char *ret;
-        ret = strerror_r(errnum, buf, 400);
+        ret = strerror_r(status_value, buf, 400);
         if (ret == NULL) {
             err = errno;
         } else {
