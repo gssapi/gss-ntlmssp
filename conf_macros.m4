@@ -51,6 +51,18 @@ AC_DEFUN([WITH_TEST_DIR],
     AC_DEFINE_UNQUOTED(TEST_DIR, "$with_test_dir", [Directory used for 'make check' temporary files])
   ])
 
+AC_ARG_ENABLE([nls],
+              [AS_HELP_STRING([--disable-nls],
+                              [do not use Native Language Support])],
+              [use_nls=$enableval],
+              [use_nls=yes])
+if test x"$use_nls" = "xyes"; then
+    HAVE_NLS=1
+    AC_SUBST(HAVE_NLS)
+    AC_DEFINE_UNQUOTED(HAVE_NLS, 1, [Buils with Native Language Support])
+fi
+AM_CONDITIONAL([HAVE_NLS], [test x"$use_nls" = xyes])
+
 AC_ARG_ENABLE([all-experimental-features],
               [AS_HELP_STRING([--enable-all-experimental-features],
                               [build all experimental features])],

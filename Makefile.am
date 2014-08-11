@@ -4,6 +4,9 @@ SUBDIRS =
 if HAVE_MANPAGES
 SUBDIRS += man
 endif
+if HAVE_NLS
+SUBDIRS += po
+endif
 
 # Some old versions of automake don't define builddir
 builddir ?= .
@@ -30,6 +33,9 @@ if HAVE_GCC
                  -Wcast-qual -Wcast-align -Wwrite-strings \
                  -Werror-implicit-function-declaration \
                  -fno-strict-aliasing
+endif
+if HAVE_NLS
+    AM_CFLAGS += -DLOCALEDIR="\"$(localedir)\""
 endif
 
 dist_pkgconfig_DATA =
@@ -99,6 +105,8 @@ dist_noinst_HEADERS = \
 gssapidir = $(includedir)/gssapi
 dist_gssapi_HEADERS = \
     src/gssapi_ntlmssp.h
+
+POTFILES = src/gss_err.c
 
 ####################
 # Program Binaries #
@@ -184,6 +192,14 @@ rpmroot:
 	mkdir -p $(RPMBUILD)/SOURCES
 	mkdir -p $(RPMBUILD)/SPECS
 	mkdir -p $(RPMBUILD)/SRPMS
+
+po/$(PACKAGE).pot: $(POTFILES)
+	@echo "Regenerating $@" ; rm -f $@ && \
+	xgettext --directory=$(top_srcdir) --from-code=UTF-8 \
+	  --sort-by-file --add-comments --keyword=_ --keyword=N_ \
+	  --package-name="@PACKAGE@" --package-version="@VERSION@" \
+	  --msgid-bugs-address="simo@samba.org" \
+	  -o $@ $(POTFILES)
 
 rpms: dist-gzip rpmroot
 	cp $(builddir)/contrib/gssntlmssp.spec $(RPMBUILD)/SPECS

@@ -108,6 +108,20 @@ if test x$HAVE_WBCLIENT != x; then
     AM_CHECK_WBCLIENT
 fi
 
+if test x$HAVE_NLS != x; then
+    AC_CHECK_FUNC(dgettext, [],
+                  AC_CHECK_LIB(intl, dgettext, [],
+                               AC_ERROR([Could not find dgettext() function])))
+    AC_PATH_PROG(MSGFMT, msgfmt)
+    if test x$MSGFMT = x; then
+        AC_ERROR([Could not find msgfmt])
+    fi
+fi
+RAWLINGUAS=`sed -e "/^#/d" -e "s/#.*//" "${srcdir}/po/LINGUAS"`
+# Remove newlines
+LINGUAS=`echo $RAWLINGUAS`
+AC_SUBST(LINGUAS)
+
 if test x$HAVE_MANPAGES != x; then
     CHECK_XML_TOOLS
     CHECK_STYLESHEET([$SGML_CATALOG_FILES],
@@ -125,6 +139,6 @@ abs_build_dir=`pwd`
 AC_DEFINE_UNQUOTED([ABS_BUILD_DIR], ["$abs_build_dir"], [Absolute path to the build directory])
 AC_SUBST([abs_builddir], $abs_build_dir)
 
-AC_CONFIG_FILES([Makefile man/Makefile
+AC_CONFIG_FILES([Makefile man/Makefile po/Makefile
                  contrib/gssntlmssp.spec examples/mech.ntlmssp])
 AC_OUTPUT
