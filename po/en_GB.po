@@ -1,0 +1,166 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: gssntlmssp 0.5.0\n"
+"Report-Msgid-Bugs-To: simo@samba.org\n"
+"POT-Creation-Date: 2014-08-11 10:01+0100\n"
+"PO-Revision-Date: 2014-08-11 09:50+0100\n"
+"Last-Translator: David Woodhouse <dwmw2@infradead.org>\n"
+"Language: en_GB\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/gss_err.c:24
+msgid "Unknown Error"
+msgstr "Unknown Error"
+
+#. ERR_DECODE
+#: src/gss_err.c:25
+msgid "Failed to decode data"
+msgstr "Failed to decode data"
+
+#. ERR_ENCODE
+#: src/gss_err.c:26
+msgid "Failed to encode data"
+msgstr "Failed to encode data"
+
+#. ERR_CRYPTO
+#: src/gss_err.c:27
+msgid "Crypto routine failure"
+msgstr "Crypto routine failure"
+
+#. ERR_NOARG
+#: src/gss_err.c:28
+msgid "A required argument is missing"
+msgstr "A required argument is missing"
+
+#. ERR_BADARG
+#: src/gss_err.c:29
+msgid "Invalid value in argument"
+msgstr "Invalid value in argument"
+
+#. ERR_NONAME
+#: src/gss_err.c:30
+msgid "Name is empty"
+msgstr "Name is empty"
+
+#. ERR_NOSRVNAME
+#: src/gss_err.c:31
+msgid "Not a server name"
+msgstr "Not a server name"
+
+#. ERR_NOUSRNAME
+#: src/gss_err.c:32
+msgid "Not a user name"
+msgstr "Not a user name"
+
+#. ERR_BADLMLEVEL
+#: src/gss_err.c:33
+msgid "Bad LM compatibility Level"
+msgstr "Bad LM compatibility Level"
+
+#. ERR_IMPOSSIBLE
+#: src/gss_err.c:34
+msgid "An impossible error occurred"
+msgstr "An impossible error occurred"
+
+#. ERR_BADCTX
+#: src/gss_err.c:35
+msgid "Invalid or incomplete context"
+msgstr "Invalid or incomplete context"
+
+#. ERR_WRONGCTX
+#: src/gss_err.c:36
+msgid "Wrong context type"
+msgstr "Wrong context type"
+
+#. ERR_WRONGMSG
+#: src/gss_err.c:37
+msgid "Wrong message type"
+msgstr "Wrong message type"
+
+#. ERR_REQNEGFLAG
+#: src/gss_err.c:38
+msgid "A required Negotiate flag was not provided"
+msgstr "A required Negotiate flag was not provided"
+
+#. ERR_FAILNEGFLAGS
+#: src/gss_err.c:39
+msgid "Failed to negotiate a common set of flags"
+msgstr "Failed to negotiate a common set of flags"
+
+#. ERR_BADNEGFLAGS
+#: src/gss_err.c:40
+msgid "Invalid combinations of negotiate flags"
+msgstr "Invalid combinations of negotiate flags"
+
+#. ERR_NOSRVCRED
+#: src/gss_err.c:41
+msgid "Not a server credential type"
+msgstr "Not a server credential type"
+
+#. ERR_NOUSRCRED
+#: src/gss_err.c:42
+msgid "Not a user credential type"
+msgstr "Not a user credential type"
+
+#. ERR_BADCRED
+#: src/gss_err.c:43
+msgid "Invalid or unknown credential"
+msgstr "Invalid or unknown credential"
+
+#. ERR_NOTOKEN
+#: src/gss_err.c:44
+msgid "Empty or missing token"
+msgstr "Empty or missing token"
+
+#. ERR_NOTSUPPORTED
+#: src/gss_err.c:45
+msgid "Feature not supported"
+msgstr "Feature not supported"
+
+#. ERR_NOTAVAIL
+#: src/gss_err.c:46
+msgid "Feature not available"
+msgstr "Feature not available"
+
+#. ERR_NAMETOOLONG
+#: src/gss_err.c:47
+msgid "Name is too long"
+msgstr "Name is too long"
+
+#. ERR_NOBINDINGS
+#: src/gss_err.c:48
+msgid "Required channel bingings are not available"
+msgstr "Required channel bingings are not available"
+
+#. ERR_TIMESKEW
+#: src/gss_err.c:49
+msgid "Server and client clocks are too far apart"
+msgstr "Server and client clocks are too far apart"
+
+#. ERR_EXPIRED
+#: src/gss_err.c:50
+msgid "Expired"
+msgstr "Expired"
+
+#. ERR_KEYLEN
+#: src/gss_err.c:51
+msgid "Invalid key length"
+msgstr "Invalid key length"
+
+#. ERR_NONTLMV1
+#: src/gss_err.c:52
+msgid "NTLM version 1 not allowed"
+msgstr "NTLM version 1 not allowed"
+
+#. ERR_NOUSRFOUND
+#: src/gss_err.c:53
+msgid "User not found"
+msgstr "User not found"
