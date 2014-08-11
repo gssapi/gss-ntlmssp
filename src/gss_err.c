@@ -11,41 +11,46 @@
 
 #include "gss_ntlmssp.h"
 
-/* Untl we get gettext support */
-#define _(x) x
+#ifdef HAVE_NLS
+#include <libintl.h>
+#define _(s) dgettext(PACKAGE, (s))
+#else
+#define _(s) (s)
+#endif
+#define N_(s) s
 
 /* the order is determined by ntlm_err_code order */
 static const char *err_strs[] = {
-    _("Unknown Error"),
-    _("Failed to decode data"), /* ERR_DECODE */
-    _("Failed to encode data"), /* ERR_ENCODE */
-    _("Crypto routine failure"), /* ERR_CRYPTO */
-    _("A required argument is missing"), /* ERR_NOARG */
-    _("Invalid value in argument"), /* ERR_BADARG */
-    _("Name is empty"), /* ERR_NONAME */
-    _("Not a server name"), /* ERR_NOSRVNAME */
-    _("Not a user name"), /* ERR_NOUSRNAME */
-    _("Bad LM compatibility Level"), /* ERR_BADLMLEVEL */
-    _("An impossible error occurred"), /* ERR_IMPOSSIBLE */
-    _("Invalid or incomplete context"), /* ERR_BADCTX */
-    _("Wrong context type"), /* ERR_WRONGCTX */
-    _("Wrong message type"), /* ERR_WRONGMSG */
-    _("A required Negotiate flag was no provided"), /* ERR_REQNEGFLAG */
-    _("Failed to negotiate a common set of flags"), /* ERR_FAILNEGFLAGS */
-    _("Invalid combinations of negotiate flags"), /* ERR_BADNEGFLAGS */
-    _("Not a server credential type"), /* ERR_NOSRVCRED */
-    _("Not a user redential type"), /* ERR_NOUSRCRED */
-    _("Invalid or unknown credential"), /* ERR_BADCRED */
-    _("Empty or missing token"), /* ERR_NOTOKEN */
-    _("Feature not supported"), /* ERR_NOTSUPPORTED */
-    _("Feature not available"), /* ERR_NOTAVAIL */
-    _("Name is too long"), /* ERR_NAMETOOLONG */
-    _("Required channel bingings are not available"), /* ERR_NOBINDINGS */
-    _("Server and client clocks are too far apart"), /* ERR_TIMESKEW */
-    _("Expired"), /* ERR_EXPIRED */
-    _("Invalid key length"), /* ERR_KEYLEN */
-    _("NTLM version 1 not allowed"), /* ERR_NONTLMV1 */
-    _("User not found"), /* ERR_NOUSRFOUND */
+    N_("Unknown Error"),
+    N_("Failed to decode data"), /* ERR_DECODE */
+    N_("Failed to encode data"), /* ERR_ENCODE */
+    N_("Crypto routine failure"), /* ERR_CRYPTO */
+    N_("A required argument is missing"), /* ERR_NOARG */
+    N_("Invalid value in argument"), /* ERR_BADARG */
+    N_("Name is empty"), /* ERR_NONAME */
+    N_("Not a server name"), /* ERR_NOSRVNAME */
+    N_("Not a user name"), /* ERR_NOUSRNAME */
+    N_("Bad LM compatibility Level"), /* ERR_BADLMLEVEL */
+    N_("An impossible error occurred"), /* ERR_IMPOSSIBLE */
+    N_("Invalid or incomplete context"), /* ERR_BADCTX */
+    N_("Wrong context type"), /* ERR_WRONGCTX */
+    N_("Wrong message type"), /* ERR_WRONGMSG */
+    N_("A required Negotiate flag was no provided"), /* ERR_REQNEGFLAG */
+    N_("Failed to negotiate a common set of flags"), /* ERR_FAILNEGFLAGS */
+    N_("Invalid combinations of negotiate flags"), /* ERR_BADNEGFLAGS */
+    N_("Not a server credential type"), /* ERR_NOSRVCRED */
+    N_("Not a user redential type"), /* ERR_NOUSRCRED */
+    N_("Invalid or unknown credential"), /* ERR_BADCRED */
+    N_("Empty or missing token"), /* ERR_NOTOKEN */
+    N_("Feature not supported"), /* ERR_NOTSUPPORTED */
+    N_("Feature not available"), /* ERR_NOTAVAIL */
+    N_("Name is too long"), /* ERR_NAMETOOLONG */
+    N_("Required channel bingings are not available"), /* ERR_NOBINDINGS */
+    N_("Server and client clocks are too far apart"), /* ERR_TIMESKEW */
+    N_("Expired"), /* ERR_EXPIRED */
+    N_("Invalid key length"), /* ERR_KEYLEN */
+    N_("NTLM version 1 not allowed"), /* ERR_NONTLMV1 */
+    N_("User not found"), /* ERR_NOUSRFOUND */
 };
 
 #define UNKNOWN_ERROR err_strs[0]
@@ -82,7 +87,7 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
     }
 
     if (status_value > ERR_BASE && status_value < ERR_LAST) {
-        status_string->value = strdup(err_strs[status_value - ERR_BASE]);
+        status_string->value = strdup(_(err_strs[status_value - ERR_BASE]));
         if (!status_string->value) {
             return GSSERRS(ENOMEM, GSS_S_FAILURE);
         }
@@ -125,7 +130,7 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
 
 done:
     if (!status_string->value) {
-        status_string->value = strdup(UNKNOWN_ERROR);
+        status_string->value = strdup(_(UNKNOWN_ERROR));
         if (!status_string->value) {
             return GSSERRS(ENOMEM, GSS_S_FAILURE);
         }
