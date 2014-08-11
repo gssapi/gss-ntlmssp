@@ -21,36 +21,36 @@
 
 /* the order is determined by ntlm_err_code order */
 static const char *err_strs[] = {
-    N_("Unknown Error"),
-    N_("Failed to decode data"), /* ERR_DECODE */
-    N_("Failed to encode data"), /* ERR_ENCODE */
-    N_("Crypto routine failure"), /* ERR_CRYPTO */
-    N_("A required argument is missing"), /* ERR_NOARG */
-    N_("Invalid value in argument"), /* ERR_BADARG */
-    N_("Name is empty"), /* ERR_NONAME */
-    N_("Not a server name"), /* ERR_NOSRVNAME */
-    N_("Not a user name"), /* ERR_NOUSRNAME */
-    N_("Bad LM compatibility Level"), /* ERR_BADLMLEVEL */
-    N_("An impossible error occurred"), /* ERR_IMPOSSIBLE */
-    N_("Invalid or incomplete context"), /* ERR_BADCTX */
-    N_("Wrong context type"), /* ERR_WRONGCTX */
-    N_("Wrong message type"), /* ERR_WRONGMSG */
-    N_("A required Negotiate flag was not provided"), /* ERR_REQNEGFLAG */
-    N_("Failed to negotiate a common set of flags"), /* ERR_FAILNEGFLAGS */
-    N_("Invalid combinations of negotiate flags"), /* ERR_BADNEGFLAGS */
-    N_("Not a server credential type"), /* ERR_NOSRVCRED */
-    N_("Not a user credential type"), /* ERR_NOUSRCRED */
-    N_("Invalid or unknown credential"), /* ERR_BADCRED */
-    N_("Empty or missing token"), /* ERR_NOTOKEN */
-    N_("Feature not supported"), /* ERR_NOTSUPPORTED */
-    N_("Feature not available"), /* ERR_NOTAVAIL */
-    N_("Name is too long"), /* ERR_NAMETOOLONG */
-    N_("Required channel bingings are not available"), /* ERR_NOBINDINGS */
-    N_("Server and client clocks are too far apart"), /* ERR_TIMESKEW */
-    N_("Expired"), /* ERR_EXPIRED */
-    N_("Invalid key length"), /* ERR_KEYLEN */
-    N_("NTLM version 1 not allowed"), /* ERR_NONTLMV1 */
-    N_("User not found"), /* ERR_NOUSRFOUND */
+                           N_("Unknown Error"),
+    /* ERR_DECODE */       N_("Failed to decode data"),
+    /* ERR_ENCODE */       N_("Failed to encode data"),
+    /* ERR_CRYPTO */       N_("Crypto routine failure"),
+    /* ERR_NOARG */        N_("A required argument is missing"),
+    /* ERR_BADARG */       N_("Invalid value in argument"),
+    /* ERR_NONAME */       N_("Name is empty"),
+    /* ERR_NOSRVNAME */    N_("Not a server name"),
+    /* ERR_NOUSRNAME */    N_("Not a user name"),
+    /* ERR_BADLMLEVEL */   N_("Bad LM compatibility Level"),
+    /* ERR_IMPOSSIBLE */   N_("An impossible error occurred"),
+    /* ERR_BADCTX */       N_("Invalid or incomplete context"),
+    /* ERR_WRONGCTX */     N_("Wrong context type"),
+    /* ERR_WRONGMSG */     N_("Wrong message type"),
+    /* ERR_REQNEGFLAG */   N_("A required Negotiate flag was not provided"),
+    /* ERR_FAILNEGFLAGS */ N_("Failed to negotiate a common set of flags"),
+    /* ERR_BADNEGFLAGS */  N_("Invalid combinations of negotiate flags"),
+    /* ERR_NOSRVCRED */    N_("Not a server credential type"),
+    /* ERR_NOUSRCRED */    N_("Not a user credential type"),
+    /* ERR_BADCRED */      N_("Invalid or unknown credential"),
+    /* ERR_NOTOKEN */      N_("Empty or missing token"),
+    /* ERR_NOTSUPPORTED */ N_("Feature not supported"),
+    /* ERR_NOTAVAIL */     N_("Feature not available"),
+    /* ERR_NAMETOOLONG */  N_("Name is too long"),
+    /* ERR_NOBINDINGS */   N_("Required channel bingings are not available"),
+    /* ERR_TIMESKEW */     N_("Server and client clocks are too far apart"),
+    /* ERR_EXPIRED */      N_("Expired"),
+    /* ERR_KEYLEN */       N_("Invalid key length"),
+    /* ERR_NONTLMV1 */     N_("NTLM version 1 not allowed"),
+    /* ERR_NOUSRFOUND */   N_("User not found"),
 };
 
 #define UNKNOWN_ERROR err_strs[0]
