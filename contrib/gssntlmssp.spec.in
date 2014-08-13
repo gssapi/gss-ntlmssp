@@ -23,7 +23,7 @@ BuildRequires: pkgconfig
 BuildRequires: krb5-devel >= 1.11.5
 BuildRequires: libunistring-devel
 BuildRequires: openssl-devel
-BuildRequires: libwbclient-devel
+BuildRequires: pkgconfig(wbclient)
 
 %description
 A GSSAPI Mechanism that implements NTLMSSP
@@ -54,11 +54,12 @@ make %{?_smp_mflags} all
 rm -f %{buildroot}%{_libdir}/gssntlmssp/gssntlmssp.la
 mkdir -p %{buildroot}%{_sysconfdir}/gss/mech.d
 install -pm644 examples/mech.ntlmssp %{buildroot}%{_sysconfdir}/gss/mech.d/ntlmssp.conf
+%{find_lang} %{name}
 
 %check
 make test_gssntlmssp
 
-%files
+%files -f %{name}.lang
 %config(noreplace) %{_sysconfdir}/gss/mech.d/ntlmssp.conf
 %{_libdir}/gssntlmssp/
 %{_mandir}/man8/gssntlmssp.8*
