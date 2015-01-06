@@ -96,10 +96,17 @@ static uint32_t get_enterprise_name(uint32_t *minor_status,
     buf[len] = '\0';
 
     e = strstr(buf, "\\@");
+    if (e) {
+        /* remove escape */
+        memmove(e, e + 1, len - (e - buf));
+    } else {
+        /* check if domain part contains dot */
+        e = strchr(buf, '@');
+        if (e) {
+            e = strchr(e, '.');
+        }
+    }
     if (!e) return GSSERRS(0, GSS_S_UNAVAILABLE);
-
-    /* remove escape */
-    memmove(e, e + 1, len - (e - buf));
 
     *username = strdup(buf);
     if (NULL == *username) {
