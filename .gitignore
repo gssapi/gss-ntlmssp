@@ -8,7 +8,14 @@ Makefile.in
 *.8
 aclocal.m4
 autom4te.cache/
-build/
+ar-lib
+compile
+config.guess
+config.sub
+depcomp
+install-sh
+ltmain.sh
+missing
 config.h
 config.h.in
 config.h.in~
@@ -24,3 +31,4 @@ ntlmssptest
 .dirstamp
 stamp-h1
 examples/mech.ntlmssp
+po/*.mo
