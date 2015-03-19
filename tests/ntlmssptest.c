@@ -1262,6 +1262,7 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
                                     T_NTLMv2_CBT.ServerChallenge);
     if (ret) {
         fprintf(stderr, "NTLMv2 Verification failed!\n");
+        goto done;
     }
 
     ret = ntlm_decode_target_info(ctx, &target_info,
@@ -1269,7 +1270,8 @@ int test_DecodeAuthenticateMessageV2CBT(struct ntlm_ctx *ctx)
                                   NULL, NULL, NULL, NULL,
                                   NULL, &cb);
     if (ret) {
-        fprintf(stderr, "NTLMv2 ifailed to decode target info!\n");
+        fprintf(stderr, "NTLMv2 failed to decode target info!\n");
+        goto done;
     }
 
     err = test_difference("CBTs",
