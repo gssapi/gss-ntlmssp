@@ -746,7 +746,7 @@ uint32_t gssntlm_import_sec_context(uint32_t *minor_status,
         dest = ctx->exported_session_key.data;
         retmaj = import_data_buffer(&retmin, &state, &dest,
                                  &ctx->exported_session_key.length,
-                                 false, &ectx->workstation, true);
+                                 false, &ectx->exported_session_key, true);
         if (retmaj != GSS_S_COMPLETE) goto done;
     } else {
         memset(&ctx->exported_session_key, 0, sizeof(struct ntlm_key));
