@@ -178,35 +178,32 @@ void RC4_FREE(struct ntlm_rc4_handle **handle)
 
 int RC4_EXPORT(struct ntlm_rc4_handle *handle, struct ntlm_buffer *out)
 {
-    int i;
+    RC4_INT *data = (RC4_INT *)out->data;
+    int len = 258 * sizeof(RC4_INT);
 
-    if (out->length < 258) return EAGAIN;
+    if (out->length < len) return EINVAL;
 
-    out->data[0] = (uint8_t)(handle->key.x & 0xff);
-    out->data[1] = (uint8_t)(handle->key.y & 0xff);
-    for (i = 0; i < 256; i++) {
-        out->data[i + 2] = (uint8_t)(handle->key.data[i] & 0xff);
-    }
-
-    out->length = 258;
+    data[0] = handle->key.x;
+    data[1] = handle->key.y;
+    memcpy(&data[2], handle->key.data, sizeof(RC4_INT) * 256);
+    out->length = len;
     return 0;
 }
 
 int RC4_IMPORT(struct ntlm_rc4_handle **_handle, struct ntlm_buffer *in)
 {
     struct ntlm_rc4_handle *handle;
-    int i;
+    RC4_INT *data = (RC4_INT *)in->data;
+    int len = 258 * sizeof(RC4_INT);
 
-    if (in->length != 258) return EINVAL;
+    if (in->length != len) return EINVAL;
 
     handle = malloc(sizeof(struct ntlm_rc4_handle));
     if (!handle) return ENOMEM;
 
-    handle->key.x = in->data[0];
-    handle->key.y = in->data[1];
-    for (i = 0; i < 256; i++) {
-        handle->key.data[i] = in->data[i + 2];
-    }
+    handle->key.x = data[0];
+    handle->key.y = data[1];
+    memcpy(handle->key.data, &data[2], sizeof(RC4_INT) * 256);
 
     *_handle = handle;
     return 0;

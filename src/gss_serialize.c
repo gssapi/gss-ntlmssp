@@ -44,7 +44,7 @@ struct export_keys {
     uint32_t seq_num;
 };
 
-#define EXPORT_CTX_VER 0x0002
+#define EXPORT_CTX_VER 0x0003
 struct export_ctx {
     uint16_t version;
     uint8_t role;
@@ -197,7 +197,7 @@ static int export_keys(struct export_state *state,
                        struct ntlm_signseal_handle *keys,
                        struct export_keys *exp_keys)
 {
-    uint8_t buf[258];
+    uint8_t buf[258*sizeof(uint32_t)];
     struct ntlm_buffer out = { .data=buf, .length=sizeof(buf) };
     int ret;
 
