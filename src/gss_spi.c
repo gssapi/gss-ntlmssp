@@ -408,3 +408,13 @@ OM_uint32 gss_display_status(OM_uint32 *minor_status,
     return gssntlm_display_status(minor_status, status_value, status_type,
                                   mech_type, message_context, status_string);
 }
+
+OM_uint32 gss_inquire_name(OM_uint32 *minor_status,
+                           gss_name_t name,
+                           int *name_is_MN,
+                           gss_OID *MN_mech,
+                           gss_buffer_set_t *attrs)
+{
+    return gssntlm_inquire_name(minor_status, name, name_is_MN, MN_mech,
+                                attrs);
+}

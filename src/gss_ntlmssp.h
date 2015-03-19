@@ -415,4 +415,10 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
 				gss_OID mech_type,
 				uint32_t *message_context,
 				gss_buffer_t status_string);
+
+uint32_t gssntlm_inquire_name(uint32_t *minor_status,
+                              gss_name_t name,
+                              int *name_is_MN,
+                              gss_OID *MN_mech,
+                              gss_buffer_set_t *attrs);
 #endif /* _GSS_NTLMSSP_H_ */

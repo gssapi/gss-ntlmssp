@@ -634,3 +634,12 @@ done:
     *netbios_host = nb_computer_name;
     return ret;
 }
+
+uint32_t gssntlm_inquire_name(uint32_t *minor_status,
+                              gss_name_t name,
+                              int *name_is_MN,
+                              gss_OID *MN_mech,
+                              gss_buffer_set_t *attrs)
+{
+    return GSS_S_UNAVAILABLE;
+}
