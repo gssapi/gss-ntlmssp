@@ -646,9 +646,7 @@ int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
 
     nt_resp = (union wire_ntlm_response *)nt_response->data;
 
-    payload.length = nt_response->length
-                        - sizeof(nt_resp->v2.resp)
-                        + sizeof(server_chal);
+    payload.length = nt_response->length - sizeof(nt_resp->v2.resp) + 8;
     payload.data = malloc(payload.length);
     if (!payload.data) return ENOMEM;
     memcpy(payload.data, server_chal, 8);
