@@ -477,16 +477,24 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
                               gss_cred_usage_t *cred_usage,
                               gss_OID_set *mechanisms)
 {
-    struct gssntlm_cred *cred;
+    struct gssntlm_cred *cred = (struct gssntlm_cred *)GSS_C_NO_CREDENTIAL;
     uint32_t retmin, retmaj;
     uint32_t maj, min;
 
     if (cred_handle == GSS_C_NO_CREDENTIAL) {
-        set_GSSERRS(ERR_NOARG, GSS_S_NO_CRED);
-        goto done;
+        maj = gssntlm_acquire_cred_from(&min,
+                                        NULL, GSS_C_INDEFINITE,
+                                        NULL, GSS_C_INITIATE,
+                                        GSS_C_NO_CRED_STORE,
+                                        (gss_cred_id_t *)&cred,
+                                        NULL, NULL);
+        if (maj) {
+            set_GSSERRS(0, GSS_S_NO_CRED);
+            goto done;
+        }
+    } else {
+        cred = (struct gssntlm_cred *)cred_handle;
     }
-
-    cred = (struct gssntlm_cred *)cred_handle;
 
     if (cred->type == GSSNTLM_CRED_NONE) {
         set_GSSERRS(ERR_BADARG, GSS_S_NO_CRED);
@@ -559,6 +567,9 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
     set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
+    if (cred_handle == GSS_C_NO_CREDENTIAL) {
+        gssntlm_release_cred(&min, (gss_cred_id_t *)&cred);
+    }
     return GSSERR();
 }
 
