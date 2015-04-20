@@ -1467,7 +1467,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     const char *msg = "Sample, signature checking, message.";
     gss_buffer_desc message = { strlen(msg), discard_const(msg) };
     gss_buffer_desc ctx_token;
-    gss_OID actual_mech;
+    gss_OID actual_mech = GSS_C_NO_OID;
     uint8_t rand_cb[128];
     struct gss_channel_bindings_struct cbts = { 0 };
     gss_channel_bindings_t cbt = GSS_C_NO_CHANNEL_BINDINGS;
@@ -1622,12 +1622,13 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
         ret = EINVAL;
         goto done;
     }
+    actual_mech = GSS_C_NO_OID;
 
     gss_release_buffer(&retmin, &srv_token);
 
     retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
                                         &cli_token, cbt,
-                                        NULL, NULL, &srv_token,
+                                        NULL, &actual_mech, &srv_token,
                                         NULL, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
         print_gss_error("gssntlm_accept_sec_context 2 failed!",
@@ -1635,6 +1636,13 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
         ret = EINVAL;
         goto done;
     }
+
+    if (!actual_mech) {
+        fprintf(stderr, "Expected actual mech to be returned!\n");
+        ret = EINVAL;
+        goto done;
+    }
+    actual_mech = GSS_C_NO_OID;
 
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
