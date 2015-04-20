@@ -991,6 +991,7 @@ done:
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
         gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
     } else {
+        if (mech_type) *mech_type = discard_const(&gssntlm_oid);
         if (ret_flags) *ret_flags = ctx->gss_flags;
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
