@@ -437,3 +437,12 @@ OM_uint32 gss_inquire_mech_for_saslname(OM_uint32 *minor_status,
     return gssntlm_inquire_mech_for_saslname(minor_status, sasl_mech_name,
                                              mech_type);
 }
+
+OM_uint32 gss_inquire_attrs_for_mech(OM_uint32 *minor_status,
+                                     gss_const_OID mech_oid,
+                                     gss_OID_set *mech_attrs,
+                                     gss_OID_set *known_mech_attrs)
+{
+    return gssntlm_inquire_attrs_for_mech(minor_status, mech_oid, mech_attrs,
+                                          known_mech_attrs);
+}

@@ -715,3 +715,16 @@ uint32_t gssntlm_inquire_mech_for_saslname(OM_uint32 *minor_status,
     return GSS_S_BAD_MECH;
 
 }
+
+uint32_t gssntlm_inquire_attrs_for_mech(uint32_t *minor_status,
+					gss_const_OID mech_oid,
+					gss_OID_set *mech_attrs,
+					gss_OID_set *known_mech_attrs)
+{
+    if (mech_attrs != NULL)
+        *mech_attrs = GSS_C_NO_OID_SET;
+    if (known_mech_attrs != NULL)
+        *known_mech_attrs = GSS_C_NO_OID_SET;
+
+    return GSS_S_COMPLETE;
+}
