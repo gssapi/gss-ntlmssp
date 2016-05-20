@@ -376,6 +376,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
         }
         if (retmin) {
             set_GSSERR(retmin);
+            goto done;
         }
     } else if (cred_usage == GSS_C_ACCEPT) {
         if (name != NULL && name->type != GSSNTLM_NAME_SERVER) {
@@ -386,11 +387,14 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
         retmin = get_server_creds(name, cred);
         if (retmin) {
             set_GSSERR(retmin);
+            goto done;
         }
     } else if (cred_usage == GSS_C_BOTH) {
         set_GSSERRS(ERR_NOTSUPPORTED, GSS_S_CRED_UNAVAIL);
+        goto done;
     } else {
         set_GSSERRS(ERR_BADARG, GSS_S_CRED_UNAVAIL);
+        goto done;
     }
 
     set_GSSERRS(0, GSS_S_COMPLETE);
