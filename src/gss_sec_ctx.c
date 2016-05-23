@@ -1093,6 +1093,27 @@ gss_OID_desc set_seq_num_oid = {
     discard_const(GSS_NTLMSSP_SET_SEQ_NUM_OID_STRING)
 };
 
+uint32_t gssntlm_set_seq_num(uint32_t *minor_status,
+                             struct gssntlm_ctx *ctx,
+                             const gss_buffer_t value)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+
+    if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
+        if (value->length != 4) {
+            return GSSERRS(ERR_BADARG, GSS_S_FAILURE);
+        }
+        memcpy(&ctx->crypto_state.recv.seq_num,
+               value->value, value->length);
+        ctx->crypto_state.send.seq_num = ctx->crypto_state.recv.seq_num;
+    } else {
+        return GSSERRS(ERR_WRONGCTX, GSS_S_FAILURE);
+    }
+
+    return GSSERRS(0, GSS_S_COMPLETE);
+}
+
 uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
                                         gss_ctx_id_t *context_handle,
                                         const gss_OID desired_object,
@@ -1113,28 +1134,10 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
 
     /* set seq num */
     if (gss_oid_equal(desired_object, &set_seq_num_oid)) {
-        if (ctx->gss_flags & GSS_C_DATAGRAM_FLAG) {
-
-            if (value->length != 4) {
-                set_GSSERR(ERR_BADARG);
-                goto done;
-            }
-
-            memcpy(&ctx->crypto_state.recv.seq_num,
-                   value->value, value->length);
-            ctx->crypto_state.send.seq_num = ctx->crypto_state.recv.seq_num;
-            set_GSSERRS(0, GSS_S_COMPLETE);
-            goto done;
-        } else {
-            set_GSSERRS(ERR_WRONGCTX, GSS_S_FAILURE);
-            goto done;
-        }
+        return gssntlm_set_seq_num(minor_status, ctx, value);
     }
 
-    set_GSSERRS(ERR_BADARG, GSS_S_UNAVAILABLE);
-
-done:
-    return GSSERR();
+    return GSSERRS(ERR_BADARG, GSS_S_UNAVAILABLE);
 }
 
 gss_OID_desc spnego_req_mic_oid = {
