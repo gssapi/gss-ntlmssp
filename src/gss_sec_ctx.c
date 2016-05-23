@@ -1114,6 +1114,43 @@ uint32_t gssntlm_set_seq_num(uint32_t *minor_status,
     return GSSERRS(0, GSS_S_COMPLETE);
 }
 
+gss_OID_desc reset_crypto_oid = {
+    GSS_NTLMSSP_RESET_CRYPTO_OID_LENGTH,
+    discard_const(GSS_NTLMSSP_RESET_CRYPTO_OID_STRING)
+};
+
+uint32_t gssntlm_reset_crypto(uint32_t *minor_status,
+                              struct gssntlm_ctx *ctx,
+                              const gss_buffer_t value)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+
+    if (value->length != 4) {
+        return GSSERRS(ERR_BADARG, GSS_S_FAILURE);
+    }
+
+    /* reset crypto state */
+    if (ctx->neg_flags & (NTLMSSP_NEGOTIATE_SIGN |
+                            NTLMSSP_NEGOTIATE_SEAL)) {
+        uint32_t val;
+
+        memcpy(&val, value->value, value->length);
+
+        /* A val of 1 means we want to reset the verifier handle,
+         * which is the receive handle for NTLM, otherwise we reset
+         * the send handle. */
+        retmin = ntlm_reset_rc4_state(ctx->neg_flags, (val == 1),
+                                      &ctx->exported_session_key,
+                                      &ctx->crypto_state);
+        if (retmin) {
+            return GSSERRS(retmin, GSS_S_FAILURE);
+        }
+    }
+
+    return GSSERRS(0, GSS_S_COMPLETE);
+}
+
 uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
                                         gss_ctx_id_t *context_handle,
                                         const gss_OID desired_object,
@@ -1135,6 +1172,8 @@ uint32_t gssntlm_set_sec_context_option(uint32_t *minor_status,
     /* set seq num */
     if (gss_oid_equal(desired_object, &set_seq_num_oid)) {
         return gssntlm_set_seq_num(minor_status, ctx, value);
+    } else if (gss_oid_equal(desired_object, &reset_crypto_oid)) {
+        return gssntlm_reset_crypto(minor_status, ctx, value);
     }
 
     return GSSERRS(ERR_BADARG, GSS_S_UNAVAILABLE);

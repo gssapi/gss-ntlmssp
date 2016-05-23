@@ -562,6 +562,34 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
     }
 }
 
+int ntlm_reset_rc4_state(uint32_t flags, bool recv,
+                         struct ntlm_key *session_key,
+                         struct ntlm_signseal_state *state)
+{
+    struct ntlm_buffer rc4_key;
+    int ret;
+
+    if (!(flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY)) {
+        return no_ext_sec_handle(flags, session_key,
+                                 &state->send.seal_handle);
+    }
+
+    if (recv) {
+        RC4_FREE(&state->recv.seal_handle);
+        rc4_key.data = state->recv.seal_key.data;
+        rc4_key.length = state->recv.seal_key.length;
+        ret = RC4_INIT(&rc4_key, NTLM_CIPHER_DECRYPT,
+                       &state->recv.seal_handle);
+    } else {
+        RC4_FREE(&state->send.seal_handle);
+        rc4_key.data = state->send.seal_key.data;
+        rc4_key.length = state->send.seal_key.length;
+        ret = RC4_INIT(&rc4_key, NTLM_CIPHER_ENCRYPT,
+                       &state->send.seal_handle);
+    }
+    return ret;
+}
+
 static int ntlm_seal_regen(struct ntlm_signseal_handle *h)
 {
     struct ntlm_buffer payload;

@@ -342,6 +342,20 @@ int ntlm_signseal_keys(uint32_t flags, bool client,
                        struct ntlm_signseal_state *signseal_state);
 
 /**
+ * @brief   Resets the RC4 state for the send or receive handle
+ *
+ * @param flags                 Incoming challenge/authenticate flags
+ * @param recv                  Wheter to reset the send or recive buffer
+ * @param session_key           The session key
+ * @param signseal_state        Sign and seal keys and state
+ *
+ * @return 0 on success or error.
+ */
+int ntlm_reset_rc4_state(uint32_t flags, bool recv,
+                         struct ntlm_key *session_key,
+                         struct ntlm_signseal_state *state);
+
+/**
  * @brief   Verifies a NTLM v1 NT Response
  *
  * @param nt_response       The NT Response buffer
