@@ -1142,28 +1142,15 @@ gss_OID_desc spnego_req_mic_oid = {
     discard_const(GSS_SPNEGO_REQUIRE_MIC_OID_STRING)
 };
 
-uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
-	                                    const gss_ctx_id_t context_handle,
-	                                    const gss_OID desired_object,
-	                                    gss_buffer_set_t *data_set)
+uint32_t gssntlm_spnego_req_mic(uint32_t *minor_status,
+                                struct gssntlm_ctx *ctx,
+                                gss_buffer_set_t *data_set)
 {
-    struct gssntlm_ctx *ctx;
     gss_buffer_desc mic_buf;
-    uint32_t retmaj, retmin, tmpmin;
+    uint32_t retmin;
+    uint32_t retmaj;
+    uint32_t tmpmin;
     uint8_t mic_set;
-
-    if (context_handle == NULL) {
-        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
-    }
-    if (desired_object == GSS_C_NO_OID) {
-        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
-    }
-    if (!data_set) {
-        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
-    }
-
-    ctx = (struct gssntlm_ctx *)context_handle;
-    *data_set = GSS_C_NO_BUFFER_SET;
 
     /* the simple fact the spnego layer is asking means it can handle
      * forcing mechlistMIC if we add a MIC to the Authenticate packet.
@@ -1188,4 +1175,34 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
     }
 
     return GSSERRS(retmin, retmaj);
+}
+
+
+uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
+	                                    const gss_ctx_id_t context_handle,
+	                                    const gss_OID desired_object,
+	                                    gss_buffer_set_t *data_set)
+{
+    struct gssntlm_ctx *ctx;
+    uint32_t retmin;
+    uint32_t retmaj;
+
+    if (context_handle == NULL) {
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (desired_object == GSS_C_NO_OID) {
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (!data_set) {
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
+    }
+
+    ctx = (struct gssntlm_ctx *)context_handle;
+    *data_set = GSS_C_NO_BUFFER_SET;
+
+    if (gss_oid_equal(desired_object, &spnego_req_mic_oid)) {
+        return gssntlm_spnego_req_mic(minor_status, ctx, data_set);
+    }
+
+    return GSSERRS(ERR_NOTSUPPORTED, GSS_S_UNAVAILABLE);
 }
