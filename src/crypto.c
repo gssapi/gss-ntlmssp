@@ -27,6 +27,32 @@
 
 #include "crypto.h"
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+HMAC_CTX *HMAC_CTX_new(void)
+{
+    HMAC_CTX *ctx;
+
+    ctx = OPENSSL_malloc(sizeof(HMAC_CTX));
+    if (!ctx) return NULL;
+
+    HMAC_CTX_init(ctx);
+
+    return ctx;
+}
+
+void HMAC_CTX_free(HMAC_CTX *ctx)
+{
+    if (ctx == NULL) return;
+
+    HMAC_CTX_cleanup(ctx);
+    OPENSSL_free(ctx);
+}
+
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+
+#endif
+
 int RAND_BUFFER(struct ntlm_buffer *random)
 {
     int ret;
@@ -42,30 +68,34 @@ int HMAC_MD5_IOV(struct ntlm_buffer *key,
                  struct ntlm_iov *iov,
                  struct ntlm_buffer *result)
 {
-    HMAC_CTX hmac_ctx;
+    HMAC_CTX *hmac_ctx;
     unsigned int len;
     size_t i;
     int ret = 0;
 
     if (result->length != 16) return EINVAL;
 
-    HMAC_CTX_init(&hmac_ctx);
+    hmac_ctx = HMAC_CTX_new();
+    if (!hmac_ctx) {
+        ret = ERR_CRYPTO;
+        goto done;
+    }
 
-    ret = HMAC_Init_ex(&hmac_ctx, key->data, key->length, EVP_md5(), NULL);
+    ret = HMAC_Init_ex(hmac_ctx, key->data, key->length, EVP_md5(), NULL);
     if (ret == 0) {
         ret = ERR_CRYPTO;
         goto done;
     }
 
     for (i = 0; i < iov->num; i++) {
-        ret = HMAC_Update(&hmac_ctx, iov->data[i]->data, iov->data[i]->length);
+        ret = HMAC_Update(hmac_ctx, iov->data[i]->data, iov->data[i]->length);
         if (ret == 0) {
             ret = ERR_CRYPTO;
             goto done;
         }
     }
 
-    ret = HMAC_Final(&hmac_ctx, result->data, &len);
+    ret = HMAC_Final(hmac_ctx, result->data, &len);
     if (ret == 0) {
         ret = ERR_CRYPTO;
         goto done;
@@ -74,7 +104,7 @@ int HMAC_MD5_IOV(struct ntlm_buffer *key,
     ret = 0;
 
 done:
-    HMAC_CTX_cleanup(&hmac_ctx);
+    HMAC_CTX_free(hmac_ctx);
     return ret;
 }
 
@@ -93,26 +123,32 @@ static int mdx_hash(const EVP_MD *type,
                     struct ntlm_buffer *payload,
                     struct ntlm_buffer *result)
 {
-    EVP_MD_CTX ctx;
+    EVP_MD_CTX *ctx;
     unsigned int len;
     int ret;
 
     if (result->length != 16) return EINVAL;
 
-    EVP_MD_CTX_init(&ctx);
-    ret = EVP_DigestInit_ex(&ctx, type, NULL);
+    ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        ret = ERR_CRYPTO;
+        goto done;
+    }
+
+    EVP_MD_CTX_init(ctx);
+    ret = EVP_DigestInit_ex(ctx, type, NULL);
     if (ret == 0) {
         ret = ERR_CRYPTO;
         goto done;
     }
 
-    ret = EVP_DigestUpdate(&ctx, payload->data, payload->length);
+    ret = EVP_DigestUpdate(ctx, payload->data, payload->length);
     if (ret == 0) {
         ret = ERR_CRYPTO;
         goto done;
     }
 
-    ret = EVP_DigestFinal_ex(&ctx, result->data, &len);
+    ret = EVP_DigestFinal_ex(ctx, result->data, &len);
     if (ret == 0) {
         ret = ERR_CRYPTO;
         goto done;
@@ -121,7 +157,7 @@ static int mdx_hash(const EVP_MD *type,
     ret = 0;
 
 done:
-    EVP_MD_CTX_cleanup(&ctx);
+    if (ctx) EVP_MD_CTX_free(ctx);
     return ret;
 }
 
