@@ -1,24 +1,3 @@
-
-GSS-NTLMSSP
-===========
-
-This is a mechglue plugin for the GSSAPI library that implements NTLM
-authentication.
-
-So far it has been built and tested only with the libgssapi implementation
-that comes with MIT Kerberos 1.11
-
-OID Space
-=========
-
-The Samba Project kindly donated this OID space: 1.3.6.1.4.1.7165.655.1.x
-
-BUILDING
-========
-
-See BUILD.txt
-
-
 TESTING
 =======
 
