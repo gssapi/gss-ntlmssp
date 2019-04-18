@@ -643,3 +643,75 @@ uint32_t gssntlm_inquire_name(uint32_t *minor_status,
 {
     return GSS_S_UNAVAILABLE;
 }
+
+/* RFC5801 Extensions */
+
+#define GS2_NTLM_SASL_NAME        "GS2-NTLM"
+#define GS2_NTLM_SASL_NAME_LEN    (sizeof(GS2_NTLM_SASL_NAME) - 1)
+
+uint32_t gssntlm_inquire_saslname_for_mech(OM_uint32 *minor_status,
+                                           const gss_OID desired_mech,
+                                           gss_buffer_t sasl_mech_name,
+                                           gss_buffer_t mech_name,
+                                           gss_buffer_t mech_description)
+{
+    if (desired_mech && !gss_oid_equal(desired_mech, &gssntlm_oid)) {
+        *minor_status = ENOENT;
+        return GSS_S_BAD_MECH;
+    }
+
+    sasl_mech_name->value = NULL;
+    mech_name->value = NULL;
+    mech_description->value = NULL;
+
+    *minor_status = ENOMEM;
+
+    sasl_mech_name->value = strdup(GS2_NTLM_SASL_NAME);
+    if (sasl_mech_name->value == NULL) {
+        goto done;
+    }
+    sasl_mech_name->length = strlen(sasl_mech_name->value);
+
+    mech_name->value = strdup("NTLM");
+    if (mech_name->value == NULL) {
+        goto done;
+    }
+    mech_name->length = strlen(mech_name->value);
+
+    mech_description->value = strdup("NTLM Mechanism");
+    if (mech_name->value == NULL) {
+        goto done;
+    }
+    mech_description->length = strlen(mech_description->value);
+
+    *minor_status = 0;
+
+done:
+    if (*minor_status != 0) {
+        free(sasl_mech_name->value);
+        free(mech_name->value);
+        free(mech_description->value);
+        return GSS_S_FAILURE;
+    }
+
+    return GSS_S_COMPLETE;
+}
+
+uint32_t gssntlm_inquire_mech_for_saslname(OM_uint32 *minor_status,
+                                           const gss_buffer_t sasl_mech_name,
+                                           gss_OID *mech_type)
+{
+    if (sasl_mech_name->length == GS2_NTLM_SASL_NAME_LEN &&
+        memcmp(sasl_mech_name->value,
+               GS2_NTLM_SASL_NAME, GS2_NTLM_SASL_NAME_LEN) == 0) {
+        if (mech_type != NULL) {
+            *mech_type = discard_const(&gssntlm_oid);
+        }
+        *minor_status = 0;
+        return GSS_S_COMPLETE;
+    }
+
+    *minor_status = ENOENT;
+    return GSS_S_BAD_MECH;
+
+}

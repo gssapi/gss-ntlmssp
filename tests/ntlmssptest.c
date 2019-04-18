@@ -1998,6 +1998,50 @@ done:
     return ret;
 }
 
+int test_gssapi_rfc5801(void)
+{
+    gss_buffer_desc sasl_name = { 8, discard_const("GS2-NTLM") };
+    gss_buffer_desc mech_name;
+    gss_buffer_desc mech_desc;
+    gss_OID oid;
+    uint32_t retmin, retmaj;
+
+    retmaj = gssntlm_inquire_mech_for_saslname(&retmin, &sasl_name, &oid);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_inquire_mech_for_saslname() failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    retmaj = gssntlm_inquire_saslname_for_mech(&retmin, oid, &sasl_name,
+                                               &mech_name, &mech_desc);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_inquire_saslname_for_mech() failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    if (strncmp(sasl_name.value, "GS2-NTLM", 8)) {
+        fprintf(stderr, "Expected 'GS2-NTLM', got: '%.*s'\n",
+                (int)sasl_name.length, (char *)sasl_name.value);
+        return EINVAL;
+    }
+
+    if (strncmp(mech_name.value, "NTLM", 8)) {
+        fprintf(stderr, "Expected 'NTLM', got: '%.*s'\n",
+                (int)mech_name.length, (char *)mech_name.value);
+        return EINVAL;
+    }
+
+    if (strncmp(mech_desc.value, "NTLM Mechanism", 8)) {
+        fprintf(stderr, "Expected 'NTLM Mechanism', got: '%.*s'\n",
+                (int)mech_desc.length, (char *)mech_desc.value);
+        return EINVAL;
+    }
+
+    return 0;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2159,6 +2203,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test Connectionless exchange\n");
     ret = test_gssapi_cl();
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test RFC5801 SPI\n");
+    ret = test_gssapi_rfc5801();
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
 done:

@@ -418,3 +418,22 @@ OM_uint32 gss_inquire_name(OM_uint32 *minor_status,
     return gssntlm_inquire_name(minor_status, name, name_is_MN, MN_mech,
                                 attrs);
 }
+
+OM_uint32 gss_inquire_saslname_for_mech(OM_uint32 *minor_status,
+                                        const gss_OID desired_mech,
+                                        gss_buffer_t sasl_mech_name,
+                                        gss_buffer_t mech_name,
+                                        gss_buffer_t mech_description)
+{
+    return gssntlm_inquire_saslname_for_mech(minor_status, desired_mech,
+                                             sasl_mech_name, mech_name,
+                                             mech_description);
+}
+
+OM_uint32 gss_inquire_mech_for_saslname(OM_uint32 *minor_status,
+                                        const gss_buffer_t sasl_mech_name,
+                                        gss_OID *mech_type)
+{
+    return gssntlm_inquire_mech_for_saslname(minor_status, sasl_mech_name,
+                                             mech_type);
+}

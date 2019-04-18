@@ -421,4 +421,15 @@ uint32_t gssntlm_inquire_name(uint32_t *minor_status,
                               int *name_is_MN,
                               gss_OID *MN_mech,
                               gss_buffer_set_t *attrs);
+
+uint32_t gssntlm_inquire_saslname_for_mech(OM_uint32 *minor_status,
+                                           const gss_OID desired_mech,
+                                           gss_buffer_t sasl_mech_name,
+                                           gss_buffer_t mech_name,
+                                           gss_buffer_t mech_description);
+
+uint32_t gssntlm_inquire_mech_for_saslname(OM_uint32 *minor_status,
+                                           const gss_buffer_t sasl_mech_name,
+                                           gss_OID *mech_type);
+
 #endif /* _GSS_NTLMSSP_H_ */
