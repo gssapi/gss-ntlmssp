@@ -1471,6 +1471,11 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     uint8_t rand_cb[128];
     struct gss_channel_bindings_struct cbts = { 0 };
     gss_channel_bindings_t cbt = GSS_C_NO_CHANNEL_BINDINGS;
+    gss_buffer_set_t data_set;
+    gss_OID_desc sasl_ssf_oid = {
+        11, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f")
+    };
+    uint32_t ssf, expect_ssf;
     uint32_t req_flags;
     int ret;
 
@@ -1758,6 +1763,29 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     gss_release_buffer(&retmin, &nbuf);
 
+    retmaj = gssntlm_inquire_sec_context_by_oid(&retmin, srv_ctx,
+                                                &sasl_ssf_oid, &data_set);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_inquire_sec_context_by_oid failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    if (data_set == NULL || data_set->count != 1) {
+        fprintf(stderr, "Expected 1 data_set element\n");
+        return EINVAL;
+    }
+    ssf = be32toh(*(uint32_t *)data_set->elements[0].value);
+    expect_ssf = 64;
+    if (no_seal) {
+        expect_ssf = 1;
+    }
+    if (ssf != expect_ssf) {
+        fprintf(stderr, "Expected SSF of %u, got: %u\n",
+                (unsigned int)expect_ssf, (unsigned int)ssf);
+        return EINVAL;
+    }
+
     ret = 0;
 
 done:
@@ -1769,6 +1797,7 @@ done:
     gssntlm_release_cred(&retmin, &srv_cred);
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
+    gss_release_buffer_set(&retmin, &data_set);
     return ret;
 }
 

@@ -15,6 +15,7 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <endian.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1219,6 +1220,48 @@ uint32_t gssntlm_spnego_req_mic(uint32_t *minor_status,
     return GSSERRS(retmin, retmaj);
 }
 
+static const gss_OID_desc sasl_ssf_oid = {
+    11, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f")
+};
+
+static uint32_t gssntlm_sasl_ssf(uint32_t *minor_status,
+                                 struct gssntlm_ctx *ctx,
+                                 gss_buffer_set_t *data_set)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+    uint32_t tmpmin;
+    gss_buffer_desc ssf_buf;
+    uint32_t ssf = 0;
+
+    /* Handwaving a bit here but this is what SSF is all about */
+    if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
+        if (ctx->neg_flags & NTLMSSP_NEGOTIATE_128) {
+            /* Technically we use RC4 with a 128 bit key, but we
+             * consider the RC4 strenght degraded so we assign
+             * it a value of 64, this is consistent with what
+             * the krb5 mechanism does for the Rc4-HMAC enctype */
+            ssf = 64;
+        } else if (ctx->neg_flags & NTLMSSP_NEGOTIATE_56) {
+            ssf = 56;
+        } else {
+            ssf = 40;
+        }
+    } else if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SIGN) {
+        ssf = 1;
+    }
+
+    ssf = htobe32(ssf);
+    ssf_buf.value = &ssf;
+    ssf_buf.length = 4;
+
+    retmaj = gss_add_buffer_set_member(&retmin, &ssf_buf, data_set);
+    if (retmaj != GSS_S_COMPLETE) {
+        (void)gss_release_buffer_set(&tmpmin, data_set);
+    }
+
+    return GSSERRS(retmin, retmaj);
+}
 
 uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
 	                                    const gss_ctx_id_t context_handle,
@@ -1244,6 +1287,8 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
 
     if (gss_oid_equal(desired_object, &spnego_req_mic_oid)) {
         return gssntlm_spnego_req_mic(minor_status, ctx, data_set);
+    } else if (gss_oid_equal(desired_object, &sasl_ssf_oid)){
+        return gssntlm_sasl_ssf(minor_status, ctx, data_set);
     }
 
     return GSSERRS(ERR_NOTSUPPORTED, GSS_S_UNAVAILABLE);
