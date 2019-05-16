@@ -872,12 +872,12 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 set_GSSERR(ERR_NAMETOOLONG);
                 goto done;
             }
-            strncpy(useratdom, usr_name, ulen);
+            memcpy(useratdom, usr_name, ulen);
             uadlen = ulen;
             if (dlen) {
                 useratdom[uadlen] = '@';
                 uadlen++;
-                strncpy(&useratdom[uadlen], dom_name, dlen);
+                memcpy(&useratdom[uadlen], dom_name, dlen);
                 uadlen += dlen;
             }
             useratdom[uadlen] = '\0';
