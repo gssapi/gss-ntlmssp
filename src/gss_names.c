@@ -716,15 +716,116 @@ uint32_t gssntlm_inquire_mech_for_saslname(OM_uint32 *minor_status,
 
 }
 
+static uint32_t make_ma_oid_set(uint32_t *minor_status, gss_OID_set *ma_set,
+                                int supported)
+{
+    gss_const_OID known_mech_attrs[] = {
+        GSS_C_MA_MECH_CONCRETE,
+        GSS_C_MA_MECH_PSEUDO,
+        GSS_C_MA_MECH_COMPOSITE,
+        GSS_C_MA_MECH_NEGO,
+        GSS_C_MA_MECH_GLUE,
+        GSS_C_MA_NOT_MECH,
+        GSS_C_MA_DEPRECATED,
+        GSS_C_MA_NOT_DFLT_MECH,
+        GSS_C_MA_ITOK_FRAMED,
+        GSS_C_MA_AUTH_INIT,
+        GSS_C_MA_AUTH_TARG,
+        GSS_C_MA_AUTH_INIT_INIT,
+        GSS_C_MA_AUTH_TARG_INIT,
+        GSS_C_MA_AUTH_INIT_ANON,
+        GSS_C_MA_AUTH_TARG_ANON,
+        GSS_C_MA_DELEG_CRED,
+        GSS_C_MA_INTEG_PROT,
+        GSS_C_MA_CONF_PROT,
+        GSS_C_MA_MIC,
+        GSS_C_MA_WRAP,
+        GSS_C_MA_PROT_READY,
+        GSS_C_MA_REPLAY_DET,
+        GSS_C_MA_OOS_DET,
+        GSS_C_MA_CBINDINGS,
+        GSS_C_MA_PFS,
+        GSS_C_MA_COMPRESS,
+        GSS_C_MA_CTX_TRANS,
+        NULL
+    };
+    gss_const_OID supported_mech_attrs[] = {
+        GSS_C_MA_MECH_CONCRETE,
+        GSS_C_MA_NOT_DFLT_MECH,
+        GSS_C_MA_AUTH_INIT,
+        GSS_C_MA_INTEG_PROT,
+        GSS_C_MA_CONF_PROT,
+        GSS_C_MA_MIC,
+        GSS_C_MA_WRAP,
+        GSS_C_MA_OOS_DET,
+        GSS_C_MA_CBINDINGS,
+        GSS_C_MA_CTX_TRANS,
+        NULL
+    };
+    uint32_t maj = 0;
+    uint32_t min = 0;
+    gss_const_OID *array = known_mech_attrs;
+
+    if (supported) {
+        array = supported_mech_attrs;
+    }
+
+    maj = gss_create_empty_oid_set(&min, ma_set);
+    if (maj != GSS_S_COMPLETE) {
+        goto done;
+    }
+    for (int i = 0; array[i] != NULL; i++) {
+        maj = gss_add_oid_set_member(&min, discard_const(array[i]), ma_set);
+        if (maj != GSS_S_COMPLETE) {
+            goto done;
+        }
+    }
+
+done:
+    *minor_status = min;
+    return maj;
+}
+
 uint32_t gssntlm_inquire_attrs_for_mech(uint32_t *minor_status,
 					gss_const_OID mech_oid,
 					gss_OID_set *mech_attrs,
 					gss_OID_set *known_mech_attrs)
 {
-    if (mech_attrs != NULL)
-        *mech_attrs = GSS_C_NO_OID_SET;
-    if (known_mech_attrs != NULL)
-        *known_mech_attrs = GSS_C_NO_OID_SET;
+    gss_OID_set s_ma = GSS_C_NULL_OID_SET;
+    gss_OID_set k_ma = GSS_C_NULL_OID_SET;
+    uint32_t maj = GSS_S_COMPLETE;
+    uint32_t min = 0;
 
-    return GSS_S_COMPLETE;
+    if (mech_oid && !gss_oid_equal(mech_oid, &gssntlm_oid)) {
+        *minor_status = ENOENT;
+        return GSS_S_BAD_MECH;
+    }
+
+    if (mech_attrs != NULL) {
+        maj = make_ma_oid_set(&min, &s_ma, 1);
+        if (maj != GSS_S_COMPLETE) {
+            goto done;
+        }
+    }
+    if (known_mech_attrs != NULL) {
+        maj = make_ma_oid_set(&min, &k_ma, 0);
+        if (maj != GSS_S_COMPLETE) {
+            goto done;
+        }
+    }
+
+done:
+    if (maj != GSS_S_COMPLETE) {
+        gss_release_oid_set(&min, &s_ma);
+        gss_release_oid_set(&min, &k_ma);
+    }
+    if (mech_attrs != NULL) {
+        *mech_attrs = s_ma;
+    }
+    if (known_mech_attrs != NULL) {
+        *known_mech_attrs = k_ma;
+    }
+
+    *minor_status = min;
+    return maj;
 }

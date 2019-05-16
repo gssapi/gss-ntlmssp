@@ -2071,6 +2071,98 @@ int test_gssapi_rfc5801(void)
     return 0;
 }
 
+int test_gssapi_rfc5587(void)
+{
+    gss_OID_set mech_attrs;
+    gss_OID_set known_mech_attrs;
+    uint32_t retmin, retmaj;
+
+    retmaj = gssntlm_inquire_attrs_for_mech(&retmin, &gssntlm_oid,
+                                            &mech_attrs, &known_mech_attrs);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_inquire_attrs_for_mech() failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    if (mech_attrs == GSS_C_NULL_OID_SET) {
+        fprintf(stderr, "mech_attrs returned empty\n");
+        return EINVAL;
+    }
+
+    if (known_mech_attrs == GSS_C_NULL_OID_SET) {
+        fprintf(stderr, "known_mech_attrs returned empty\n");
+        return EINVAL;
+    }
+
+    if (mech_attrs->count != 10) {
+        fprintf(stderr, "expected 10 mech_attr oids, got %lu\n",
+                mech_attrs->count);
+        return EINVAL;
+    }
+
+#define CHECK_MA(A, X) \
+do { \
+    int i; \
+    for (i = 0; i < A->count; i++) { \
+        if ((A->elements[i].length == X->length) && \
+            (memcmp(A->elements[i].elements, \
+                    X->elements, X->length) == 0)) break; \
+    } \
+    if (i >= A->count) { \
+        fprintf(stderr, #X " is missing from " #A " set\n"); \
+        return EINVAL; \
+    } \
+} while(0)
+
+    CHECK_MA(mech_attrs, GSS_C_MA_MECH_CONCRETE);
+    CHECK_MA(mech_attrs, GSS_C_MA_NOT_DFLT_MECH);
+    CHECK_MA(mech_attrs, GSS_C_MA_AUTH_INIT);
+    CHECK_MA(mech_attrs, GSS_C_MA_INTEG_PROT);
+    CHECK_MA(mech_attrs, GSS_C_MA_CONF_PROT);
+    CHECK_MA(mech_attrs, GSS_C_MA_MIC);
+    CHECK_MA(mech_attrs, GSS_C_MA_WRAP);
+    CHECK_MA(mech_attrs, GSS_C_MA_OOS_DET);
+    CHECK_MA(mech_attrs, GSS_C_MA_CBINDINGS);
+    CHECK_MA(mech_attrs, GSS_C_MA_CTX_TRANS);
+
+    if (known_mech_attrs->count != 27) {
+        fprintf(stderr, "expected 27 known_mech_attr oids, got %lu\n",
+                known_mech_attrs->count);
+        return EINVAL;
+    }
+
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_CONCRETE);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_PSEUDO);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_COMPOSITE);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_NEGO);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_GLUE);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_NOT_MECH);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_DEPRECATED);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_NOT_DFLT_MECH);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_ITOK_FRAMED);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_INIT);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_TARG);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_INIT_INIT);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_TARG_INIT);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_INIT_ANON);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_AUTH_TARG_ANON);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_DELEG_CRED);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_INTEG_PROT);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_CONF_PROT);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_MIC);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_WRAP);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_PROT_READY);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_REPLAY_DET);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_OOS_DET);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_CBINDINGS);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_PFS);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_COMPRESS);
+    CHECK_MA(known_mech_attrs, GSS_C_MA_CTX_TRANS);
+
+    return 0;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2236,6 +2328,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test RFC5801 SPI\n");
     ret = test_gssapi_rfc5801();
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test RFC5587 SPI\n");
+    ret = test_gssapi_rfc5587();
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
 done:
