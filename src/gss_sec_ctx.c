@@ -1263,6 +1263,29 @@ static uint32_t gssntlm_sasl_ssf(uint32_t *minor_status,
     return GSSERRS(retmin, retmaj);
 }
 
+static uint32_t gssntlm_sspi_session_key(uint32_t *minor_status,
+                                         struct gssntlm_ctx *ctx,
+                                         gss_buffer_set_t *data_set)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+    uint32_t tmpmin;
+    gss_buffer_desc session_key_buf;
+
+    if (ctx->exported_session_key.length == 0) {
+      return GSSERRS(ERR_NOTAVAIL, GSS_S_UNAVAILABLE);
+    }
+
+    session_key_buf.length = ctx->exported_session_key.length;
+    session_key_buf.value = ctx->exported_session_key.data;
+
+    retmaj = gss_add_buffer_set_member(&retmin, &session_key_buf,  data_set);
+    if (retmaj != GSS_S_COMPLETE) {
+        (void)gss_release_buffer_set(&tmpmin, data_set);
+    }
+    return GSSERRS(retmin, retmaj);
+}
+
 uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
 	                                    const gss_ctx_id_t context_handle,
 	                                    const gss_OID desired_object,
@@ -1289,6 +1312,8 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
         return gssntlm_spnego_req_mic(minor_status, ctx, data_set);
     } else if (gss_oid_equal(desired_object, &sasl_ssf_oid)){
         return gssntlm_sasl_ssf(minor_status, ctx, data_set);
+    } else if (gss_oid_equal(desired_object, GSS_C_INQ_SSPI_SESSION_KEY)) {
+      return gssntlm_sspi_session_key(minor_status, ctx, data_set);
     }
 
     return GSSERRS(ERR_NOTSUPPORTED, GSS_S_UNAVAILABLE);
