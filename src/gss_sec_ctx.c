@@ -140,7 +140,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         if ((req_flags & GSS_C_INTEG_FLAG) ||
             (req_flags & GSS_C_REPLAY_FLAG) ||
             (req_flags & GSS_C_SEQUENCE_FLAG)) {
-            ctx->neg_flags |= NTLMSSP_NEGOTIATE_SIGN;
+            ctx->neg_flags |= NTLMSSP_NEGOTIATE_SIGN |
+                              NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
         if (req_flags & GSS_C_CONF_FLAG) {
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_SEAL |
