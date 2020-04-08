@@ -1,3 +1,5 @@
+![Build GSSNTLMSSP](https://github.com/gssapi/gss-ntlmssp/workflows/Build%20GSSNTLMSSP/badge.svg)
+
 GSS-NTLMSSP
 ===========
 
