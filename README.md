@@ -12,9 +12,9 @@ that comes with MIT Kerberos (Versions 1.11 and above)
 ### Project Information
 
 
-The project is currently hosted on [pagure](https://pagure.io/gssntlmssp)
+The project is currently hosted on [github](https://github.com/gssapi/gss-ntlmssp)
 Project related information (releases, hot to contribute, coding style, etc..
-is available in the [docs page](https://pagure.io/docs/gssntlmssp/)
+is available in the [wiki](https://github.com/gssapi/gss-ntlmssp/wiki)
 
 
 
