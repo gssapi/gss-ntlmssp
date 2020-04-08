@@ -36,4 +36,4 @@ sha512sum gssntlmssp-0.1.0.tar.gz > gssntlmssp-0.1.0.tar.gz.sha512sum.txt
 
 ### Publish the release
 
-* Upload the tarball and checksum in the release page on Pagure
+* Upload the tarball and checksum on the release page
