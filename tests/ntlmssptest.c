@@ -2116,7 +2116,6 @@ do { \
 } while(0)
 
     CHECK_MA(mech_attrs, GSS_C_MA_MECH_CONCRETE);
-    CHECK_MA(mech_attrs, GSS_C_MA_NOT_DFLT_MECH);
     CHECK_MA(mech_attrs, GSS_C_MA_AUTH_INIT);
     CHECK_MA(mech_attrs, GSS_C_MA_INTEG_PROT);
     CHECK_MA(mech_attrs, GSS_C_MA_CONF_PROT);

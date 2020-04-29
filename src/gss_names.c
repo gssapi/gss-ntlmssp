@@ -751,7 +751,6 @@ static uint32_t make_ma_oid_set(uint32_t *minor_status, gss_OID_set *ma_set,
     };
     gss_const_OID supported_mech_attrs[] = {
         GSS_C_MA_MECH_CONCRETE,
-        GSS_C_MA_NOT_DFLT_MECH,
         GSS_C_MA_AUTH_INIT,
         GSS_C_MA_INTEG_PROT,
         GSS_C_MA_CONF_PROT,
