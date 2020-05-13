@@ -237,7 +237,7 @@ endif
 # Testing          #
 ####################
 
-TESTS = ntlmssptest
+TESTS = ntlmssptest tests/env1.sh tests/env2.sh
 
 test_gssntlmssp:
 	TMPDIR=tests/scripts/ ./tests/scripts/dlopen.sh ./.libs/gssntlmssp.so || exit 1
