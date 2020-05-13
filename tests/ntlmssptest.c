@@ -1488,7 +1488,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     uint8_t rand_cb[128];
     struct gss_channel_bindings_struct cbts = { 0 };
     gss_channel_bindings_t cbt = GSS_C_NO_CHANNEL_BINDINGS;
-    gss_buffer_set_t data_set;
+    gss_buffer_set_t data_set = NULL;
     gss_OID_desc sasl_ssf_oid = {
         11, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f")
     };
@@ -1498,12 +1498,10 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
 
-    if (user_env_file) {
-        username = "testuser";
-    } else {
+    username = getenv("TEST_USER_NAME");
+    if (username == NULL) {
         username = "TESTDOM\\testuser";
     }
-
     nbuf.value = discard_const(username);
     nbuf.length = strlen(username);
     retmaj = gssntlm_import_name(&retmin, &nbuf,
@@ -1771,9 +1769,9 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
         goto done;
     }
 
-    if (strcmp(nbuf.value, "TESTDOM\\testuser") != 0) {
+    if (strcmp(nbuf.value, username) != 0) {
         fprintf(stderr, "Expected username of [%s] but got [%s] instead!\n",
-                        "TESTDOM\\testuser", (char *)nbuf.value);
+                        username, (char *)nbuf.value);
         ret = EINVAL;
         goto done;
     }
@@ -1826,7 +1824,7 @@ int test_gssapi_cl(void)
     gss_buffer_desc srv_token = { 0 };
     gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
     gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
-    const char *username = "TESTDOM\\testuser";
+    const char *username;
     const char *password = "testpassword";
     const char *srvname = "test@testserver";
     gss_name_t gss_username = NULL;
@@ -1846,6 +1844,10 @@ int test_gssapi_cl(void)
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
 
+    username = getenv("TEST_USER_NAME");
+    if (username == NULL) {
+        username = "TESTDOM\\testuser";
+    }
     nbuf.value = discard_const(username);
     nbuf.length = strlen(username);
     retmaj = gssntlm_import_name(&retmin, &nbuf,
@@ -2223,183 +2225,222 @@ int test_ZERO_LMKEY(struct ntlm_ctx *ctx)
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
+    int gret = 0;
     int ret;
 
     /* enable trace debugging by dfault in tests */
     setenv("GSSNTLMSSP_DEBUG", "tests-trace.log", 0);
 
-    fprintf(stdout, "Test errors\n");
+    fprintf(stderr, "Test errors\n");
     ret = test_Errors();
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     ret = ntlm_init_ctx(&ctx);
     if (ret) goto done;
 
-    fprintf(stdout, "Test LMOWFv1\n");
+    fprintf(stderr, "Test LMOWFv1\n");
     ret = test_LMOWFv1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test NTOWFv1\n");
+    fprintf(stderr, "Test NTOWFv1\n");
     ret = test_NTOWFv1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test LMResponse v1\n");
+    fprintf(stderr, "Test LMResponse v1\n");
     ret = test_LMResponseV1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test NTResponse v1\n");
+    fprintf(stderr, "Test NTResponse v1\n");
     ret = test_NTResponseV1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test SessionBaseKey v1\n");
+    fprintf(stderr, "Test SessionBaseKey v1\n");
     ret = test_SessionBaseKeyV1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test LM KeyExchangeKey\n");
+    fprintf(stderr, "Test LM KeyExchangeKey\n");
     ret = test_LM_KeyExchangeKey(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test EncryptedSessionKey v1 (1)\n");
+    fprintf(stderr, "Test EncryptedSessionKey v1 (1)\n");
     ret = test_EncryptedSessionKey1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test EncryptedSessionKey v1 (2)\n");
+    fprintf(stderr, "Test EncryptedSessionKey v1 (2)\n");
     ret = test_EncryptedSessionKey2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test EncryptedSessionKey v1 (3)\n");
+    fprintf(stderr, "Test EncryptedSessionKey v1 (3)\n");
     ret = test_EncryptedSessionKey3(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     /* override internal version for V1 test vector */
     ntlm_internal_set_version(6, 0, 6000, 15);
 
-    fprintf(stdout, "Test decoding ChallengeMessage v1\n");
+    fprintf(stderr, "Test decoding ChallengeMessage v1\n");
     ret = test_DecodeChallengeMessageV1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test encoding ChallengeMessage v1\n");
+    fprintf(stderr, "Test encoding ChallengeMessage v1\n");
     ret = test_EncodeChallengeMessageV1(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test LMResponse v2\n");
+    fprintf(stderr, "Test LMResponse v2\n");
     ret = test_LMResponseV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test NTResponse v2\n");
+    fprintf(stderr, "Test NTResponse v2\n");
     ret = test_NTResponseV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test SessionBaseKey v2\n");
+    fprintf(stderr, "Test SessionBaseKey v2\n");
     ret = test_SessionBaseKeyV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test EncryptedSessionKey v2\n");
+    fprintf(stderr, "Test EncryptedSessionKey v2\n");
     ret = test_EncryptedSessionKey(ctx, &T_NTLMv2.SessionBaseKey,
                                    &T_NTLMv2.EncryptedSessionKey);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     /* override internal version for V2 test vector */
     ntlm_internal_set_version(6, 0, 6000, 15);
 
-    fprintf(stdout, "Test decoding ChallengeMessage v2\n");
+    fprintf(stderr, "Test decoding ChallengeMessage v2\n");
     ret = test_DecodeChallengeMessageV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test encoding ChallengeMessage v2\n");
+    fprintf(stderr, "Test encoding ChallengeMessage v2\n");
     ret = test_EncodeChallengeMessageV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test decoding AuthenticateMessage v2\n");
+    fprintf(stderr, "Test decoding AuthenticateMessage v2\n");
     ret = test_DecodeAuthenticateMessageV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test encoding AuthenticateMessage v2\n");
+    fprintf(stderr, "Test encoding AuthenticateMessage v2\n");
     ret = test_EncodeAuthenticateMessageV2(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     /* override internal version for CBT test vector */
     ntlm_internal_set_version(6, 1, 7600, 15);
 
-    fprintf(stdout, "Test decoding ChallengeMessage v2 with CBT\n");
+    fprintf(stderr, "Test decoding ChallengeMessage v2 with CBT\n");
     ret = test_DecodeChallengeMessageV2CBT(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test encoding ChallengeMessage v2 with CBT\n");
+    fprintf(stderr, "Test encoding ChallengeMessage v2 with CBT\n");
     ret = test_EncodeChallengeMessageV2CBT(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test decoding AuthenticateMessage v2 with CBT\n");
+    fprintf(stderr, "Test decoding AuthenticateMessage v2 with CBT\n");
     ret = test_DecodeAuthenticateMessageV2CBT(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test sealing a Message with No Extended Security\n");
+    fprintf(stderr, "Test sealing a Message with No Extended Security\n");
     ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPv1noESS);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test sealing a Message with NTLMv1 Extended Security\n");
+    fprintf(stderr, "Test sealing a Message with NTLMv1 Extended Security\n");
     ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPEXv1);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test sealing a Message with NTLMv2 Extended Security\n");
+    fprintf(stderr, "Test sealing a Message with NTLMv2 Extended Security\n");
     ret = test_GSS_Wrap_EX(ctx, &T_GSSWRAPEXv2);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, " *** Test with NTLMv1 auth");
+    fprintf(stderr, " *** Test with NTLMv1 auth\n");
     setenv("LM_COMPAT_LEVEL", "0", 1);
 
-    fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
+    fprintf(stderr, "Test GSSAPI conversation (user env file)\n");
     ret = test_gssapi_1(true, false, false);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test GSSAPI conversation (no SEAL)\n");
+    fprintf(stderr, "Test GSSAPI conversation (no SEAL)\n");
     ret = test_gssapi_1(true, false, true);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test GSSAPI conversation (with password)\n");
+    fprintf(stderr, "Test GSSAPI conversation (with password)\n");
     ret = test_gssapi_1(false, false, false);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test Connectionless exchange\n");
+    fprintf(stderr, "Test Connectionless exchange\n");
     ret = test_gssapi_cl();
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, " *** Again forcing NTLMv2 auth");
+    fprintf(stderr, " *** Again forcing NTLMv2 auth\n");
     setenv("LM_COMPAT_LEVEL", "5", 1);
 
-    fprintf(stdout, "Test GSSAPI conversation (user env file)\n");
+    fprintf(stderr, "Test GSSAPI conversation (user env file)\n");
     ret = test_gssapi_1(true, false, false);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test GSSAPI conversation (no SEAL)\n");
+    fprintf(stderr, "Test GSSAPI conversation (no SEAL)\n");
     ret = test_gssapi_1(true, false, true);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test GSSAPI conversation (with password)\n");
+    fprintf(stderr, "Test GSSAPI conversation (with password)\n");
     ret = test_gssapi_1(false, false, false);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test GSSAPI conversation (with CB)\n");
+    fprintf(stderr, "Test GSSAPI conversation (with CB)\n");
     ret = test_gssapi_1(false, true, false);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test Connectionless exchange\n");
+    fprintf(stderr, "Test Connectionless exchange\n");
     ret = test_gssapi_cl();
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test RFC5801 SPI\n");
+    fprintf(stderr, "Test RFC5801 SPI\n");
     ret = test_gssapi_rfc5801();
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test RFC5587 SPI\n");
+    fprintf(stderr, "Test RFC5587 SPI\n");
     ret = test_gssapi_rfc5587();
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
-    fprintf(stdout, "Test ZERO LM_KEY\n");
+    fprintf(stderr, "Test ZERO LM_KEY\n");
     ret = test_ZERO_LMKEY(ctx);
-    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
 done:
     ntlm_free_ctx(&ctx);
-    return ret;
+    return gret;
 }
