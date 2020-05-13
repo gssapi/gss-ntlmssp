@@ -41,7 +41,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
             lm_chal_resp.data[0] = 0;
             lm_chal_resp.length = 1;
 
-        } else if (ctx->sec_req & SEC_V2_ONLY) {
+        } else if (gssntlm_sec_v2_ok(ctx)) {
 
             /* ### NTLMv2 ### */
             uint8_t client_chal[8];
@@ -159,7 +159,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
             uint8_t client_chal[8];
             struct ntlm_buffer cli_chal = { client_chal, 8 };
             struct ntlm_key session_base_key = { .length = 16 };
-            bool NoLMResponseNTLMv1 = true; /* FIXME: get from conf/env */
+            bool NoLMResponseNTLMv1 = !gssntlm_sec_lm_ok(ctx);
             bool ext_sec;
 
             nt_chal_resp.length = 24;
