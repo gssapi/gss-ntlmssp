@@ -26,17 +26,6 @@
 #define DEF_NB_DOMAIN "WORKSTATION"
 #define MAX_CHALRESP_LIFETIME 36 * 60 * 60 /* 36 hours in seconds */
 
-#define SEC_LEVEL_MIN 0
-#define SEC_LEVEL_MAX 5
-
-#define SEC_LM_OK 0x01
-#define SEC_NTLM_OK 0x02
-#define SEC_EXT_SEC_OK 0x04
-#define SEC_V2_ONLY 0x08
-#define SEC_DC_LM_OK 0x10
-#define SEC_DC_NTLM_OK 0x20
-#define SEC_DC_V2_OK 0x40
-
 #define NTLMSSP_DEFAULT_CLIENT_FLAGS ( \
                 NTLMSSP_NEGOTIATE_ALWAYS_SIGN | \
                 NTLMSSP_NEGOTIATE_128 | \
@@ -182,6 +171,7 @@ bool gssntlm_role_is_domain_member(struct gssntlm_ctx *ctx);
 
 bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx);
+bool gssntlm_sec_v2_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx);
 
 uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,

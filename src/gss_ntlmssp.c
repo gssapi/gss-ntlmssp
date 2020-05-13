@@ -23,6 +23,17 @@
 #include "gssapi_ntlmssp.h"
 #include "gss_ntlmssp.h"
 
+#define SEC_LEVEL_MIN 0
+#define SEC_LEVEL_MAX 5
+
+#define SEC_LM_OK 0x01
+#define SEC_NTLM_OK 0x02
+#define SEC_EXT_SEC_OK 0x04
+#define SEC_V2_OK 0x08
+#define SEC_DC_LM_OK 0x10
+#define SEC_DC_NTLM_OK 0x20
+#define SEC_DC_V2_OK 0x40
+
 const gss_OID_desc gssntlm_oid = {
     .length = GSS_NTLMSSP_OID_LENGTH,
     .elements = discard_const(GSS_NTLMSSP_OID_STRING)
@@ -46,15 +57,15 @@ uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx)
         resp |= SEC_NTLM_OK | SEC_EXT_SEC_OK;
         break;
     case 3:
-        resp |= SEC_V2_ONLY | SEC_EXT_SEC_OK;
+        resp |= SEC_V2_OK | SEC_EXT_SEC_OK;
         break;
     case 4:
-        resp |= SEC_NTLM_OK | SEC_EXT_SEC_OK;
         if (ctx->role == GSSNTLM_DOMAIN_CONTROLLER) resp &= ~SEC_DC_LM_OK;
+        resp |= SEC_V2_OK | SEC_EXT_SEC_OK;
         break;
     case 5:
         if (ctx->role == GSSNTLM_DOMAIN_CONTROLLER) resp = SEC_DC_V2_OK;
-        resp |= SEC_V2_ONLY | SEC_EXT_SEC_OK;
+        resp |= SEC_V2_OK | SEC_EXT_SEC_OK;
         break;
     default:
         resp = 0xff;
@@ -131,6 +142,20 @@ bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx)
         return true; /* defer decision to DC */
     case GSSNTLM_DOMAIN_CONTROLLER:
         return (ctx->sec_req & SEC_DC_NTLM_OK);
+    }
+    return false;
+}
+
+bool gssntlm_sec_v2_ok(struct gssntlm_ctx *ctx)
+{
+    switch (ctx->role) {
+    case GSSNTLM_CLIENT:
+    case GSSNTLM_SERVER:
+        return (ctx->sec_req & SEC_V2_OK);
+    case GSSNTLM_DOMAIN_SERVER:
+        return true; /* defer decision to DC */
+    case GSSNTLM_DOMAIN_CONTROLLER:
+        return (ctx->sec_req & SEC_DC_V2_OK);
     }
     return false;
 }
