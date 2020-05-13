@@ -195,8 +195,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         gssntlm_set_role(ctx, GSSNTLM_CLIENT, nb_domain_name);
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
-        if (ctx->sec_req == 0xff) {
+        if (!gssntlm_required_security(lm_compat_lvl, ctx)) {
             set_GSSERR(ERR_BADLMLVL);
             goto done;
         }
@@ -646,8 +645,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         gssntlm_set_role(ctx, GSSNTLM_SERVER, nb_domain_name);
 
         lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-        ctx->sec_req = gssntlm_required_security(lm_compat_lvl, ctx);
-        if (ctx->sec_req == 0xff) {
+        if (!gssntlm_required_security(lm_compat_lvl, ctx)) {
             set_GSSERR(ERR_BADLMLVL);
             goto done;
         }

@@ -39,7 +39,7 @@ const gss_OID_desc gssntlm_oid = {
     .elements = discard_const(GSS_NTLMSSP_OID_STRING)
 };
 
-uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx)
+bool gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx)
 {
     uint8_t resp;
 
@@ -68,11 +68,11 @@ uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx)
         resp |= SEC_V2_OK | SEC_EXT_SEC_OK;
         break;
     default:
-        resp = 0xff;
-        break;
+        return false;
     }
 
-    return resp;
+    ctx->sec_req = resp;
+    return true;
 }
 
 void gssntlm_set_role(struct gssntlm_ctx *ctx,
