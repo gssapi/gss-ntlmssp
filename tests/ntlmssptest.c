@@ -792,6 +792,23 @@ int test_NTResponseV1(struct ntlm_ctx *ctx)
                            result.data, result.length);
 }
 
+int test_LM_KeyExchangeKey(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key result = { .length = 16 };
+    struct ntlm_buffer lm_response = {
+        .data = T_NTLMv1.LMv1Response,
+        .length = sizeof(T_NTLMv1.LMv1Response)
+    };
+    int ret;
+
+    ret = KXKEY(ctx, false, true, false, T_ServerChallenge,
+                &T_NTLMv1.ResponseKeyLM, &T_NTLMv1.SessionBaseKey,
+                &lm_response, &result);
+    if (ret) return ret;
+
+    return test_keys("results", &T_NTLMv1.KeyExchangeKey, &result);
+}
+
 int test_NTOWFv2(struct ntlm_ctx *ctx)
 {
     struct ntlm_key nt_hash = { .length = 16 };
@@ -2162,6 +2179,47 @@ do { \
     return 0;
 }
 
+/* test with data from Jordan Borean, the DC apparently has a zero key */
+int test_ZERO_LMKEY(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key lmowf = { .data = {0}, .length = 16 };
+    struct ntlm_key ntowf = { .length = 16 };
+    struct ntlm_key sessionkey = { .length = 16 };
+    struct ntlm_key result = { .length = 16 };
+    const char *password = "VagrantPass1";
+    uint8_t serverChallenge[] = {
+        0x45, 0x56, 0xB5, 0x69, 0xC9, 0x53, 0x6A, 0x31
+    };
+    struct ntlm_key MS_SessionKey = {
+        .data = {
+            0x5F, 0xFA, 0x2B, 0xF7, 0x27, 0xAD, 0xD1, 0x01,
+            0xC2, 0x6C, 0xF2, 0xE6, 0xC1, 0x13, 0xBD, 0x6D
+        },
+        .length = 16
+    };
+    uint8_t LM_Response[] = {
+        0x8B, 0xFC, 0xFE, 0xD5, 0xA3, 0x6D, 0x25, 0x13,
+        0x86, 0xCC, 0x38, 0xDE, 0x78, 0xBA, 0xE1, 0x62,
+        0x24, 0xC5, 0x2F, 0xD7, 0x35, 0x35, 0x5E, 0x24
+    };
+    struct ntlm_buffer lm_response = {
+        .data = LM_Response,
+        .length = 24
+    };
+    int ret;
+
+    ret = NTOWFv1(password, &ntowf);
+    if (ret) return ret;
+    ret = ntlm_session_base_key(&ntowf, &sessionkey);
+    if (ret) return ret;
+
+    ret = KXKEY(ctx, false, true, false, serverChallenge, &lmowf,
+                &sessionkey, &lm_response, &result);
+    if (ret) return ret;
+
+    return test_keys("results", &MS_SessionKey, &result);
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2195,6 +2253,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test SessionBaseKey v1\n");
     ret = test_SessionBaseKeyV1(ctx);
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test LM KeyExchangeKey\n");
+    ret = test_LM_KeyExchangeKey(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
     fprintf(stdout, "Test EncryptedSessionKey v1 (1)\n");
@@ -2331,6 +2393,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stdout, "Test RFC5587 SPI\n");
     ret = test_gssapi_rfc5587();
+    fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+
+    fprintf(stdout, "Test ZERO LM_KEY\n");
+    ret = test_ZERO_LMKEY(ctx);
     fprintf(stdout, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
 
 done:
