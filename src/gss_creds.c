@@ -25,16 +25,50 @@
 
 #include "gss_ntlmssp.h"
 
+static int hex_to_key(const char *hex, struct ntlm_key *key)
+{
+    size_t len = strlen(hex);
+    if (len != 32) return ERR_KEYLEN;
+
+    for (int i = 0; i < 16; i++) {
+        key->data[i] = 0;
+        for (int j = 0; j < 2; j++) {
+            uint8_t c = hex[i*2+j];
+            if (c >= '0' && c <= '9') {
+                c -= '0';
+            } else if (c >= 'A' && c <= 'F') {
+                c -= 'A' - 10;
+            } else if (c >= 'a' && c <= 'f') {
+                c -= 'a' - 10;
+            } else {
+                return ERR_BADARG;
+            }
+            key->data[i] |= (c << ((1 - j) * 4));
+        }
+    }
+    key->length = 16;
+    return 0;
+}
+
 static int get_user_file_creds(struct gssntlm_name *name,
                                struct gssntlm_cred *cred)
 {
+    struct gssntlm_ctx *ctx;
+    int lm_compat_lvl = -1;
     const char *envvar;
     char line[1024];
-    char *dom, *usr, *pwd;
+    char *field1, *field2, *field3, *field4;
+    char *dom, *usr, *pwd, *lm, *nt;
     char *p;
     bool found = false;
     FILE *f;
     int ret;
+
+    ctx = calloc(1, sizeof(struct gssntlm_ctx));
+    if (!ctx) return ENOMEM;
+
+    lm_compat_lvl = gssntlm_get_lm_compatibility_level();
+    if (!gssntlm_required_security(lm_compat_lvl, ctx)) return ERR_BADLMLVL;
 
     /* use the same var used by Heimdal */
     envvar = getenv("NTLM_USER_FILE");
@@ -44,22 +78,70 @@ static int get_user_file_creds(struct gssntlm_name *name,
      * some compatibility between implementations:
      * Each line is one entry like the following:
      * DOMAIN:USERNAME:PASSWORD */
+
+    /* **OR** */
+
+    /* Use the smbpasswd file format for Samba compatibility.
+     * Each line is one entry like the following:
+     * NAME:UID:LM_HASH:NT_HASH:ACCT_FLAGS:TIMESTAMP
+     * Fields after NT_HASH are ignored
+     *
+     * The smbpasswd format is extended to allow domain qualified names.
+     */
+
+    /* The second format is distinguished from the first based on
+     * the number of fields encountered. It is technically possible
+     * to mix both formats in a single file though it is not
+     * recommended.
+     */
+
     f = fopen(envvar, "r");
     if (!f) return errno;
 
     while(fgets(line, 1024, f)) {
         p = line;
         if (*p == '#') continue;
-        dom = p;
-        p = strchr(dom, ':');
+        field1 = p;
+        p = strchr(field1, ':');
         if (!p) continue;
         *p++ = '\0';
-        usr = p;
-        p = strchr(usr, ':');
+        field2 = p;
+        p = strchr(field2, ':');
         if (!p) continue;
         *p++ = '\0';
-        pwd = p;
-        strsep(&p, "\r\n");
+        field3 = p;
+        p = strchr(field3, ':');
+        if (!p) {
+            /* Assume Heimdal file format */
+            p = field3;
+            strsep(&p, "\r\n");
+
+            dom = field1;
+            usr = field2;
+            pwd = field3;
+            lm = NULL;
+            nt = NULL;
+        } else {
+            *p++ = '\0';
+            field4 = p;
+            p = strchr(field4, ':');
+            if (!p) continue;
+            *p++ = '\0';
+            /* Assume smbpasswd file format */
+            dom = NULL;
+            usr = field1;
+            pwd = NULL;
+            lm = field3;
+            nt = field4;
+
+            /* check if username is domain qualified */
+            p = strchr(usr, '\\');
+            if (p) {
+                dom = usr;
+                *p++ = '\0';
+                usr = p;
+            }
+        }
 
         /* if no name is specified use the first found */
         if (name == NULL) {
@@ -67,7 +149,7 @@ static int get_user_file_creds(struct gssntlm_name *name,
             break;
         }
 
-        if (name->data.user.domain) {
+        if (name->data.user.domain && dom) {
             if (!ntlm_casecmp(dom, name->data.user.domain)) continue;
         }
         if (name->data.user.name) {
@@ -86,19 +168,34 @@ static int get_user_file_creds(struct gssntlm_name *name,
 
     cred->type = GSSNTLM_CRED_USER;
     cred->cred.user.user.type = GSSNTLM_NAME_USER;
-    cred->cred.user.user.data.user.domain = strdup(dom);
-    if (!cred->cred.user.user.data.user.domain) return ENOMEM;
+    if (dom) {
+        cred->cred.user.user.data.user.domain = strdup(dom);
+        if (!cred->cred.user.user.data.user.domain) return ENOMEM;
+    }
     cred->cred.user.user.data.user.name = strdup(usr);
     if (!cred->cred.user.user.data.user.name) return ENOMEM;
-    cred->cred.user.nt_hash.length = 16;
 
-    ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
-    if (ret) return ret;
+    if (pwd) {
+        cred->cred.user.nt_hash.length = 16;
 
-    if (gssntlm_get_lm_compatibility_level() < 3) {
-        cred->cred.user.lm_hash.length = 16;
-        ret = LMOWFv1(pwd, &cred->cred.user.lm_hash);
+        ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
         if (ret) return ret;
+
+        if (gssntlm_sec_lm_ok(ctx)) {
+            cred->cred.user.lm_hash.length = 16;
+            ret = LMOWFv1(pwd, &cred->cred.user.lm_hash);
+            if (ret) return ret;
+        }
+    }
+
+    if (lm && nt) {
+        ret = hex_to_key(nt, &cred->cred.user.nt_hash);
+        if (ret) return ret;
+
+        if (gssntlm_sec_lm_ok(ctx)) {
+            ret = hex_to_key(lm, &cred->cred.user.lm_hash);
+            if (ret) return ret;
+        }
     }
 
     return 0;
@@ -132,34 +229,6 @@ static int get_server_creds(struct gssntlm_name *name,
     gssntlm_int_release_name((struct gssntlm_name *)gssname);
 
     return ret;
-}
-
-static int hex_to_key(const char *hex, struct ntlm_key *key)
-{
-    const char *p;
-    uint32_t i, j;
-    uint8_t t;
-    size_t len;
-
-    len = strlen(hex);
-    if (len != 32) return EINVAL;
-
-    for (i = 0; i < 16; i++) {
-        for (j = 0; j < 2; j++) {
-            p = &hex[j + (i * 2)];
-            if (*p >= '0' && *p <= '9') {
-                t = (*p - '0');
-            } else if (*p >= 'A' && *p <= 'F') {
-                t = (*p - 'A' + 10);
-            } else {
-                return EINVAL;
-            }
-            if (j == 0) t = t << 4;
-            key->data[i] = t;
-        }
-    }
-    key->length = 16;
-    return 0;
 }
 
 #define GENERIC_CS_PASSWORD "password"
