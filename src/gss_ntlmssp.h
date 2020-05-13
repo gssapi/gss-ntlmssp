@@ -161,7 +161,7 @@ static inline uint32_t gssntlmssp_ret_err(uint32_t *s, uint32_t n, uint32_t j)
     DEBUG_GSS_ERRORS((retmaj = (maj)), (retmin = (min))) ? 0 : \
      gssntlmssp_ret_err(minor_status, retmin, retmaj)
 
-uint8_t gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx);
+bool gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx);
 
 void gssntlm_set_role(struct gssntlm_ctx *ctx,
                       int desired, char *nb_domain_name);
