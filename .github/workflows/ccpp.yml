@@ -6,9 +6,11 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
+    - name: update repositories
+      run: sudo apt-get update
     - name: install dependency
       run: sudo apt-get install libkrb5-dev libunistring-dev gettext xsltproc libxml2-utils docbook-xml  docbook-xsl
     - name: autoreconf
@@ -19,3 +21,9 @@ jobs:
       run: make
     - name: make check
       run: make check
+    - name: Upload logs
+      uses: actions/upload-artifact@v1
+      if: failure()
+      with:
+        name: testlogs
+        path: test-suite.log
