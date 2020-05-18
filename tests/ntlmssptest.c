@@ -1481,7 +1481,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     gss_buffer_desc pwbuf;
     gss_buffer_desc nbuf;
     uint32_t retmin, retmaj;
-    const char *msg = "Sample, signature checking, message.";
+    const char *msg = "Sample, payload checking, message.";
     gss_buffer_desc message = { strlen(msg), discard_const(msg) };
     gss_buffer_desc ctx_token;
     gss_OID actual_mech = GSS_C_NO_OID;
@@ -1494,6 +1494,7 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     };
     uint32_t ssf, expect_ssf;
     uint32_t req_flags;
+    int conf_state;
     int ret;
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
@@ -1720,24 +1721,62 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     gss_release_buffer(&retmin, &srv_token);
 
-    retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL, &cli_token);
+    retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, &conf_state,
+                          &cli_token);
     if (retmaj != GSS_S_COMPLETE) {
         print_gss_error("gssntlm_wrap(cli) failed!",
                         retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
+    if (conf_state == 0) {
+        fprintf(stderr, "WARN: gssntlm_wrap(cli) returned 0 conf_state!\n");
+        fflush(stderr);
+    }
 
     retmaj = gssntlm_unwrap(&retmin, srv_ctx,
-                            &cli_token, &srv_token, NULL, NULL);
+                            &cli_token, &srv_token, &conf_state, NULL);
     if (retmaj != GSS_S_COMPLETE) {
         print_gss_error("gssntlm_unwrap(srv) failed!",
                         retmaj, retmin);
         ret = EINVAL;
         goto done;
     }
+    if (conf_state == 0) {
+        fprintf(stderr, "WARN: gssntlm_wrap(srv) returned 0 conf_state!\n");
+        fflush(stderr);
+    }
 
-    if (memcmp(message.value, srv_token.value, srv_token.length) != 0) {
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_wrap(&retmin, srv_ctx, 1, 0, &message, &conf_state,
+                          &srv_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_wrap(srv) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    if (conf_state == 0) {
+        fprintf(stderr, "WARN: gssntlm_wrap(srv) returned 0 conf_state!\n");
+        fflush(stderr);
+    }
+
+    retmaj = gssntlm_unwrap(&retmin, cli_ctx,
+                            &srv_token, &cli_token, &conf_state, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_unwrap(cli) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    if (conf_state == 0) {
+        fprintf(stderr, "WARN: gssntlm_wrap(cli) returned 0 conf_state!\n");
+        fflush(stderr);
+    }
+
+    if (memcmp(message.value, cli_token.value, cli_token.length) != 0) {
         print_gss_error("sealing and unsealing failed to return the "
                         "same result",
                         retmaj, retmin);

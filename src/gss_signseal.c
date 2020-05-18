@@ -161,6 +161,9 @@ uint32_t gssntlm_wrap(uint32_t *minor_status,
         return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
+    if (conf_state) {
+        *conf_state = 1;
+    }
     return GSSERRS(0, GSS_S_COMPLETE);
 }
 
@@ -217,6 +220,9 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSSERRS(0, GSS_S_BAD_SIG);
     }
 
+    if (conf_state) {
+        *conf_state = 1;
+    }
     return GSSERRS(0, GSS_S_COMPLETE);
 }
 
