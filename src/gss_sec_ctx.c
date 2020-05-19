@@ -1008,6 +1008,8 @@ done:
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
     *context_handle = (gss_ctx_id_t)ctx;
+    gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
+    gssntlm_release_name(&tmpmin, (gss_name_t *)&gss_usrname);
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
     safefree(computer_name);
     safefree(nb_computer_name);
