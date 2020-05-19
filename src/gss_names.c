@@ -157,6 +157,8 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
     /* TODO: check mech_type == gssntlm_oid */
     if (mech_type == GSS_C_NO_OID) {
         return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
+    } else if (!gss_oid_equal(mech_type, &gssntlm_oid)) {
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_MECH);
     }
 
     name = calloc(1, sizeof(struct gssntlm_name));

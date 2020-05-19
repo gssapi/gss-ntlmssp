@@ -193,3 +193,16 @@ int gssntlm_get_lm_compatibility_level(void)
     /* use 3 by default for better compatibility */
     return 3;
 }
+
+bool gssntlm_is_anonymous_allowed(void)
+{
+    const char *envvar;
+
+    envvar = getenv("NTLM_ALLOW_ANONYMOUS");
+    if (envvar != NULL) {
+        return (atoi(envvar) > 0);
+    }
+
+    /* Not allowed by default */
+    return false;
+}
