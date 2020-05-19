@@ -761,6 +761,7 @@ static uint32_t make_ma_oid_set(uint32_t *minor_status, gss_OID_set *ma_set,
         GSS_C_MA_OOS_DET,
         GSS_C_MA_CBINDINGS,
         GSS_C_MA_CTX_TRANS,
+        GSS_C_MA_AUTH_INIT_ANON,
         NULL
     };
     uint32_t maj = 0;

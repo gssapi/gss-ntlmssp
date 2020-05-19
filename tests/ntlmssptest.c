@@ -2181,7 +2181,7 @@ int test_gssapi_rfc5587(void)
         return EINVAL;
     }
 
-    if (mech_attrs->count != 9) {
+    if (mech_attrs->count != 10) {
         fprintf(stderr, "expected 9 mech_attr oids, got %lu\n",
                 mech_attrs->count);
         return EINVAL;
