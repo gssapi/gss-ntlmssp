@@ -651,7 +651,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         }
 
         ctx->neg_flags = NTLMSSP_DEFAULT_SERVER_FLAGS;
-        /* Fixme: How do we allow anonymous negotition ? */
 
         if (gssntlm_sec_lm_ok(ctx)) {
             ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
@@ -847,9 +846,17 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             (((lm_chal_resp.length == 1) && (lm_chal_resp.data[0] == '\0')) ||
              (lm_chal_resp.length == 0))) {
             /* Anonymous auth */
-            /* FIXME: not supported for now */
-            set_GSSERR(ERR_NOTSUPPORTED);
-            goto done;
+            if (!gssntlm_is_anonymous_allowed()) {
+                set_GSSERRS(ERR_NOUSRCRED, GSS_S_DEFECTIVE_CREDENTIAL);
+                goto done;
+            }
+
+            retmaj = gssntlm_import_name(&retmin, NULL, GSS_C_NT_ANONYMOUS,
+                                         (gss_name_t *)&ctx->source_name);
+            if (retmaj) goto done;
+
+            /* nullSession */
+            memset(key_exchange_key.data, 0, 16);
 
         } else {
 
