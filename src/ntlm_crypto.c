@@ -867,6 +867,11 @@ int ntlm_seal(uint32_t flags,
 
     h = &state->send;
 
+    if (!(flags & NTLMSSP_NEGOTIATE_SEAL) ||
+        (h->seal_handle == NULL)) {
+        return ENOTSUP;
+    }
+
     ret = RC4_UPDATE(h->seal_handle, message, output);
     if (ret) return ret;
 
@@ -902,6 +907,11 @@ int ntlm_unseal(uint32_t flags,
         h = &state->send;
     } else {
         h = &state->recv;
+    }
+
+    if (!(flags & NTLMSSP_NEGOTIATE_SEAL) ||
+        (h->seal_handle == NULL)) {
+        return ENOTSUP;
     }
 
     ret = RC4_UPDATE(h->seal_handle, message, output);

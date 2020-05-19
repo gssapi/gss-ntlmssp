@@ -1721,71 +1721,99 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
 
     gss_release_buffer(&retmin, &srv_token);
 
-    retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, &conf_state,
-                          &cli_token);
-    if (retmaj != GSS_S_COMPLETE) {
-        print_gss_error("gssntlm_wrap(cli) failed!",
-                        retmaj, retmin);
-        ret = EINVAL;
-        goto done;
-    }
-    if (conf_state == 0) {
-        fprintf(stderr, "WARN: gssntlm_wrap(cli) returned 0 conf_state!\n");
-        fflush(stderr);
-    }
+    if (no_seal) {
+        retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL,
+                              &cli_token);
+        if ((retmaj != GSS_S_FAILURE) && (retmin != ENOTSUP)) {
+            fprintf(stderr, "WARN: gssntlm_wrap(cli) did not fail!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
 
-    retmaj = gssntlm_unwrap(&retmin, srv_ctx,
-                            &cli_token, &srv_token, &conf_state, NULL);
-    if (retmaj != GSS_S_COMPLETE) {
-        print_gss_error("gssntlm_unwrap(srv) failed!",
-                        retmaj, retmin);
-        ret = EINVAL;
-        goto done;
-    }
-    if (conf_state == 0) {
-        fprintf(stderr, "WARN: gssntlm_wrap(srv) returned 0 conf_state!\n");
-        fflush(stderr);
-    }
+        retmaj = gssntlm_wrap(&retmin, srv_ctx, 1, 0, &message, NULL,
+                              &srv_token);
+        if ((retmaj != GSS_S_FAILURE) && (retmin != ENOTSUP)) {
+            fprintf(stderr, "WARN: gssntlm_wrap(srv) did not fail!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
+    } else {
+        retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, &conf_state,
+                              &cli_token);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gssntlm_wrap(cli) failed!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+        if (conf_state == 0) {
+            fprintf(stderr, "WARN: gssntlm_wrap(cli) gave 0 conf_state!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
 
-    gss_release_buffer(&retmin, &cli_token);
-    gss_release_buffer(&retmin, &srv_token);
+        retmaj = gssntlm_unwrap(&retmin, srv_ctx,
+                                &cli_token, &srv_token, &conf_state, NULL);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gssntlm_unwrap(srv) failed!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+        if (conf_state == 0) {
+            fprintf(stderr, "WARN: gssntlm_wrap(srv) gave 0 conf_state!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
 
-    retmaj = gssntlm_wrap(&retmin, srv_ctx, 1, 0, &message, &conf_state,
-                          &srv_token);
-    if (retmaj != GSS_S_COMPLETE) {
-        print_gss_error("gssntlm_wrap(srv) failed!",
-                        retmaj, retmin);
-        ret = EINVAL;
-        goto done;
-    }
-    if (conf_state == 0) {
-        fprintf(stderr, "WARN: gssntlm_wrap(srv) returned 0 conf_state!\n");
-        fflush(stderr);
-    }
+        gss_release_buffer(&retmin, &cli_token);
+        gss_release_buffer(&retmin, &srv_token);
 
-    retmaj = gssntlm_unwrap(&retmin, cli_ctx,
-                            &srv_token, &cli_token, &conf_state, NULL);
-    if (retmaj != GSS_S_COMPLETE) {
-        print_gss_error("gssntlm_unwrap(cli) failed!",
-                        retmaj, retmin);
-        ret = EINVAL;
-        goto done;
-    }
-    if (conf_state == 0) {
-        fprintf(stderr, "WARN: gssntlm_wrap(cli) returned 0 conf_state!\n");
-        fflush(stderr);
-    }
+        retmaj = gssntlm_wrap(&retmin, srv_ctx, 1, 0, &message, &conf_state,
+                              &srv_token);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gssntlm_wrap(srv) failed!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+        if (conf_state == 0) {
+            fprintf(stderr, "WARN: gssntlm_wrap(srv) gave 0 conf_state!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
 
-    if (memcmp(message.value, cli_token.value, cli_token.length) != 0) {
-        print_gss_error("sealing and unsealing failed to return the "
-                        "same result",
-                        retmaj, retmin);
-        ret = EINVAL;
-        goto done;
-    }
+        retmaj = gssntlm_unwrap(&retmin, cli_ctx,
+                                &srv_token, &cli_token, &conf_state, NULL);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gssntlm_unwrap(cli) failed!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+        if (conf_state == 0) {
+            fprintf(stderr, "WARN: gssntlm_wrap(cli) gave 0 conf_state!\n");
+            fflush(stderr);
+            ret = EINVAL;
+            goto done;
+        }
 
-    gss_release_buffer(&retmin, &cli_token);
-    gss_release_buffer(&retmin, &srv_token);
+        if (memcmp(message.value, cli_token.value, cli_token.length) != 0) {
+            print_gss_error("sealing and unsealing failed to return the "
+                            "same result",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+
+        gss_release_buffer(&retmin, &cli_token);
+        gss_release_buffer(&retmin, &srv_token);
+    }
 
     gssntlm_release_name(&retmin, &gss_username);
     gssntlm_release_name(&retmin, &gss_srvname);
