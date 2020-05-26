@@ -847,8 +847,8 @@ int ntlm_sign(uint32_t flags, int direction,
         return 0;
 
     } else if (flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN) {
-        uint32_t le_seq = htole32(h->seq_num);
-        memcpy(signature->data, &le_seq, 4);
+        uint32_t sig_ver = htole32(NTLMSSP_MESSAGE_SIGNATURE_VERSION);
+        memcpy(signature->data, &sig_ver, 4);
         memset(&signature->data[4], 0, 12);
         return 0;
     }
