@@ -100,12 +100,12 @@ int ntlm_init_ctx(struct ntlm_ctx **ctx)
     _ctx = calloc(1, sizeof(struct ntlm_ctx));
     if (!_ctx) return ENOMEM;
 
-    _ctx->from_oem = iconv_open("UCS-2LE", "UTF-8");
+    _ctx->from_oem = iconv_open("UTF16LE", "UTF-8");
     if (_ctx->from_oem == (iconv_t) -1) {
         ret = errno;
     }
 
-    _ctx->to_oem = iconv_open("UTF-8", "UCS-2LE");
+    _ctx->to_oem = iconv_open("UTF-8", "UTF16LE");
     if (_ctx->to_oem == (iconv_t) -1) {
         iconv_close(_ctx->from_oem);
         ret = errno;
@@ -189,7 +189,7 @@ bool ntlm_casecmp(const char *s1, const char *s2)
 
 /**
  * @brief  Converts a string using the provided iconv context.
- *         This function is ok only to convert utf8<->ucs2
+ *         This function is ok only to convert utf8<->utf16le
  *
  * @param cd        The iconv context
  * @param in        Input buffer
@@ -290,7 +290,7 @@ done:
     return 0;
 }
 
-static int ntlm_encode_ucs2_str_hdr(struct ntlm_ctx *ctx,
+static int ntlm_encode_u16l_str_hdr(struct ntlm_ctx *ctx,
                                     struct wire_field_hdr *hdr,
                                     struct ntlm_buffer *buffer,
                                     size_t *data_offs,
@@ -313,7 +313,7 @@ static int ntlm_encode_ucs2_str_hdr(struct ntlm_ctx *ctx,
     return 0;
 }
 
-static int ntlm_decode_ucs2_str_hdr(struct ntlm_ctx *ctx,
+static int ntlm_decode_u16l_str_hdr(struct ntlm_ctx *ctx,
                                     struct wire_field_hdr *str_hdr,
                                     struct ntlm_buffer *buffer,
                                     size_t payload_offs, char **str)
@@ -431,7 +431,7 @@ done:
     return 0;
 }
 
-static int ntlm_encode_av_pair_ucs2_str(struct ntlm_ctx *ctx,
+static int ntlm_encode_av_pair_u16l_str(struct ntlm_ctx *ctx,
                                         struct ntlm_buffer *buffer,
                                         size_t *data_offs,
                                         enum msv_av_ids av_id,
@@ -459,7 +459,7 @@ static int ntlm_encode_av_pair_ucs2_str(struct ntlm_ctx *ctx,
     return 0;
 }
 
-static int ntlm_decode_av_pair_ucs2_str(struct ntlm_ctx *ctx,
+static int ntlm_decode_av_pair_u16l_str(struct ntlm_ctx *ctx,
                                         struct wire_av_pair *av_pair,
                                         char **str)
 {
@@ -570,35 +570,35 @@ int ntlm_encode_target_info(struct ntlm_ctx *ctx, char *nb_computer_name,
     if (!buffer.data) return ENOMEM;
 
     if (nb_computer_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_NB_COMPUTER_NAME,
                                            nb_computer_name,
                                            nb_computer_name_len);
         if (ret) goto done;
     }
     if (nb_domain_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_NB_DOMAIN_NAME,
                                            nb_domain_name,
                                            nb_domain_name_len);
         if (ret) goto done;
     }
     if (dns_computer_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_DNS_COMPUTER_NAME,
                                            dns_computer_name,
                                            dns_computer_name_len);
         if (ret) goto done;
     }
     if (dns_domain_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_DNS_DOMAIN_NAME,
                                            dns_domain_name,
                                            dns_domain_name_len);
         if (ret) goto done;
     }
     if (dns_tree_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_DNS_TREE_NAME,
                                            dns_tree_name,
                                            dns_tree_name_len);
@@ -626,7 +626,7 @@ int ntlm_encode_target_info(struct ntlm_ctx *ctx, char *nb_computer_name,
         if (ret) goto done;
     }
     if (av_target_name) {
-        ret = ntlm_encode_av_pair_ucs2_str(ctx, &buffer, &data_offs,
+        ret = ntlm_encode_av_pair_u16l_str(ctx, &buffer, &data_offs,
                                            MSV_AV_TARGET_NAME,
                                            av_target_name,
                                            av_target_name_len);
@@ -695,7 +695,7 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
             break;
         case MSV_AV_TARGET_NAME:
             if (!av_target_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &av_target);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &av_target);
             if (ret) goto done;
             break;
         case MSV_AV_SINGLE_HOST:
@@ -715,27 +715,27 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
             break;
         case MSV_AV_DNS_TREE_NAME:
             if (!dns_tree_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &dns_tree);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_tree);
             if (ret) goto done;
             break;
         case MSV_AV_DNS_DOMAIN_NAME:
             if (!dns_domain_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &dns_domain);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_domain);
             if (ret) goto done;
             break;
         case MSV_AV_DNS_COMPUTER_NAME:
             if (!dns_computer_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &dns_computer);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_computer);
             if (ret) goto done;
             break;
         case MSV_AV_NB_DOMAIN_NAME:
             if (!nb_domain_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &nb_domain);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &nb_domain);
             if (ret) goto done;
             break;
         case MSV_AV_NB_COMPUTER_NAME:
             if (!nb_computer_name) continue;
-            ret = ntlm_decode_av_pair_ucs2_str(ctx, av_pair, &nb_computer);
+            ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &nb_computer);
             if (ret) goto done;
             break;
         default:
@@ -1063,7 +1063,7 @@ int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
     if ((flags & NTLMSSP_TARGET_TYPE_SERVER)
         || (flags & NTLMSSP_TARGET_TYPE_DOMAIN)) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_encode_ucs2_str_hdr(ctx, &msg->target_name, &buffer,
+            ret = ntlm_encode_u16l_str_hdr(ctx, &msg->target_name, &buffer,
                                            &data_offs, target_name, target_len);
         } else {
             ret = ntlm_encode_oem_str(&msg->target_name, &buffer,
@@ -1114,7 +1114,7 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
     if ((flags & NTLMSSP_TARGET_TYPE_SERVER)
         || (flags & NTLMSSP_TARGET_TYPE_DOMAIN)) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_decode_ucs2_str_hdr(ctx, &msg->target_name, buffer,
+            ret = ntlm_decode_u16l_str_hdr(ctx, &msg->target_name, buffer,
                                            payload_offs, &trg);
         } else {
             ret = ntlm_decode_oem_str(&msg->target_name, buffer,
@@ -1251,7 +1251,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
 
     if (domain_name_len) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_encode_ucs2_str_hdr(ctx, &msg->domain_name,
+            ret = ntlm_encode_u16l_str_hdr(ctx, &msg->domain_name,
                                            &buffer, &data_offs,
                                            domain_name, domain_name_len);
         } else {
@@ -1263,7 +1263,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     }
     if (user_name_len) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_encode_ucs2_str_hdr(ctx, &msg->user_name,
+            ret = ntlm_encode_u16l_str_hdr(ctx, &msg->user_name,
                                            &buffer, &data_offs,
                                            user_name, user_name_len);
         } else {
@@ -1275,7 +1275,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     }
     if (workstation_len) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_encode_ucs2_str_hdr(ctx, &msg->workstation,
+            ret = ntlm_encode_u16l_str_hdr(ctx, &msg->workstation,
                                            &buffer, &data_offs,
                                            workstation, workstation_len);
         } else {
@@ -1381,7 +1381,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     }
     if (msg->domain_name.len != 0 && domain_name) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_decode_ucs2_str_hdr(ctx, &msg->domain_name, buffer,
+            ret = ntlm_decode_u16l_str_hdr(ctx, &msg->domain_name, buffer,
                                            payload_offs, &dom);
         } else {
             ret = ntlm_decode_oem_str(&msg->domain_name, buffer,
@@ -1391,7 +1391,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     }
     if (msg->user_name.len != 0 && user_name) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_decode_ucs2_str_hdr(ctx, &msg->user_name, buffer,
+            ret = ntlm_decode_u16l_str_hdr(ctx, &msg->user_name, buffer,
                                            payload_offs, &usr);
         } else {
             ret = ntlm_decode_oem_str(&msg->user_name, buffer,
@@ -1401,7 +1401,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     }
     if (msg->workstation.len != 0 && workstation) {
         if (flags & NTLMSSP_NEGOTIATE_UNICODE) {
-            ret = ntlm_decode_ucs2_str_hdr(ctx, &msg->workstation, buffer,
+            ret = ntlm_decode_u16l_str_hdr(ctx, &msg->workstation, buffer,
                                            payload_offs, &wks);
         } else {
             ret = ntlm_decode_oem_str(&msg->workstation, buffer,

@@ -2289,6 +2289,25 @@ int test_ZERO_LMKEY(struct ntlm_ctx *ctx)
     return test_keys("results", &MS_SessionKey, &result);
 }
 
+int test_NTOWF_UTF16(struct ntlm_ctx *ctx)
+{
+    const char *passwd = "Pass\xF0\x9D\x84\x9E";
+    struct ntlm_key expected = {
+        .data = {
+            0x0d, 0x72, 0xdd, 0xde, 0xdd, 0xba, 0xe5, 0xff,
+            0x24, 0x48, 0x20, 0xe0, 0x72, 0x41, 0x3b, 0x90
+        },
+        .length = 16
+    };
+    struct ntlm_key result = { .length = 16 };
+    int ret;
+
+    ret = NTOWFv1(passwd, &result);
+    if (ret) return ret;
+
+    return test_keys("results", &expected, &result);
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2504,6 +2523,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test ZERO LM_KEY\n");
     ret = test_ZERO_LMKEY(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test NTOWF iwith UTF16\n");
+    ret = test_NTOWF_UTF16(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
