@@ -96,7 +96,10 @@ int LMOWFv1(const char *password, struct ntlm_key *result)
     if (result->length != 16) return EINVAL;
 
     len = strlen(password);
-    if (len > 14) return ERANGE;
+    if (len > 14) {
+        memset(result->data, 0, result->length);
+        return 0;
+    }
 
     out = 15;
     retstr = (char *)u8_toupper((const uint8_t *)password, len,
