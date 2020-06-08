@@ -69,12 +69,6 @@ struct wire_single_host_data {
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-struct wire_channel_binding {
-    uint8_t md5_hash[16];
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
 struct wire_ntlm_cli_chal {
     uint8_t resp_type;
     uint8_t hi_resp_type;
@@ -560,7 +554,7 @@ int ntlm_encode_target_info(struct ntlm_ctx *ctx, char *nb_computer_name,
         av_target_name_len = strlen(av_target_name);
         max_size += 4 + av_target_name_len * 2;
     }
-    if (av_cb) {
+    if (av_cb && av_cb->length > 0) {
         max_size += 4 + av_cb->length;
     }
 
@@ -632,7 +626,7 @@ int ntlm_encode_target_info(struct ntlm_ctx *ctx, char *nb_computer_name,
                                            av_target_name_len);
         if (ret) goto done;
     }
-    if (av_cb) {
+    if (av_cb && av_cb->length > 0) {
         ret = ntlm_encode_av_pair_value(&buffer, &data_offs,
                                         MSV_AV_CHANNEL_BINDINGS, av_cb);
         if (ret) goto done;
@@ -791,7 +785,7 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
     uint32_t av_flags = 0;
     uint64_t srv_time = 0;
     uint8_t cb[16] = { 0 };
-    struct ntlm_buffer av_cb = { cb, 16 };
+    struct ntlm_buffer av_cb = { NULL, 0 };
     int ret = 0;
 
     /* TODO: check that returned netbios/dns names match ? */
@@ -824,6 +818,8 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
     }
 
     if (unhashed_cb->length > 0) {
+        av_cb.data = cb;
+        av_cb.length = 16;
         ret = ntlm_hash_channel_bindings(unhashed_cb, &av_cb);
         if (ret) goto done;
     }

@@ -942,6 +942,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         }
 
         if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
+            uint8_t zero_cb[16] = { 0 };
             if (input_chan_bindings->initiator_addrtype != 0 ||
                 input_chan_bindings->initiator_address.length != 0 ||
                 input_chan_bindings->acceptor_addrtype != 0 ||
@@ -953,11 +954,22 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             unhashed_cb.length = input_chan_bindings->application_data.length;
             unhashed_cb.data = input_chan_bindings->application_data.value;
 
-            /* TODO: optionally allow to ignore CBT if av_cb is null ? */
-            retmin = ntlm_verify_channel_bindings(&unhashed_cb, &av_cb);
-            if (retmin) {
+            if (av_cb.length && (av_cb.length != 16)) {
                 set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
                 goto done;
+            }
+            if (av_cb.length &&
+                (memcmp(av_cb.data, zero_cb, 16) != 0)) {
+                retmin = ntlm_verify_channel_bindings(&unhashed_cb, &av_cb);
+                if (retmin) {
+                    set_GSSERRS(retmin, GSS_S_DEFECTIVE_TOKEN);
+                    goto done;
+/* This flag has been introduced only recently in MIT krb5 */
+#ifdef GSS_C_CHANNEL_BOUND_FLAG
+                } else {
+                    ctx->gss_flags |= GSS_C_CHANNEL_BOUND_FLAG;
+#endif /* GSS_C_CHANNEL_BOUND_FLAG */
+                }
             }
         }
 
