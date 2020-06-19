@@ -4,7 +4,7 @@ Release:	0@PRERELEASE_VERSION@%{?dist}
 Summary:	GSSAPI NTLMSSP Mechanism
 
 Group:		System Environment/Libraries
-License:	LGPLv3+
+License:	ISC
 URL:		https://fedorahosted.org/gss-ntlmssp
 Source0:	https://fedorahosted.org/released/gss-ntlmssp/%{name}-%{version}.tar.gz
 
@@ -31,7 +31,7 @@ A GSSAPI Mechanism that implements NTLMSSP
 %package devel
 Summary: Development header for GSSAPI NTLMSSP
 Group: Development/Libraries
-License: LGPLv3+
+License: ISC
 
 %description devel
 Adds a header file with definition for custom GSSAPI extensions for NTLMSSP
