@@ -2003,8 +2003,6 @@ int test_gssapi_cl(void)
         goto done;
     }
 
-    /* TODO: again with channel bindings */
-
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
 
