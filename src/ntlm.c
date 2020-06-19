@@ -1000,7 +1000,6 @@ done:
     return ret;
 }
 
-/* TODO: support datagram style */
 int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
                          uint32_t flags,
                          const char *target_name,

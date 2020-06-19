@@ -137,8 +137,6 @@ struct gssntlm_ctx {
     /* negotiated flags */
     uint32_t neg_flags;
 
-    /* TODO: Add whitelist of servers we are allowed to communicate with */
-
     struct ntlm_key exported_session_key;
     struct ntlm_signseal_state crypto_state;
 

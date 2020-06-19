@@ -697,8 +697,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                               NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
 
-        /* TODO: Support MS-NLMP ServerBlock ? */
-
         /* TODO: Check some minimum required flags ? */
         /* TODO: Check MS-NLMP ServerRequire128bitEncryption */
 
