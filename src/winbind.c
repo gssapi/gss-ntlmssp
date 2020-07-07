@@ -210,7 +210,9 @@ uint32_t winbind_srv_auth(char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
-                          struct ntlm_key *ntlmv2_key)
+                          struct ntlm_key *ntlmv2_key,
+                          uint32_t *num_sids,
+                          ntlm_raw_sid *sids)
 {
     struct wbcAuthUserParams wbc_params = { 0 };
     struct wbcAuthUserInfo *wbc_info = NULL;
@@ -244,6 +246,15 @@ uint32_t winbind_srv_auth(char *user, char *domain,
     }
 
     memcpy(ntlmv2_key->data, wbc_info->user_session_key, ntlmv2_key->length);
+
+    // num_sids is INOUT: IN - maximum number of sids to be returned
+    //                    OUT - actual number of sids
+    if (wbc_info->num_sids < *num_sids) {
+        *num_sids = wbc_info->num_sids;
+    }
+    for (uint32_t i = 0; i < *num_sids; i++) {
+        memcpy(&sids[i], &wbc_info->sids[i].sid, sizeof(ntlm_raw_sid));
+    }
 
     wbcFreeMemory(wbc_info);
     return 0;

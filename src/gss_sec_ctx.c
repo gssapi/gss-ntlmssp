@@ -892,9 +892,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 goto done;
             }
 
+            /* Pass size of sids buffer as INPUT value */
+            ctx->num_sids = MAX_SIDS_COUNT;
             retmaj = gssntlm_srv_auth(&retmin, ctx, usr_cred,
                                       &nt_chal_resp, &lm_chal_resp,
-                                      &key_exchange_key);
+                                      &key_exchange_key, &ctx->num_sids, ctx->sids);
             if (retmaj) goto done;
         }
 
@@ -1257,6 +1259,30 @@ static uint32_t gssntlm_sasl_ssf(uint32_t *minor_status,
     return GSSERRS(retmin, retmaj);
 }
 
+gss_OID_desc get_sids_oid = {
+    GSS_NTLMSSP_GET_SIDS_OID_LENGTH,
+    discard_const(GSS_NTLMSSP_GET_SIDS_OID_STRING)
+};
+
+static uint32_t gssntlm_get_sids(uint32_t *minor_status,
+                                 struct gssntlm_ctx *ctx,
+                                 gss_buffer_set_t *data_set)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+    uint32_t tmpmin;
+    gss_buffer_desc sids_buf;
+    sids_buf.length = ctx->num_sids * sizeof(ntlm_raw_sid);
+    sids_buf.value = ctx->sids;
+
+    retmaj = gss_add_buffer_set_member(&retmin, &sids_buf, data_set);
+    if (retmaj != GSS_S_COMPLETE) {
+        (void)gss_release_buffer_set(&tmpmin, data_set);
+    }
+
+    return GSSERRS(retmin, retmaj);
+}
+
 static uint32_t gssntlm_sspi_session_key(uint32_t *minor_status,
                                          struct gssntlm_ctx *ctx,
                                          gss_buffer_set_t *data_set)
@@ -1306,6 +1332,8 @@ uint32_t gssntlm_inquire_sec_context_by_oid(uint32_t *minor_status,
         return gssntlm_spnego_req_mic(minor_status, ctx, data_set);
     } else if (gss_oid_equal(desired_object, &sasl_ssf_oid)){
         return gssntlm_sasl_ssf(minor_status, ctx, data_set);
+    } else if (gss_oid_equal(desired_object, &get_sids_oid)){
+        return gssntlm_get_sids(minor_status, ctx, data_set);
     } else if (gss_oid_equal(desired_object, GSS_C_INQ_SSPI_SESSION_KEY)) {
       return gssntlm_sspi_session_key(minor_status, ctx, data_set);
     }

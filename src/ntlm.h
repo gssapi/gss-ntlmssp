@@ -128,6 +128,9 @@ struct ntlm_signseal_state {
     bool ext_sec;
 };
 
+#define MAX_SIDS_COUNT 256
+typedef char ntlm_raw_sid[68]; /* Max size of SID is 68 bytes */
+
 #define NTLM_SEND 1
 #define NTLM_RECV 2
 

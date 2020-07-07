@@ -310,7 +310,9 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
                           struct gssntlm_cred *cred,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
-                          struct ntlm_key *key_exchange_key)
+                          struct ntlm_key *key_exchange_key,
+                          uint32_t *num_sids,
+                          ntlm_raw_sid *sids)
 {
     struct ntlm_key session_base_key = { .length = 16 };
     struct ntlm_key ntlmv2_key = { .length = 16 };
@@ -415,7 +417,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
 
     case GSSNTLM_CRED_EXTERNAL:
         retmin = external_srv_auth(ctx, cred, nt_chal_resp, lm_chal_resp,
-                                   &session_base_key);
+                                   &session_base_key, num_sids, sids);
         if (retmin) {
             set_GSSERR(retmin);
             goto done;

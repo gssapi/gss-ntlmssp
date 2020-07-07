@@ -53,6 +53,17 @@ extern "C" {
 #define GSS_NTLMSSP_RESET_CRYPTO_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x03"
 #define GSS_NTLMSSP_RESET_CRYPTO_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
+/* NTLM Get SIDs OID
+ * OID to be used with gss_inquire_sec_context_by_oid()
+ * to get buffer with a list of user's raw SIDs
+ * as reported by authentication process.
+ * MS-PAC used for Kerberos is not fully available with NTLM
+ * so this is the way of getting details for user.
+ */
+
+#define GSS_NTLMSSP_GET_SIDS_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x04"
+#define GSS_NTLMSSP_GET_SIDS_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
+
 #define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
 #define GSS_NTLMSSP_CS_NTHASH "ntlmssp_nthash"
 #define GSS_NTLMSSP_CS_PASSWORD "ntlmssp_password"

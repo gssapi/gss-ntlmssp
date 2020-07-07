@@ -124,6 +124,8 @@ struct gssntlm_ctx {
 
     struct ntlm_key exported_session_key;
     struct ntlm_signseal_state crypto_state;
+    uint32_t num_sids;
+    ntlm_raw_sid sids[MAX_SIDS_COUNT];
 
     uint32_t int_flags;
     time_t expiration_time;
@@ -179,7 +181,9 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                            struct gssntlm_cred *cred,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
-                           struct ntlm_key *session_base_key);
+                           struct ntlm_key *session_base_key,
+                           uint32_t *num_sids,
+                           ntlm_raw_sid *sids);
 
 uint32_t netbios_get_names(char *computer_name,
                            char **netbios_host, char **netbios_domain);
@@ -197,7 +201,9 @@ uint32_t gssntlm_srv_auth(uint32_t *minor,
                           struct gssntlm_cred *cred,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
-                          struct ntlm_key *key_exchange_key);
+                          struct ntlm_key *key_exchange_key,
+                          uint32_t *num_sids,
+                          ntlm_raw_sid *sids);
 
 extern const gss_OID_desc gssntlm_oid;
 
