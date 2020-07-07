@@ -770,12 +770,13 @@ done:
 
 #pragma pack(push, 1)
 struct export_cred {
-    uint16_t version;    /* 0x00 0x01 */
+    uint16_t version;    /* 0x00 0x02 */
     uint16_t type;
 
     struct export_name name;    /* user or server name */
     struct relmem nt_hash;      /* empty for dummy or server */
     struct relmem lm_hash;      /* empty for dummy or server */
+    uint8_t ext_cached;
 
     uint8_t data[];
 };
@@ -871,7 +872,11 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
             set_GSSERR(ret);
             goto done;
         }
+        if (cred->cred.external.creds_in_cache) {
+            ecred->ext_cached = 1;
+        }
         break;
+
     }
 
     set_GSSERRS(0, GSS_S_COMPLETE);
@@ -966,6 +971,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         retmaj = import_name(&retmin, &state, &ecred->name,
                           &cred->cred.external.user);
         if (retmaj != GSS_S_COMPLETE) goto done;
+        cred->cred.external.creds_in_cache = (ecred->ext_cached == 1);
         break;
     default:
         set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
