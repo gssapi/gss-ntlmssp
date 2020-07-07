@@ -55,6 +55,7 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     struct wbcCredentialCacheInfo *result;
     struct wbcInterfaceDetails *details = NULL;
     wbcErr wbc_status;
+    bool cached = false;
     int ret = ERR_NOTAVAIL;
 
     if (name && name->data.user.domain) {
@@ -81,9 +82,10 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     params.blobs = NULL;
     wbc_status = wbcCredentialCache(&params, &result, NULL);
 
-    if(!WBC_ERROR_IS_OK(wbc_status)) goto done;
-
-    /* Yes, winbind seems to think it has credentials for us */
+    if (WBC_ERROR_IS_OK(wbc_status)) {
+        /* Yes, winbind seems to think it has credentials for us */
+        cached = true;
+    }
     wbcFreeMemory(result);
 
     cred->type = GSSNTLM_CRED_EXTERNAL;
@@ -98,6 +100,8 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
         ret = ENOMEM;
         goto done;
     }
+
+    cred->cred.external.creds_in_cache = cached;
 
     ret = 0;
 

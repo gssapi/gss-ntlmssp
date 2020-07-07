@@ -97,6 +97,7 @@ struct gssntlm_cred {
         } server;
         struct {
             struct gssntlm_name user;
+            bool creds_in_cache;
         } external;
     } cred;
 };

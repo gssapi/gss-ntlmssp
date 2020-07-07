@@ -96,6 +96,11 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             set_GSSERRS(ERR_NOARG, GSS_S_CRED_UNAVAIL);
             goto done;
         }
+        if (cred->type == GSSNTLM_CRED_EXTERNAL &&
+            cred->cred.external.creds_in_cache == 0) {
+            set_GSSERRS(ERR_NOARG, GSS_S_CRED_UNAVAIL);
+            goto done;
+        }
     }
 
     if (ctx == NULL) {
