@@ -776,6 +776,7 @@ struct export_cred {
     struct export_name name;    /* user or server name */
     struct relmem nt_hash;      /* empty for dummy or server */
     struct relmem lm_hash;      /* empty for dummy or server */
+    struct relmem keyfile;
     uint8_t ext_cached;
 
     uint8_t data[];
@@ -862,6 +863,20 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
         if (ret) {
             set_GSSERR(ret);
             goto done;
+        }
+
+        if (cred->cred.server.keyfile) {
+            ret = export_data_buffer(&state,
+                                     cred->cred.server.keyfile,
+                                     strlen(cred->cred.server.keyfile),
+                                     &ecred->keyfile);
+            if (ret) {
+                set_GSSERR(ret);
+                goto done;
+            }
+        } else {
+            ecred->keyfile.ptr = 0;
+            ecred->keyfile.len = 0;
         }
         break;
     case GSSNTLM_CRED_EXTERNAL:
@@ -965,6 +980,12 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
         retmaj = import_name(&retmin, &state, &ecred->name,
                           &cred->cred.server.name);
         if (retmaj != GSS_S_COMPLETE) goto done;
+        if (ecred->keyfile.len > 0) {
+            retmaj = import_data_buffer(&retmin, &state,
+                                        (uint8_t **)&cred->cred.server.keyfile,
+                                        NULL, true, &ecred->keyfile, true);
+            if (retmaj != GSS_S_COMPLETE) goto done;
+        }
         break;
     case EXP_CRED_EXTERNAL:
         cred->type = GSSNTLM_CRED_EXTERNAL;

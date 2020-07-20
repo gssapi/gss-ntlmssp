@@ -35,12 +35,23 @@ static int hex_to_key(const char *hex, struct ntlm_key *key)
     return 0;
 }
 
-static int get_user_file_creds(struct gssntlm_name *name,
+static char *get_user_file_envvar(void)
+{
+    const char *envvar;
+
+    /* use the same var used by Heimdal */
+    envvar = getenv("NTLM_USER_FILE");
+    if (envvar == NULL) return NULL;
+
+    return strdup(envvar);
+}
+
+static int get_user_file_creds(const char *filename,
+                               struct gssntlm_name *name,
                                struct gssntlm_cred *cred)
 {
     struct gssntlm_ctx *ctx;
     int lm_compat_lvl = -1;
-    const char *envvar;
     char line[1024];
     char *field1, *field2, *field3, *field4;
     char *dom, *usr, *pwd, *lm, *nt;
@@ -54,10 +65,6 @@ static int get_user_file_creds(struct gssntlm_name *name,
 
     lm_compat_lvl = gssntlm_get_lm_compatibility_level();
     if (!gssntlm_required_security(lm_compat_lvl, ctx)) return ERR_BADLMLVL;
-
-    /* use the same var used by Heimdal */
-    envvar = getenv("NTLM_USER_FILE");
-    if (envvar == NULL) return ENOENT;
 
     /* Use the same file format used by Heimdal in hope to achieve
      * some compatibility between implementations:
@@ -80,7 +87,7 @@ static int get_user_file_creds(struct gssntlm_name *name,
      * recommended.
      */
 
-    f = fopen(envvar, "r");
+    f = fopen(filename, "r");
     if (!f) return errno;
 
     while(fgets(line, 1024, f)) {
@@ -228,31 +235,33 @@ static int get_creds_from_store(struct gssntlm_name *name,
     uint32_t i;
     int ret;
 
-    cred->type = GSSNTLM_CRED_NONE;
-
-    if (name) {
-        switch (name->type) {
-        case GSSNTLM_NAME_NULL:
-            cred->type = GSSNTLM_CRED_NONE;
-            break;
-        case GSSNTLM_NAME_ANON:
-            cred->type = GSSNTLM_CRED_ANON;
-            break;
-        case GSSNTLM_NAME_USER:
-            cred->type = GSSNTLM_CRED_USER;
-            ret = gssntlm_copy_name(name, &cred->cred.user.user);
-            break;
-        case GSSNTLM_NAME_SERVER:
-            cred->type = GSSNTLM_CRED_SERVER;
-            ret = gssntlm_copy_name(name, &cred->cred.server.name);
-            break;
-        default:
-            return EINVAL;
+    /* special case to let server creds carry a keyfile */
+    if (name->type == GSSNTLM_NAME_SERVER) {
+        const char *keyfile = NULL;
+        cred->type = GSSNTLM_CRED_SERVER;
+        ret = gssntlm_copy_name(name, &cred->cred.server.name);
+        if (ret) return ret;
+        for (i = 0; i < cred_store->count; i++) {
+            if (strcmp(cred_store->elements[i].key,
+                        GSS_NTLMSSP_CS_KEYFILE) == 0) {
+                keyfile = cred_store->elements[i].value;
+            }
         }
+        if (keyfile) {
+            cred->cred.server.keyfile = strdup(keyfile);
+            if (cred->cred.server.keyfile == NULL) {
+                return errno;
+            }
+        }
+        return 0;
     }
 
     /* so far only user options can be defined in the cred_store */
-    if (cred->type != GSSNTLM_CRED_USER) return ENOENT;
+    if (name->type != GSSNTLM_NAME_USER) return ENOENT;
+
+    cred->type = GSSNTLM_CRED_USER;
+    ret = gssntlm_copy_name(name, &cred->cred.user.user);
+    if (ret) return ret;
 
     for (i = 0; i < cred_store->count; i++) {
         if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_DOMAIN) == 0) {
@@ -285,11 +294,12 @@ static int get_creds_from_store(struct gssntlm_name *name,
 
             if (ret) return ret;
         }
+        if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_KEYFILE) == 0) {
+            ret = get_user_file_creds(cred_store->elements[i].value,
+                                      name, cred);
+            if (ret) return ret;
+        }
     }
-
-    /* TODO: should we call get_user_file_creds/get_server_creds if values are
-     * not found ?
-     */
 
     return 0;
 }
@@ -363,6 +373,7 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred)
         break;
     case GSSNTLM_CRED_SERVER:
         gssntlm_int_release_name(&cred->cred.server.name);
+        safefree(cred->cred.server.keyfile);
         break;
     case GSSNTLM_CRED_EXTERNAL:
         gssntlm_int_release_name(&cred->cred.external.user);
@@ -423,10 +434,19 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
         if (cred_store != GSS_C_NO_CRED_STORE) {
             retmin = get_creds_from_store(name, cred, cred_store);
         } else {
-            retmin = get_user_file_creds(name, cred);
+            char *filename;
+
+            filename = get_user_file_envvar();
+            if (!filename) {
+                set_GSSERRS(ENOENT, GSS_S_CRED_UNAVAIL);
+                goto done;
+            }
+            retmin = get_user_file_creds(filename, name, cred);
             if (retmin) {
                 retmin = external_get_creds(name, cred);
             }
+
+            free(filename);
         }
         if (retmin) {
             set_GSSERR(retmin);
@@ -438,10 +458,14 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             goto done;
         }
 
-        retmin = get_server_creds(name, cred);
-        if (retmin) {
-            set_GSSERR(retmin);
-            goto done;
+        if (cred_store != GSS_C_NO_CRED_STORE) {
+            retmin = get_creds_from_store(name, cred, cred_store);
+        } else {
+            retmin = get_server_creds(name, cred);
+            if (retmin) {
+                set_GSSERR(retmin);
+                goto done;
+            }
         }
     } else if (cred_usage == GSS_C_BOTH) {
         set_GSSERRS(ERR_NOTSUPPORTED, GSS_S_CRED_UNAVAIL);
