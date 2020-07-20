@@ -525,7 +525,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                     gss_cred_id_t *delegated_cred_handle)
 {
     struct gssntlm_ctx *ctx;
-    struct gssntlm_cred *cred;
+    struct gssntlm_cred *cred = NULL;
     int lm_compat_lvl = -1;
     struct ntlm_buffer challenge = { 0 };
     struct gssntlm_name *server_name = NULL;
@@ -844,6 +844,9 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             char useratdom[1024];
             size_t ulen, dlen, uadlen;
             gss_buffer_desc usrname;
+            gss_const_key_value_set_t cred_store = GSS_C_NO_CRED_STORE;
+            gss_key_value_set_desc cs;
+            gss_key_value_element_desc cs_el;
 
             if (!dom_name) {
                 dom_name = strdup("");
@@ -876,13 +879,22 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                          (gss_name_t *)&gss_usrname);
             if (retmaj) goto done;
 
-            retmaj = gssntlm_acquire_cred(&retmin,
-                                          (gss_name_t)gss_usrname,
-                                          GSS_C_INDEFINITE,
-                                          GSS_C_NO_OID_SET,
-                                          GSS_C_INITIATE,
-                                          (gss_cred_id_t *)&usr_cred,
-                                          NULL, NULL);
+            if (cred && cred->cred.server.keyfile) {
+                cs_el.key = GSS_NTLMSSP_CS_KEYFILE;
+                cs_el.value = cred->cred.server.keyfile;
+                cs.count = 1;
+                cs.elements = &cs_el;
+                cred_store = &cs;
+            }
+
+            retmaj = gssntlm_acquire_cred_from(&retmin,
+                                               (gss_name_t)gss_usrname,
+                                                GSS_C_INDEFINITE,
+                                                GSS_C_NO_OID_SET,
+                                                GSS_C_INITIATE,
+                                                cred_store,
+                                                (gss_cred_id_t *)&usr_cred,
+                                                NULL, NULL);
             if (retmaj) goto done;
             /* We can't handle winbind credentials yet */
             if (usr_cred->type != GSSNTLM_CRED_USER &&

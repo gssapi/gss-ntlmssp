@@ -1448,7 +1448,7 @@ static void print_gss_error(const char *text, uint32_t maj, uint32_t min)
     fflush(stderr);
 }
 
-int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
+int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal, bool use_cs)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
     gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
@@ -1475,14 +1475,27 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
     gss_OID_desc sasl_ssf_oid = {
         11, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f")
     };
+    gss_key_value_element_desc cs_el;
+    gss_key_value_set_desc cs;
+    gss_const_key_value_set_t cred_store = GSS_C_NO_CRED_STORE;
     uint32_t ssf, expect_ssf;
     uint32_t req_flags;
     int conf_state;
     int ret;
 
-    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+    if (use_cs) {
+        /* always use the default test file and name in this mode for now */
+        cs_el.key = GSS_NTLMSSP_CS_KEYFILE;
+        cs_el.value = TEST_USER_FILE;
+        cs.count = 1;
+        cs.elements = &cs_el;
+        cred_store = &cs;
+        username = NULL;
+    } else {
+        setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+        username = getenv("TEST_USER_NAME");
+    }
 
-    username = getenv("TEST_USER_NAME");
     if (username == NULL) {
         username = "TESTDOM\\testuser";
     }
@@ -1497,10 +1510,11 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
         return EINVAL;
     }
 
-    if (user_env_file) {
-        retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_username,
-                                      GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-                                      GSS_C_INITIATE, &cli_cred, NULL, NULL);
+    if (user_env_file || use_cs) {
+        retmaj = gssntlm_acquire_cred_from(&retmin, (gss_name_t)gss_username,
+                                           GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                           GSS_C_INITIATE, cred_store,
+                                           &cli_cred, NULL, NULL);
         if (retmaj != GSS_S_COMPLETE) {
             print_gss_error("gssntlm_acquire_cred(username) failed!",
                             retmaj, retmin);
@@ -1544,9 +1558,10 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal)
         return EINVAL;
     }
 
-    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
-                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    retmaj = gssntlm_acquire_cred_from(&retmin, (gss_name_t)gss_srvname,
+                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                       GSS_C_ACCEPT, cred_store,
+                                       &srv_cred, NULL, NULL);
     if (retmaj != GSS_S_COMPLETE) {
         print_gss_error("gssntlm_acquire_cred(srvname) failed!",
                         retmaj, retmin);
@@ -2445,17 +2460,22 @@ int main(int argc, const char *argv[])
     setenv("LM_COMPAT_LEVEL", "0", 1);
 
     fprintf(stderr, "Test GSSAPI conversation (user env file)\n");
-    ret = test_gssapi_1(true, false, false);
+    ret = test_gssapi_1(true, false, false, false);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test GSSAPI conversation (cred store)\n");
+    ret = test_gssapi_1(true, false, false, true);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
     fprintf(stderr, "Test GSSAPI conversation (no SEAL)\n");
-    ret = test_gssapi_1(true, false, true);
+    ret = test_gssapi_1(true, false, true, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
     fprintf(stderr, "Test GSSAPI conversation (with password)\n");
-    ret = test_gssapi_1(false, false, false);
+    ret = test_gssapi_1(false, false, false, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
@@ -2468,22 +2488,22 @@ int main(int argc, const char *argv[])
     setenv("LM_COMPAT_LEVEL", "5", 1);
 
     fprintf(stderr, "Test GSSAPI conversation (user env file)\n");
-    ret = test_gssapi_1(true, false, false);
+    ret = test_gssapi_1(true, false, false, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
     fprintf(stderr, "Test GSSAPI conversation (no SEAL)\n");
-    ret = test_gssapi_1(true, false, true);
+    ret = test_gssapi_1(true, false, true, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
     fprintf(stderr, "Test GSSAPI conversation (with password)\n");
-    ret = test_gssapi_1(false, false, false);
+    ret = test_gssapi_1(false, false, false, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
     fprintf(stderr, "Test GSSAPI conversation (with CB)\n");
-    ret = test_gssapi_1(false, true, false);
+    ret = test_gssapi_1(false, true, false, false);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

@@ -79,6 +79,7 @@ struct gssntlm_cred {
         } user;
         struct {
             struct gssntlm_name name;
+            char *keyfile;
         } server;
         struct {
             struct gssntlm_name user;

@@ -56,6 +56,7 @@ extern "C" {
 #define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
 #define GSS_NTLMSSP_CS_NTHASH "ntlmssp_nthash"
 #define GSS_NTLMSSP_CS_PASSWORD "ntlmssp_password"
+#define GSS_NTLMSSP_CS_KEYFILE "ntlmssp_keyfile"
 
 #ifdef __cplusplus
 }
