@@ -992,6 +992,7 @@ done:
     }
     *context_handle = (gss_ctx_id_t)ctx;
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
+    gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
     safefree(computer_name);
     safefree(nb_computer_name);
     safefree(nb_domain_name);
