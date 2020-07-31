@@ -40,6 +40,13 @@
 #define NTLMSSP_CTX_FLAG_SPNEGO_CAN_MIC 0x02 /* SPNEGO asks for MIC */
 #define NTLMSSP_CTX_FLAG_AUTH_WITH_MIC  0x04 /* Auth MIC was created */
 
+struct gssntlm_name_attribute {
+    const char *attr_name; /* Read-only static string, should not be released */
+                           /* NULL is used to indicate         */
+                           /* the terminating element of array */
+    gss_buffer_desc attr_value;
+};
+
 struct gssntlm_name {
     enum ntlm_name_type {
         GSSNTLM_NAME_NULL,
@@ -57,6 +64,8 @@ struct gssntlm_name {
             char *name;
         } server;
     } data;
+
+    struct gssntlm_name_attribute *attrs; /* Array of name attributes */
 };
 
 struct gssntlm_cred {
@@ -146,6 +155,9 @@ static inline uint32_t gssntlmssp_ret_err(uint32_t *s, uint32_t n, uint32_t j)
     DEBUG_GSS_ERRORS((retmaj = (maj)), (retmin = (min))) ? 0 : \
      gssntlmssp_ret_err(minor_status, retmin, retmaj)
 
+/* Static const name attribute for sids list */
+extern const char gssntlmssp_sids_urn[];
+
 bool gssntlm_required_security(int security_level, struct gssntlm_ctx *ctx);
 
 void gssntlm_set_role(struct gssntlm_ctx *ctx,
@@ -166,6 +178,15 @@ int gssntlm_get_lm_compatibility_level(void);
 
 void gssntlm_int_release_name(struct gssntlm_name *name);
 void gssntlm_int_release_cred(struct gssntlm_cred *cred);
+
+size_t gssntlm_get_attrs_count(const struct gssntlm_name_attribute *attrs);
+int gssntlm_copy_attrs(const struct gssntlm_name_attribute *src,
+                       struct gssntlm_name_attribute **dst);
+struct gssntlm_name_attribute *gssntlm_find_attr(
+                                        struct gssntlm_name_attribute *attrs,
+                                        const char *attr_name,
+                                        size_t attr_name_len);
+void gssntlm_release_attrs(struct gssntlm_name_attribute **attrs);
 
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst);
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
@@ -390,6 +411,15 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
 				gss_OID mech_type,
 				uint32_t *message_context,
 				gss_buffer_t status_string);
+
+uint32_t gssntlm_get_name_attribute(uint32_t *minor_status,
+                                    gss_name_t name,
+                                    gss_buffer_t attr,
+                                    int *authenticated,
+                                    int *complete,
+                                    gss_buffer_t value,
+                                    gss_buffer_t display_value,
+                                    int *more);
 
 uint32_t gssntlm_inquire_name(uint32_t *minor_status,
                               gss_name_t name,
