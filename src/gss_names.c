@@ -281,6 +281,128 @@ uint32_t gssntlm_import_name(uint32_t *minor_status,
                                        output_name);
 }
 
+size_t gssntlm_get_attrs_count(const struct gssntlm_name_attribute *attrs)
+{
+    size_t c;
+    for (c = 0; attrs && attrs[c].attr_name != NULL; c++) ;
+    return c;
+}
+
+int gssntlm_copy_attrs(const struct gssntlm_name_attribute *src,
+                       struct gssntlm_name_attribute **dst)
+{
+    struct gssntlm_name_attribute *copied_attrs;
+    size_t attrs_count = gssntlm_get_attrs_count(src);
+
+    *dst = NULL;
+    if (attrs_count == 0) {
+        return 0;
+    }
+
+    copied_attrs = calloc(attrs_count + 1, /* +1 for terminator entry */
+                          sizeof(struct gssntlm_name_attribute));
+    if (copied_attrs == NULL) {
+        return ENOMEM;
+    }
+
+    for (size_t i = 0; i < attrs_count; i++) {
+        /* read-only persistent data ptr can be just copied */
+        copied_attrs[i].attr_name = src[i].attr_name;
+        copied_attrs[i].attr_value.length = src[i].attr_value.length;
+        copied_attrs[i].attr_value.value = malloc(src[i].attr_value.length);
+        if (copied_attrs[i].attr_value.value == NULL) {
+            gssntlm_release_attrs(&copied_attrs);
+            return ENOMEM;
+        }
+        memcpy(copied_attrs[i].attr_value.value, src[i].attr_value.value,
+               src[i].attr_value.length);
+    }
+    /* terminator entry is filled with zeroes by calloc */
+
+    *dst = copied_attrs;
+    return 0;
+}
+
+/* Low-level func with buffer ownership transfer
+ * attr_name - read-only static string, should not be released
+ * attr_value - ownership of that buffer is MOVED to dst
+ *              (MUST NOT BE RELEASED from caller side) */
+int gssntlm_append_attr(const char *attr_name, gss_buffer_t attr_value,
+                        struct gssntlm_name *dst)
+{
+    size_t prev_attrs_count = gssntlm_get_attrs_count(dst->attrs);
+    /* 1 for new attribute +1 for terminator entry */
+    size_t new_attrs_count = prev_attrs_count + 2;
+    struct gssntlm_name_attribute *attrs;
+
+    if (!attr_name || !attr_value || !dst) {
+        return ERR_NOARG;
+    }
+
+    /* Increase buffer - if there was no any attributes before,
+     * realloc is identical to malloc */
+    attrs = realloc(dst->attrs,
+                    new_attrs_count * sizeof(struct gssntlm_name_attribute));
+    if (attrs == NULL) {
+        return ENOMEM;
+    }
+    dst->attrs = attrs;
+
+    attrs[prev_attrs_count].attr_name = attr_name;
+    attrs[prev_attrs_count].attr_value.value = attr_value->value;
+    attrs[prev_attrs_count].attr_value.length = attr_value->length;
+
+    /* Fill the last terminator entry with zeroes
+       beacuse realloc does not init added memory */
+    memset(&attrs[prev_attrs_count + 1], 0, sizeof(struct gssntlm_name_attribute));
+
+    return 0;
+}
+
+int gssntlm_append_attr_str(const char *attr_name, const char *attr_value,
+                            struct gssntlm_name *dst)
+{
+    int ret;
+    gss_buffer_desc buf;
+    if (!attr_value) {
+        return ERR_NOARG;
+    }
+    buf.value = strdup(attr_value);
+    if (!buf.value) {
+        return ENOMEM;
+    }
+    buf.length = strlen(attr_value) + 1; /* +1 for EOL */
+    ret = gssntlm_append_attr(attr_name, &buf, dst);
+    if (ret) {
+        free(buf.value);
+    }
+    return ret;
+}
+
+struct gssntlm_name_attribute *gssntlm_find_attr(
+                                        struct gssntlm_name_attribute *attrs,
+                                        const char *attr_name,
+                                        size_t attr_name_len)
+{
+    for (size_t i = 0; attrs && (attrs[i].attr_name != NULL); i++) {
+        /* We store attr_name as const static zero-terminated string, so
+         * it is always zero-terminated */
+        if (attr_name_len == strlen(attrs[i].attr_name) &&
+            strncasecmp(attrs[i].attr_name, attr_name, attr_name_len) == 0) {
+            return &attrs[i];
+        }
+    }
+    return NULL;
+}
+
+void gssntlm_release_attrs(struct gssntlm_name_attribute **attrs)
+{
+    for (size_t i = 0; *attrs && (*attrs)[i].attr_name != NULL; i++) {
+        free((*attrs)[i].attr_value.value);
+    }
+    safefree(*attrs);
+}
+
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
 {
     char *dom = NULL, *usr = NULL, *srv = NULL;
@@ -319,6 +441,9 @@ int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
         dst->data.server.name = srv;
         break;
     }
+
+    ret = gssntlm_copy_attrs(src->attrs, &dst->attrs);
+    if (ret) goto done;
 
     ret = 0;
 done:
@@ -389,6 +514,7 @@ void gssntlm_int_release_name(struct gssntlm_name *name)
         safefree(name->data.server.name);
         break;
     }
+    gssntlm_release_attrs(&name->attrs);
     name->type = GSSNTLM_NAME_NULL;
 }
 
@@ -626,7 +752,107 @@ uint32_t gssntlm_inquire_name(uint32_t *minor_status,
                               gss_OID *MN_mech,
                               gss_buffer_set_t *attrs)
 {
-    return GSS_S_UNAVAILABLE;
+    uint32_t retmin = 0;
+    uint32_t retmaj = 0;
+    uint32_t tmpmin;
+    const struct gssntlm_name *in = (const struct gssntlm_name *)name;
+
+    if (!attrs) {
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_WRITE);
+    }
+    *attrs = GSS_C_NO_BUFFER_SET;
+
+    if (name == GSS_C_NO_NAME) {
+        return GSSERRS(GSS_S_BAD_NAME, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+
+    for (size_t i = 0; in->attrs && in->attrs[i].attr_name != NULL; i++) {
+        struct gssntlm_name_attribute *attr = &in->attrs[i];
+        size_t attr_name_len = strlen(attr->attr_name);
+        gss_buffer_desc buf;
+        gss_buffer_t attr_value = &attr->attr_value;
+        /* +1 for '=' separator and +1 for EOL */
+        size_t full_string_len = attr_value->length + attr_name_len + 2;
+        size_t offset = 0;
+        char *attr_string = malloc(full_string_len);
+        if (attr_string == NULL) {
+            set_GSSERR(ENOMEM);
+            goto done;
+        }
+
+        /* Construct 'attr_name=<attr_value>\0' string */
+        memcpy(attr_string, attr->attr_name, attr_name_len);
+        offset += attr_name_len;
+
+        attr_string[offset++] = '=';
+
+        memcpy(attr_string + offset, attr_value->value, attr_value->length);
+        offset += attr_value->length;
+
+        attr_string[offset] = 0;
+
+        /* now add a buffer to output set */
+        buf.length = full_string_len;
+        buf.value = attr_string;
+        retmaj = gss_add_buffer_set_member(&retmin, &buf, attrs);
+        free(attr_string);
+        if (retmaj != GSS_S_COMPLETE) goto done;
+    }
+
+done:
+    if (retmaj) {
+        (void)gss_release_buffer_set(&tmpmin, attrs);
+    }
+    return GSSERRS(retmin, retmaj);
+}
+
+/* RFC6680 - GSSAPI Naming Extensions */
+uint32_t gssntlm_get_name_attribute(uint32_t *minor_status,
+                                    gss_name_t name,
+                                    gss_buffer_t attr,
+                                    int *authenticated,
+                                    int *complete,
+                                    gss_buffer_t value,
+                                    gss_buffer_t display_value,
+                                    int *more)
+{
+    uint32_t retmin;
+    uint32_t retmaj;
+    const struct gssntlm_name *in = (const struct gssntlm_name *)name;
+    struct gssntlm_name_attribute *found_attr;
+
+    if (name == GSS_C_NO_NAME) {
+        return GSSERRS(GSS_S_BAD_NAME, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (attr == NULL) {
+        return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+
+    if (display_value) {
+        display_value->value = NULL;
+        display_value->length = 0;
+    }
+    if (more) { *more = 0; }
+    if (authenticated) { *authenticated = 0; }
+    if (complete) { *complete = 0; }
+
+    found_attr = gssntlm_find_attr(in->attrs, attr->value, attr->length);
+    if (!found_attr) {
+        return GSSERRS(ENOENT, GSS_S_UNAVAILABLE);
+    }
+
+    if (authenticated) { *authenticated = 1; }
+    if (complete) { *complete = 1; }
+    if (value) {
+        gss_buffer_t attr_value = &found_attr->attr_value;
+        value->value = malloc(attr_value->length);
+        if (!value->value) {
+            return GSSERRS(ENOMEM, GSS_S_FAILURE);
+        }
+        memcpy(value->value, attr_value->value, attr_value->length);
+        value->length = attr_value->length;
+    }
+    return GSSERRS(0, GSS_S_COMPLETE);
 }
 
 /* RFC5801 Extensions */

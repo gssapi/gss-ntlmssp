@@ -73,7 +73,8 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
     return winbind_srv_auth(cred->cred.external.user.data.user.name,
                             cred->cred.external.user.data.user.domain,
                             ctx->workstation, chal_ptr,
-                            nt_chal_resp, lm_chal_resp, session_base_key);
+                            nt_chal_resp, lm_chal_resp, session_base_key,
+                            &ctx->source_name.attrs);
 #else
     return ERR_NOTAVAIL;
 #endif

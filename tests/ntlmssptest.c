@@ -2244,6 +2244,331 @@ do { \
     return 0;
 }
 
+static size_t random_in_range(size_t min_count, size_t max_count)
+{
+    return (random() % (max_count - min_count + 1) ) + min_count;
+}
+
+static size_t generate_random_sid_str(char *dst)
+{
+    /* At least 1, 15 at the most - according to SID format */
+    size_t sub_auth_count = random_in_range(1, 15);
+    size_t offs = sprintf(dst, "S-1-5");
+    for (size_t i = 0; i < sub_auth_count; i++) {
+        offs += sprintf(dst + offs, "-%lu", (unsigned long int)random());
+    }
+    return offs;
+}
+
+static size_t generate_random_sids_list(char *dst, size_t min_count,
+                                        size_t max_count)
+{
+    size_t offs = 0;
+    size_t count = random_in_range(min_count, max_count);
+    for (size_t i = 0; i < count; i++) {
+        offs += generate_random_sid_str(dst + offs);
+        if (i < count - 1) {
+            dst[offs] = ',';
+        }
+        offs++;
+    }
+    return offs;
+}
+
+static void generate_random_binary_blob(char *dst, size_t bytes_count)
+{
+    for (size_t i = 0; i < bytes_count; i++) {
+        dst[i] = (char) (random() % 32); /* use non-printable characters */
+    }
+}
+
+/* Low-level func with buffer ownership transfer
+ * attr_name - read-only static string, should not be released
+ * attr_value - ownership of that buffer is MOVED to dst
+ *              (MUST NOT BE RELEASED from caller side) */
+static int gssntlm_append_attr(const char *attr_name, gss_buffer_t attr_value,
+                               struct gssntlm_name *dst)
+{
+    size_t prev_attrs_count = gssntlm_get_attrs_count(dst->attrs);
+    /* 1 for new attribute +1 for terminator entry */
+    size_t new_attrs_count = prev_attrs_count + 2;
+    struct gssntlm_name_attribute *attrs;
+
+    if (!attr_name || !attr_value || !dst) {
+        return ERR_NOARG;
+    }
+
+    /* Increase buffer - if there was no any attributes before,
+     * realloc is identical to malloc */
+    attrs = realloc(dst->attrs,
+                    new_attrs_count * sizeof(struct gssntlm_name_attribute));
+    if (attrs == NULL) {
+        return ENOMEM;
+    }
+    dst->attrs = attrs;
+
+    attrs[prev_attrs_count].attr_name = attr_name;
+    attrs[prev_attrs_count].attr_value.value = attr_value->value;
+    attrs[prev_attrs_count].attr_value.length = attr_value->length;
+
+    /* Fill the last terminator entry with zeroes
+       beacuse realloc does not init added memory */
+    memset(&attrs[prev_attrs_count + 1], 0, sizeof(struct gssntlm_name_attribute));
+
+    return 0;
+}
+
+static int gssntlm_append_attr_str(const char *attr_name,
+                                   const char *attr_value,
+                                   struct gssntlm_name *dst)
+{
+    int ret;
+    gss_buffer_desc buf;
+    if (!attr_value) {
+        return ERR_NOARG;
+    }
+    buf.value = strdup(attr_value);
+    if (!buf.value) {
+        return ENOMEM;
+    }
+    buf.length = strlen(attr_value) + 1; /* +1 for EOL */
+    ret = gssntlm_append_attr(attr_name, &buf, dst);
+    if (ret) {
+        free(buf.value);
+    }
+    return ret;
+}
+
+static int append_sids_list_attr(const char *urn, size_t min_count,
+                                 size_t max_count, struct gssntlm_name *name,
+                                 size_t *length)
+{
+    int ret;
+    /* WBC_SID_STRING_BUFLEN is defined in wbclient.h
+     * we don't want to include here, so we use any value larger than that */
+    const size_t sid_str_alloc_size = 256;
+    char *str = malloc(max_count * sid_str_alloc_size);
+    if (!str) {
+        return ENOMEM;
+    }
+    *length = generate_random_sids_list(str, min_count, max_count);
+    ret = gssntlm_append_attr_str(urn, str, name);
+    free(str);
+    return ret;
+}
+
+static int append_binary_attr(const char *urn, size_t bytes_count,
+                              struct gssntlm_name *name)
+{
+    int ret;
+    gss_buffer_desc buf = { bytes_count, malloc(bytes_count) };
+    if (!buf.value) {
+        return ENOMEM;
+    }
+    generate_random_binary_blob(buf.value, bytes_count);
+    ret = gssntlm_append_attr(urn, &buf, name);
+    /* If append was ok, memory ownership is moved to name;
+       if failed, we need to release it here */
+    if (ret) {
+        free(buf.value);
+    }
+    return ret;
+}
+
+int test_gssapi_rfc6680(void)
+{
+    static const char *urns[] = { "urn:gssntlmssp:sids", "a", "attr1", "attr2",
+                                  "attr", /* should not match attrN */
+                                  "urn:test", "urn:even:more"};
+    const size_t urns_count = sizeof(urns) / sizeof(*urns);
+    const char *username;
+    gss_buffer_desc nbuf, abuf, vbuf;
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_username_copy = NULL;
+    gss_buffer_set_t aset = NULL;
+    uint32_t retmin, retmaj;
+    int ret = 0;
+    size_t generated_len[urns_count];
+    memset(generated_len, 0, sizeof(generated_len));
+
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+
+    username = getenv("TEST_USER_NAME");
+    if (username == NULL) {
+        username = "TESTDOM\\testuser";
+    }
+    nbuf.value = discard_const(username);
+    nbuf.length = strlen(username);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* This test is designed to check memory allocation/relase and copying
+     * for attached attributes in gssntlm_name structure */
+    for (size_t i = 0; i < urns_count; i++) {
+        /* Copy gss_name before new attribute is attached */
+        retmaj = gss_duplicate_name(&retmin, gss_username,
+                                    &gss_username_copy);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gss_duplicate_name(username->"
+                                                "username_noattr_copy) failed!",
+                                                retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+
+        /* Release original name to make sure we don't have any references
+         * from copy to original instance */
+        retmaj = gss_release_name(&retmin, &gss_username);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gss_release_name(username) failed!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+
+        /* Just swap the names */
+        gss_username = gss_username_copy;
+        gss_username_copy = NULL;
+
+        /* Test both textual (sids_list) and binary attributes */
+        if (i % 2 == 0) {
+            static const int MAX_SIDS_IN_LIST_COUNT = 1000;
+            size_t min_count = i + 1;
+            /* Use progressive size of attribute, starting from small
+             * and finishing with maximal possible size */
+            size_t max_count = min_count +
+                (i * (MAX_SIDS_IN_LIST_COUNT - min_count)) / (urns_count - 1);
+            ret = append_sids_list_attr(urns[i], min_count, max_count,
+                                        (struct gssntlm_name *)gss_username,
+                                        &generated_len[i]);
+        } else {
+            /* some prime numbers to make allocation ill-aligned */
+            generated_len[i] = 1021 + i * 997;
+
+            ret = append_binary_attr(urns[i], generated_len[i],
+                                     (struct gssntlm_name *)gss_username);
+        }
+        if (ret) goto done;
+
+        /* Check gss_get_name_attribute API */
+        for (size_t j = 0; j < urns_count; j++) {
+            abuf.length = strlen(urns[j]);
+            abuf.value = discard_const(urns[j]);
+
+            retmaj = gss_get_name_attribute(&retmin, gss_username, &abuf, NULL,
+                                            NULL, &vbuf, NULL, NULL);
+            /* All attrs up to i-th should be found, the rest - absent */
+            if ((j <= i) && (retmaj != GSS_S_COMPLETE)) {
+                print_gss_error("gss_get_name_attribute(username) failed!",
+                                                    retmaj, retmin);
+                ret = EINVAL;
+                goto done;
+            } else if (( j > i) &&
+                       ((retmaj != GSS_S_UNAVAILABLE) || (retmin != ENOENT))) {
+                print_gss_error("gss_get_name_attribute(username) not failed "
+                                "properly for undefined attr!", retmaj, retmin);
+                ret = EINVAL;
+                goto done;
+            }
+            if (retmaj == GSS_S_COMPLETE) {
+                /* Check the length of found attrs */
+                if (vbuf.length != generated_len[j]) {
+                    fprintf(stderr, "gss_get_name_attribute() returned "
+                            "mismatched attr len for attr=%s\n", urns[j]);
+                    ret = EINVAL;
+                    goto done;
+                }
+
+                retmaj = gss_release_buffer(&retmin, &vbuf);
+                if (retmaj != GSS_S_COMPLETE) {
+                    print_gss_error("gss_release_buffer(vbuf) failed!", retmaj,
+                                    retmin);
+                    ret = EINVAL;
+                    goto done;
+                }
+            }
+        }
+
+        /* Check gss_inquire_name API */
+        retmaj = gss_inquire_name(&retmin, gss_username, NULL, NULL, &aset);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gss_inquire_name(username) failed!", retmaj,
+                            retmin);
+            ret = EINVAL;
+            goto done;
+        }
+
+        /* Check amount of returned attributes */
+        if (aset->count != i + 1) {
+            fprintf(stderr, "gss_inquire_name() returned "
+                    "wrong attrs count=%lu for pass #%lu\n", aset->count,
+                    i + 1);
+            ret = EINVAL;
+            goto done;
+        }
+
+        /* Check that all returned buffers can be read properly */
+        for (size_t k = 0; k < aset->count; k++) {
+            for (size_t offs = 0; offs < aset->elements[k].length; offs++) {
+                char c = ((char*)aset->elements[k].value)[offs];
+                (void)c;
+            }
+        }
+
+        /* Basic check for all returned attrs by matching their size */
+        for (size_t k = 0; k < aset->count; k++) {
+            int attr_found = 0;
+            for (size_t m = 0; m <= i; m++) {
+                size_t urn_m_len = strlen(urns[m]);
+                if (aset->elements[k].length > urn_m_len &&
+                    strncmp(urns[m], aset->elements[k].value, urn_m_len) == 0 &&
+                    ((char*)aset->elements[k].value)[urn_m_len] == '=') {
+                    if (aset->elements[k].length !=
+                        urn_m_len + generated_len[m] + 2) {
+
+                        fprintf(stderr, "gss_inquire_name() returned wrong attr len=%lu"
+                                "for attr=%s\n", aset->elements[k].length, urns[m]);
+                        ret = EINVAL;
+                        goto done;
+                    } else {
+                        attr_found = 1;
+                        break;
+                    }
+                }
+            }
+            if (!attr_found) {
+                fprintf(stderr, "gss_inquire_name() returned "
+                        "unextected attr[%lu]!", k);
+                ret = EINVAL;
+                goto done;
+            }
+        }
+
+        retmaj = gss_release_buffer_set(&retmin, &aset);
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gss_release_buffer_set(aset) failed!", retmaj,
+                            retmin);
+            ret = EINVAL;
+            goto done;
+        }
+    }
+
+done:
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_username_copy);
+    gss_release_buffer(&retmin, &vbuf);
+    gss_release_buffer_set(&retmin, &aset);
+
+    return ret;
+}
+
 /* test with data from Jordan Borean, the DC apparently has a zero key */
 int test_ZERO_LMKEY(struct ntlm_ctx *ctx)
 {
@@ -2519,6 +2844,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test RFC5587 SPI\n");
     ret = test_gssapi_rfc5587();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test RFC6680 SPI\n");
+    ret = test_gssapi_rfc6680();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

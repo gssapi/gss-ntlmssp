@@ -17,4 +17,5 @@ uint32_t winbind_srv_auth(char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
-                          struct ntlm_key *ntlmv2_key);
+                          struct ntlm_key *ntlmv2_key,
+                          struct gssntlm_name_attribute **auth_attrs);

@@ -147,6 +147,18 @@ OM_uint32 gss_release_name(OM_uint32 *minor_status,
     return gssntlm_release_name(minor_status,
                                 input_name);
 }
+OM_uint32 gss_get_name_attribute(OM_uint32 *minor_status,
+                                 gss_name_t name,
+                                 gss_buffer_t attr,
+                                 int *authenticated,
+                                 int *complete,
+                                 gss_buffer_t value,
+                                 gss_buffer_t display_value,
+                                 int *more)
+{
+    return gssntlm_get_name_attribute(minor_status, name, attr, authenticated,
+                                      complete, value, display_value, more);
+}
 
 OM_uint32 gss_context_time(OM_uint32 *minor_status,
                            gss_ctx_id_t context_handle,

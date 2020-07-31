@@ -210,15 +210,77 @@ done:
     return ret;
 }
 
+const char gssntlmssp_sids_urn[] = "urn:gssntlmssp:sids";
+
+static uint32_t format_sids_as_name_attribute(
+                                    const struct wbcAuthUserInfo *wbc_info,
+                                    struct gssntlm_name_attribute **auth_attrs)
+{
+    char *sids_buf, *sids_buf_realloced;
+    size_t offset = 0;
+    struct gssntlm_name_attribute *attrs;
+    size_t worst_sids_list_len = WBC_SID_STRING_BUFLEN * wbc_info->num_sids;
+
+    /* Allocate buffers */
+
+    /* 1 for returned attribute +1 for termiator entry */
+    attrs = calloc(2, sizeof(struct gssntlm_name_attribute));
+    if (attrs == NULL) {
+        return ENOMEM;
+    }
+
+    /* sids buffer is allocated with the worst-case size */
+    sids_buf = malloc(worst_sids_list_len);
+    if (sids_buf == NULL) {
+        free(attrs);
+        return ENOMEM;
+    }
+
+    /* Construct name attributes string */
+    for (uint32_t i = 0; i < wbc_info->num_sids; i++) {
+        offset += wbcSidToStringBuf(&wbc_info->sids[i].sid, sids_buf + offset,
+                                    worst_sids_list_len - offset);
+        if (i < wbc_info->num_sids - 1) {
+            /* Replace EOL by separator for non-last SID */
+            sids_buf[offset] = ',';
+        }
+        offset++;
+    }
+
+    /* Usually average SID has ~5 sub_authorities out of 15 possible so
+     * about 60% of worst-case string size is unused.  Having 100 SIDs
+     * in ACCESS_TOKEN, the space waste is about 11k out of 18k.
+     * Optimization: to save the space, we shrink sids_buf here */
+    sids_buf_realloced = realloc(sids_buf, offset);
+
+    /* If realloc() fails, the original block is left untouched;
+     * it is not freed or moved */
+    if (sids_buf_realloced) {
+        sids_buf = sids_buf_realloced;
+    }
+
+    attrs[0].attr_name = gssntlmssp_sids_urn;
+    attrs[0].attr_value.length = offset;
+    attrs[0].attr_value.value = sids_buf;
+    /* attrs[1] will be filled by zeros automatically by calloc */
+
+    *auth_attrs = attrs;
+
+    return 0;
+}
+
 uint32_t winbind_srv_auth(char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
-                          struct ntlm_key *ntlmv2_key)
+                          struct ntlm_key *ntlmv2_key,
+                          struct gssntlm_name_attribute **auth_attrs)
 {
     struct wbcAuthUserParams wbc_params = { 0 };
     struct wbcAuthUserInfo *wbc_info = NULL;
     struct wbcAuthErrorInfo *wbc_err = NULL;
+
+    uint32_t res;
     wbcErr wbc_status;
 
     if (ntlmv2_key->length != 16) {
@@ -248,7 +310,8 @@ uint32_t winbind_srv_auth(char *user, char *domain,
     }
 
     memcpy(ntlmv2_key->data, wbc_info->user_session_key, ntlmv2_key->length);
+    res = format_sids_as_name_attribute(wbc_info, auth_attrs);
 
     wbcFreeMemory(wbc_info);
-    return 0;
+    return res;
 }
