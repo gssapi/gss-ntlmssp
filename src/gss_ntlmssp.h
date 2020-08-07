@@ -41,9 +41,7 @@
 #define NTLMSSP_CTX_FLAG_AUTH_WITH_MIC  0x04 /* Auth MIC was created */
 
 struct gssntlm_name_attribute {
-    const char *attr_name; /* Read-only static string, should not be released */
-                           /* NULL is used to indicate         */
-                           /* the terminating element of array */
+    char *attr_name; /* NULL indicates array termination */
     gss_buffer_desc attr_value;
 };
 

@@ -2283,18 +2283,18 @@ static void generate_random_binary_blob(char *dst, size_t bytes_count)
 }
 
 /* Low-level func with buffer ownership transfer
- * attr_name - read-only static string, should not be released
- * attr_value - ownership of that buffer is MOVED to dst
- *              (MUST NOT BE RELEASED from caller side) */
-static int gssntlm_append_attr(const char *attr_name, gss_buffer_t attr_value,
-                               struct gssntlm_name *dst)
+ * name - allocated string with the name of the attribute
+ * value - allocated buffer with a value of size 'length'
+ */
+static int gssntlm_append_attr(const char *name, void *value,
+                               size_t length, struct gssntlm_name *dst)
 {
     size_t prev_attrs_count = gssntlm_get_attrs_count(dst->attrs);
     /* 1 for new attribute +1 for terminator entry */
     size_t new_attrs_count = prev_attrs_count + 2;
     struct gssntlm_name_attribute *attrs;
 
-    if (!attr_name || !attr_value || !dst) {
+    if (!name || !value || !length || !dst) {
         return ERR_NOARG;
     }
 
@@ -2307,36 +2307,22 @@ static int gssntlm_append_attr(const char *attr_name, gss_buffer_t attr_value,
     }
     dst->attrs = attrs;
 
-    attrs[prev_attrs_count].attr_name = attr_name;
-    attrs[prev_attrs_count].attr_value.value = attr_value->value;
-    attrs[prev_attrs_count].attr_value.length = attr_value->length;
-
-    /* Fill the last terminator entry with zeroes
-       beacuse realloc does not init added memory */
-    memset(&attrs[prev_attrs_count + 1], 0, sizeof(struct gssntlm_name_attribute));
-
-    return 0;
-}
-
-static int gssntlm_append_attr_str(const char *attr_name,
-                                   const char *attr_value,
-                                   struct gssntlm_name *dst)
-{
-    int ret;
-    gss_buffer_desc buf;
-    if (!attr_value) {
-        return ERR_NOARG;
-    }
-    buf.value = strdup(attr_value);
-    if (!buf.value) {
+    attrs[prev_attrs_count].attr_name = strdup(name);
+    if (attrs[prev_attrs_count].attr_name == NULL) {
         return ENOMEM;
     }
-    buf.length = strlen(attr_value) + 1; /* +1 for EOL */
-    ret = gssntlm_append_attr(attr_name, &buf, dst);
-    if (ret) {
-        free(buf.value);
+    attrs[prev_attrs_count].attr_value.value = malloc(length);
+    if (attrs[prev_attrs_count].attr_value.value == NULL) {
+        safefree(attrs[prev_attrs_count].attr_name);
+        return ENOMEM;
     }
-    return ret;
+    memcpy(attrs[prev_attrs_count].attr_value.value, value, length);
+    attrs[prev_attrs_count].attr_value.length = length;
+
+    /* terminate array */
+    attrs[prev_attrs_count + 1].attr_name = NULL;
+
+    return 0;
 }
 
 static int append_sids_list_attr(const char *urn, size_t min_count,
@@ -2352,26 +2338,20 @@ static int append_sids_list_attr(const char *urn, size_t min_count,
         return ENOMEM;
     }
     *length = generate_random_sids_list(str, min_count, max_count);
-    ret = gssntlm_append_attr_str(urn, str, name);
+    /* append zero terminated string for ease of string handling */
+    ret = gssntlm_append_attr(urn, str, strlen(str) + 1, name);
     free(str);
     return ret;
 }
 
-static int append_binary_attr(const char *urn, size_t bytes_count,
+static int append_binary_attr(const char *urn, size_t length,
                               struct gssntlm_name *name)
 {
+    char rndbuf[length];
     int ret;
-    gss_buffer_desc buf = { bytes_count, malloc(bytes_count) };
-    if (!buf.value) {
-        return ENOMEM;
-    }
-    generate_random_binary_blob(buf.value, bytes_count);
-    ret = gssntlm_append_attr(urn, &buf, name);
-    /* If append was ok, memory ownership is moved to name;
-       if failed, we need to release it here */
-    if (ret) {
-        free(buf.value);
-    }
+    generate_random_binary_blob(rndbuf, length);
+    ret = gssntlm_append_attr(urn, rndbuf, length, name);
+    free(rndbuf);
     return ret;
 }
 
