@@ -2351,7 +2351,6 @@ static int append_binary_attr(const char *urn, size_t length,
     int ret;
     generate_random_binary_blob(rndbuf, length);
     ret = gssntlm_append_attr(urn, rndbuf, length, name);
-    free(rndbuf);
     return ret;
 }
 
@@ -2370,6 +2369,9 @@ int test_gssapi_rfc6680(void)
     int ret = 0;
     size_t generated_len[urns_count];
     memset(generated_len, 0, sizeof(generated_len));
+    struct gssntlm_cred user_cred = { 0 };
+    struct gssntlm_cred *imp_cred = NULL;
+    gss_buffer_desc exp_buffer = { 0 };
 
     setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
 
@@ -2540,11 +2542,55 @@ int test_gssapi_rfc6680(void)
         }
     }
 
+    /* test import/export of name with attributes via import/export of
+     * crafted user credentials */
+    user_cred.type = GSSNTLM_CRED_USER;
+    user_cred.cred.user.user = *(struct gssntlm_name *)gss_username;
+
+    retmaj = gssntlm_export_cred(&retmin, (gss_cred_id_t)&user_cred,
+                                 &exp_buffer);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_export_cred() failed!", retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* and now try to import back */
+    retmaj = gssntlm_import_cred(&retmin, &exp_buffer,
+                                 (gss_cred_id_t *)&imp_cred);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_cred() failed!", retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* Check gss_inquire_name API still returns the right number of
+     * attribnutes */
+    retmaj = gss_inquire_name(&retmin, (gss_name_t)&imp_cred->cred.user.user,
+                              NULL, NULL, &aset);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gss_inquire_name(imp_cred->name) failed!", retmaj,
+                        retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* Check amount of returned attributes */
+    if (aset->count != urns_count) {
+        fprintf(stderr, "gss_inquire_name() returned "
+                "wrong attrs count=%lu for pass #%lu\n", aset->count,
+                urns_count);
+        ret = EINVAL;
+        goto done;
+    }
+
 done:
     gssntlm_release_name(&retmin, &gss_username);
     gssntlm_release_name(&retmin, &gss_username_copy);
     gss_release_buffer(&retmin, &vbuf);
     gss_release_buffer_set(&retmin, &aset);
+    gss_release_buffer(&retmin, &exp_buffer);
+    gssntlm_release_cred(&retmin, (gss_cred_id_t *)&imp_cred);
 
     return ret;
 }
