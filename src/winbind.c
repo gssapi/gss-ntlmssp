@@ -216,24 +216,33 @@ static uint32_t format_sids_as_name_attribute(
                                     const struct wbcAuthUserInfo *wbc_info,
                                     struct gssntlm_name_attribute **auth_attrs)
 {
-    char *sids_buf, *sids_buf_realloced;
-    size_t offset = 0;
-    struct gssntlm_name_attribute *attrs;
     size_t worst_sids_list_len = WBC_SID_STRING_BUFLEN * wbc_info->num_sids;
+    struct gssntlm_name_attribute *attrs = NULL;
+    char *sids_buf_realloced;
+    char *sids_buf = NULL;
+    char *name = NULL;
+    size_t offset = 0;
+    int ret = EFAULT;
 
     /* Allocate buffers */
+    name = strdup(gssntlmssp_sids_urn);
+    if (name == NULL) {
+        ret = ENOMEM;
+        goto done;
+    }
 
     /* 1 for returned attribute +1 for termiator entry */
     attrs = calloc(2, sizeof(struct gssntlm_name_attribute));
     if (attrs == NULL) {
-        return ENOMEM;
+        ret = ENOMEM;
+        goto done;
     }
 
     /* sids buffer is allocated with the worst-case size */
     sids_buf = malloc(worst_sids_list_len);
     if (sids_buf == NULL) {
-        free(attrs);
-        return ENOMEM;
+        ret = ENOMEM;
+        goto done;
     }
 
     /* Construct name attributes string */
@@ -259,10 +268,20 @@ static uint32_t format_sids_as_name_attribute(
         sids_buf = sids_buf_realloced;
     }
 
-    attrs[0].attr_name = gssntlmssp_sids_urn;
+    ret = 0;
+
+done:
+    if (ret) {
+        free(name);
+        free(attrs);
+        free(sids_buf);
+        return ret;
+    }
+
+    attrs[0].attr_name = name;
     attrs[0].attr_value.length = offset;
     attrs[0].attr_value.value = sids_buf;
-    /* attrs[1] will be filled by zeros automatically by calloc */
+    /* attrs[1] was zeroed by calloc */
 
     *auth_attrs = attrs;
 

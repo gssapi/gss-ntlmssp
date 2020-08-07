@@ -306,8 +306,11 @@ int gssntlm_copy_attrs(const struct gssntlm_name_attribute *src,
     }
 
     for (size_t i = 0; i < attrs_count; i++) {
-        /* read-only persistent data ptr can be just copied */
-        copied_attrs[i].attr_name = src[i].attr_name;
+        copied_attrs[i].attr_name = strdup(src[i].attr_name);
+        if (copied_attrs[i].attr_name == NULL) {
+            gssntlm_release_attrs(&copied_attrs);
+            return ENOMEM;
+        }
         copied_attrs[i].attr_value.length = src[i].attr_value.length;
         copied_attrs[i].attr_value.value = malloc(src[i].attr_value.length);
         if (copied_attrs[i].attr_value.value == NULL) {
@@ -323,69 +326,13 @@ int gssntlm_copy_attrs(const struct gssntlm_name_attribute *src,
     return 0;
 }
 
-/* Low-level func with buffer ownership transfer
- * attr_name - read-only static string, should not be released
- * attr_value - ownership of that buffer is MOVED to dst
- *              (MUST NOT BE RELEASED from caller side) */
-int gssntlm_append_attr(const char *attr_name, gss_buffer_t attr_value,
-                        struct gssntlm_name *dst)
-{
-    size_t prev_attrs_count = gssntlm_get_attrs_count(dst->attrs);
-    /* 1 for new attribute +1 for terminator entry */
-    size_t new_attrs_count = prev_attrs_count + 2;
-    struct gssntlm_name_attribute *attrs;
-
-    if (!attr_name || !attr_value || !dst) {
-        return ERR_NOARG;
-    }
-
-    /* Increase buffer - if there was no any attributes before,
-     * realloc is identical to malloc */
-    attrs = realloc(dst->attrs,
-                    new_attrs_count * sizeof(struct gssntlm_name_attribute));
-    if (attrs == NULL) {
-        return ENOMEM;
-    }
-    dst->attrs = attrs;
-
-    attrs[prev_attrs_count].attr_name = attr_name;
-    attrs[prev_attrs_count].attr_value.value = attr_value->value;
-    attrs[prev_attrs_count].attr_value.length = attr_value->length;
-
-    /* Fill the last terminator entry with zeroes
-       beacuse realloc does not init added memory */
-    memset(&attrs[prev_attrs_count + 1], 0, sizeof(struct gssntlm_name_attribute));
-
-    return 0;
-}
-
-int gssntlm_append_attr_str(const char *attr_name, const char *attr_value,
-                            struct gssntlm_name *dst)
-{
-    int ret;
-    gss_buffer_desc buf;
-    if (!attr_value) {
-        return ERR_NOARG;
-    }
-    buf.value = strdup(attr_value);
-    if (!buf.value) {
-        return ENOMEM;
-    }
-    buf.length = strlen(attr_value) + 1; /* +1 for EOL */
-    ret = gssntlm_append_attr(attr_name, &buf, dst);
-    if (ret) {
-        free(buf.value);
-    }
-    return ret;
-}
-
 struct gssntlm_name_attribute *gssntlm_find_attr(
                                         struct gssntlm_name_attribute *attrs,
                                         const char *attr_name,
                                         size_t attr_name_len)
 {
     for (size_t i = 0; attrs && (attrs[i].attr_name != NULL); i++) {
-        /* We store attr_name as const static zero-terminated string, so
+        /* We store attr_name as a zero-terminated string, so
          * it is always zero-terminated */
         if (attr_name_len == strlen(attrs[i].attr_name) &&
             strncasecmp(attrs[i].attr_name, attr_name, attr_name_len) == 0) {
@@ -398,6 +345,7 @@ struct gssntlm_name_attribute *gssntlm_find_attr(
 void gssntlm_release_attrs(struct gssntlm_name_attribute **attrs)
 {
     for (size_t i = 0; *attrs && (*attrs)[i].attr_name != NULL; i++) {
+        free((*attrs)[i].attr_name);
         free((*attrs)[i].attr_value.value);
     }
     safefree(*attrs);
