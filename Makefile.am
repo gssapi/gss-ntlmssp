@@ -157,21 +157,6 @@ installgssntlmsspdirs::
     $(DESTDIR)$(libdir)/gssntlmssp \
     $(DESTDIR)$(mandir)
 
-if HAVE_DOXYGEN
-docs:
-	$(DOXYGEN) doxy.config
-else
-docs:
-	@echo "Doxygen not installed, cannot generate documentation"
-	@exit 1
-endif
-
-install-exec-hook: installgssntlmsspdirs
-	mkdir -p doc $(DESTDIR)/$(docdir); cp -a doc $(DESTDIR)/$(docdir)/
-
-clean-local:
-	rm -Rf doc
-
 CLEANFILES = *.X */*.X */*/*.X
 
 tests: all $(check_PROGRAMS)
