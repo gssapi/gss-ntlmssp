@@ -25,6 +25,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 {
     struct gssntlm_ctx *ctx;
     struct gssntlm_name *server = NULL;
+    struct gssntlm_name *anonymous = NULL;
     struct gssntlm_cred *cred = NULL;
     char *computer_name = NULL;
     char *nb_computer_name = NULL;
@@ -64,16 +65,16 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
 
     if (claimant_cred_handle == GSS_C_NO_CREDENTIAL) {
         if (req_flags & GSS_C_ANON_FLAG) {
-            set_GSSERRS(ERR_NOARG, GSS_S_UNAVAILABLE);
-            goto done;
-        } else {
-            retmaj = gssntlm_acquire_cred(&retmin,
-                                           NULL, time_req,
-                                           NULL, GSS_C_INITIATE,
-                                           (gss_cred_id_t *)&cred,
-                                           NULL, time_rec);
+            retmaj = gssntlm_import_name(&retmin, NULL, GSS_C_NT_ANONYMOUS,
+                                         (gss_name_t *)&anonymous);
             if (retmaj) goto done;
         }
+        retmaj = gssntlm_acquire_cred(&retmin,
+                                      (gss_name_t)anonymous, time_req,
+                                      NULL, GSS_C_INITIATE,
+                                      (gss_cred_id_t *)&cred,
+                                      NULL, time_rec);
+        if (retmaj) goto done;
     } else {
         cred = (struct gssntlm_cred *)claimant_cred_handle;
         if (cred->type != GSSNTLM_CRED_USER &&
@@ -97,8 +98,13 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        retmin = gssntlm_copy_name(&cred->cred.user.user,
-                                   &ctx->source_name);
+        if (req_flags & GSS_C_ANON_FLAG) {
+            retmin = gssntlm_copy_name(anonymous,
+                                       &ctx->source_name);
+        } else {
+            retmin = gssntlm_copy_name(&cred->cred.user.user,
+                                       &ctx->source_name);
+        }
         if (retmin) {
             set_GSSERR(retmin);
             goto done;
@@ -378,7 +384,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
          * negotiated flags */
         ctx->neg_flags &= in_flags;
 
-       retmaj = gssntlm_cli_auth(&retmin, ctx, cred, &target_info,
+        retmaj = gssntlm_cli_auth(&retmin, ctx, cred, &target_info,
                                   in_flags, input_chan_bindings);
         if (retmaj) goto done;
 
@@ -431,6 +437,7 @@ done:
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     }
     gssntlm_release_name(&tmpmin, (gss_name_t *)&client_name);
+    gssntlm_release_name(&tmpmin, (gss_name_t *)&anonymous);
     safefree(computer_name);
     safefree(nb_computer_name);
     safefree(nb_domain_name);
@@ -641,7 +648,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         }
 
         ctx->neg_flags = NTLMSSP_DEFAULT_SERVER_FLAGS;
-        /* Fixme: How do we allow anonymous negotition ? */
 
         if (gssntlm_sec_lm_ok(ctx)) {
             ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
@@ -835,9 +841,17 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             (((lm_chal_resp.length == 1) && (lm_chal_resp.data[0] == '\0')) ||
              (lm_chal_resp.length == 0))) {
             /* Anonymous auth */
-            /* FIXME: not supported for now */
-            set_GSSERR(ERR_NOTSUPPORTED);
-            goto done;
+            if (!gssntlm_is_anonymous_allowed()) {
+                set_GSSERRS(ERR_NOUSRCRED, GSS_S_DEFECTIVE_CREDENTIAL);
+                goto done;
+            }
+
+            retmaj = gssntlm_import_name(&retmin, NULL, GSS_C_NT_ANONYMOUS,
+                                         (gss_name_t *)&ctx->source_name);
+            if (retmaj) goto done;
+
+            /* nullSession */
+            memset(key_exchange_key.data, 0, 16);
 
         } else {
 
@@ -1008,6 +1022,8 @@ done:
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
     *context_handle = (gss_ctx_id_t)ctx;
+    gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
+    gssntlm_release_name(&tmpmin, (gss_name_t *)&gss_usrname);
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
     gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
     safefree(computer_name);

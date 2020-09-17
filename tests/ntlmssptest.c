@@ -2177,7 +2177,7 @@ int test_gssapi_rfc5587(void)
         return EINVAL;
     }
 
-    if (mech_attrs->count != 9) {
+    if (mech_attrs->count != 10) {
         fprintf(stderr, "expected 9 mech_attr oids, got %lu\n",
                 mech_attrs->count);
         return EINVAL;
@@ -2655,6 +2655,240 @@ int test_NTOWF_UTF16(struct ntlm_ctx *ctx)
     return test_keys("results", &expected, &result);
 }
 
+int test_gssapi_anon(void)
+{
+    gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    gss_buffer_desc ctx_token;
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    const char *srvname = "test@testserver";
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc nbuf;
+    uint32_t retmin, retmaj;
+    const char *msg = "Sample, payload checking, message.";
+    gss_buffer_desc message = { strlen(msg), discard_const(msg) };
+    int ret;
+
+    setenv("NTLM_ALLOW_ANONYMOUS", "1", 1);
+
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_ANONYMOUS,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(anonymous) failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
+                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      GSS_C_NO_BUFFER, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    /* test importing and exporting context before it is fully estabished */
+    retmaj = gssntlm_export_sec_context(&retmin, &srv_ctx, &ctx_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_export_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &srv_ctx);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    gss_release_buffer(&retmin, &ctx_token);
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG,
+                                      0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      &srv_token, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_init_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_accept_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+
+    /* test importing and exporting context after it is fully estabished */
+    retmaj = gssntlm_export_sec_context(&retmin, &cli_ctx, &ctx_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_export_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    retmaj = gssntlm_import_sec_context(&retmin, &ctx_token, &cli_ctx);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    gss_release_buffer(&retmin, &ctx_token);
+
+    retmaj = gssntlm_get_mic(&retmin, cli_ctx, 0, &message, &cli_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_get_mic(cli) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_verify_mic(&retmin, srv_ctx, &message, &cli_token, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_verify_mic(srv) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    retmaj = gssntlm_get_mic(&retmin, srv_ctx, 0, &message, &srv_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_get_mic(srv) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &srv_token, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_verify_mic(cli) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_wrap(&retmin, cli_ctx, 1, 0, &message, NULL, &cli_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_wrap(cli) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_unwrap(&retmin, srv_ctx, &cli_token, &srv_token,
+                            NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_unwrap(srv) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_wrap(&retmin, srv_ctx, 1, 0, &message, NULL, &srv_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_wrap(srv) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_unwrap(&retmin, cli_ctx, &srv_token, &cli_token,
+                            NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_unwrap(cli) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    if (memcmp(message.value, cli_token.value, cli_token.length) != 0) {
+        print_gss_error("sealing and unsealing failed to return the "
+                        "same result",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2885,6 +3119,10 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test NTOWF iwith UTF16\n");
     ret = test_NTOWF_UTF16(ctx);
+
+    fprintf(stderr, "Test Anonymous Auth\n");
+    ret = test_gssapi_anon();
+
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

@@ -426,6 +426,14 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
     }
 
     if (cred_usage == GSS_C_INITIATE) {
+        if (name != NULL && name->type == GSSNTLM_NAME_ANON) {
+            cred->type = GSSNTLM_CRED_ANON;
+            cred->cred.anon.dummy = 0;
+            retmin = 0;
+            retmaj = 0;
+            goto done;
+        }
+
         if (name != NULL && name->type != GSSNTLM_NAME_USER) {
             set_GSSERRS(ERR_NOUSRNAME, GSS_S_BAD_NAMETYPE);
             goto done;

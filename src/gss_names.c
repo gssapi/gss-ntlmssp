@@ -142,6 +142,8 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
     /* TODO: check mech_type == gssntlm_oid */
     if (mech_type == GSS_C_NO_OID) {
         return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
+    } else if (!gss_oid_equal(mech_type, &gssntlm_oid)) {
+        return GSSERRS(ERR_BADARG, GSS_S_BAD_MECH);
     }
 
     name = calloc(1, sizeof(struct gssntlm_name));
@@ -918,6 +920,7 @@ static uint32_t make_ma_oid_set(uint32_t *minor_status, gss_OID_set *ma_set,
         GSS_C_MA_OOS_DET,
         GSS_C_MA_CBINDINGS,
         GSS_C_MA_CTX_TRANS,
+        GSS_C_MA_AUTH_INIT_ANON,
         NULL
     };
     uint32_t maj = 0;

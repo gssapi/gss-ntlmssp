@@ -21,27 +21,55 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
     struct ntlm_buffer auth_mic = { NULL, 16 };
     uint8_t micbuf[16];
     struct ntlm_buffer mic = { micbuf, 16 };
+    char *username;
+    char *domain;
+    bool ext_sec;
     bool add_mic = false;
     bool key_exch;
     uint32_t retmaj;
     uint32_t retmin;
 
+    ext_sec = (in_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
+
     switch (cred->type) {
+
+    case GSSNTLM_CRED_EXTERNAL:
+        retmin = external_cli_auth(ctx, cred, in_flags, input_chan_bindings);
+        if (retmin) {
+            set_GSSERR(retmin);
+            goto done;
+        }
+        set_GSSERRS(0, GSS_S_COMPLETE);
+        return GSSERR();
+
+    case GSSNTLM_CRED_ANON:
+
+        /* Anonymous auth, empty responses */
+        if (!(ctx->gss_flags & GSS_C_ANON_FLAG)) {
+            set_GSSERR(EINVAL);
+            goto done;
+        }
+
+        domain = NULL;
+        username = NULL;
+        memset(&nt_chal_resp, 0, sizeof(nt_chal_resp));
+        lm_chal_resp.data = malloc(1);
+        if (!lm_chal_resp.data) {
+            set_GSSERR(ENOMEM);
+            goto done;
+        }
+        lm_chal_resp.data[0] = 0;
+        lm_chal_resp.length = 1;
+
+        memset(key_exchange_key.data, 0, 16);
+        break;
 
     case GSSNTLM_CRED_USER:
 
-        if (ctx->gss_flags & GSS_C_ANON_FLAG) {
-            /* Anonymous auth, empty responses */
-            memset(&nt_chal_resp, 0, sizeof(nt_chal_resp));
-            lm_chal_resp.data = malloc(1);
-            if (!lm_chal_resp.data) {
-                set_GSSERR(ENOMEM);
-                goto done;
-            }
-            lm_chal_resp.data[0] = 0;
-            lm_chal_resp.length = 1;
+        domain = cred->cred.user.user.data.user.domain;
+        username = cred->cred.user.user.data.user.name;
 
-        } else if (gssntlm_sec_v2_ok(ctx)) {
+        if (gssntlm_sec_v2_ok(ctx)) {
 
             /* ### NTLMv2 ### */
             uint8_t client_chal[8];
@@ -111,9 +139,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
 
             /* NTLMv2 Key */
             retmin = NTOWFv2(ctx->ntlm, &cred->cred.user.nt_hash,
-                             cred->cred.user.user.data.user.name,
-                             cred->cred.user.user.data.user.domain,
-                             &ntlmv2_key);
+                             username, domain, &ntlmv2_key);
             if (retmin) {
                 set_GSSERR(retmin);
                 goto done;
@@ -160,7 +186,6 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
             struct ntlm_buffer cli_chal = { client_chal, 8 };
             struct ntlm_key session_base_key = { .length = 16 };
             bool NoLMResponseNTLMv1 = !gssntlm_sec_lm_ok(ctx);
-            bool ext_sec;
 
             nt_chal_resp.length = 24;
             nt_chal_resp.data = calloc(1, nt_chal_resp.length);
@@ -177,8 +202,6 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
                 set_GSSERR(retmin);
                 goto done;
             }
-
-            ext_sec = (in_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
 
             retmin = ntlm_compute_nt_response(&cred->cred.user.nt_hash,
                                               ext_sec, ctx->server_chal,
@@ -219,76 +242,68 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
             }
         }
 
-        key_exch = (in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH);
-
-        retmin = ntlm_exported_session_key(&key_exchange_key, key_exch,
-                                           &ctx->exported_session_key);
-        if (retmin) {
-            set_GSSERR(retmin);
-            goto done;
-        }
-
-        if (key_exch) {
-            retmin = ntlm_encrypted_session_key(&key_exchange_key,
-                                                &ctx->exported_session_key,
-                                                &encrypted_random_session_key);
-            if (retmin) {
-                set_GSSERR(retmin);
-                goto done;
-            }
-        }
-
-        /* in_flags all verified, assign as current flags */
-        ctx->neg_flags |= in_flags;
-
-        enc_sess_key.data = encrypted_random_session_key.data;
-        enc_sess_key.length = encrypted_random_session_key.length;
-
-        retmin = ntlm_encode_auth_msg(ctx->ntlm, ctx->neg_flags,
-                                      &lm_chal_resp,  &nt_chal_resp,
-                                      cred->cred.user.user.data.user.domain,
-                                      cred->cred.user.user.data.user.name,
-                                      ctx->workstation, &enc_sess_key,
-                                      add_mic ? &auth_mic : NULL,
-                                      &ctx->auth_msg);
-        if (retmin) {
-            set_GSSERR(retmin);
-            goto done;
-        }
-
-        /* Now we need to calculate the MIC, because the MIC is part of the
-         * message it protects, ntlm_encode_auth_msg() always add a zeroeth
-         * buffer, however it returns in data_mic the pointer to the actual
-         * area in the auth_msg that points at the mic, so we can backfill */
-        if (add_mic) {
-            retmin = ntlm_mic(&ctx->exported_session_key, &ctx->nego_msg,
-                              &ctx->chal_msg, &ctx->auth_msg, &mic);
-            if (retmin) {
-                set_GSSERR(retmin);
-                goto done;
-            }
-            /* now that we have the mic, copy it into the auth message */
-            memcpy(auth_mic.data, mic.data, 16);
-
-            /* Make sure SPNEGO gets to know it has to add mechlistMIC too */
-            ctx->int_flags |= NTLMSSP_CTX_FLAG_AUTH_WITH_MIC;
-        }
-
-        set_GSSERRS(0, GSS_S_COMPLETE);
-        break;
-
-    case GSSNTLM_CRED_EXTERNAL:
-        retmin = external_cli_auth(ctx, cred, in_flags, input_chan_bindings);
-        if (retmin) {
-            set_GSSERR(retmin);
-            goto done;
-        }
-        set_GSSERRS(0, GSS_S_COMPLETE);
         break;
 
     default:
         set_GSSERR(ERR_NOUSRCRED);
+        goto done;
     }
+
+    key_exch = (in_flags & NTLMSSP_NEGOTIATE_KEY_EXCH);
+
+    retmin = ntlm_exported_session_key(&key_exchange_key, key_exch,
+                                       &ctx->exported_session_key);
+    if (retmin) {
+        set_GSSERR(retmin);
+        goto done;
+    }
+
+    if (key_exch) {
+        retmin = ntlm_encrypted_session_key(&key_exchange_key,
+                                            &ctx->exported_session_key,
+                                            &encrypted_random_session_key);
+        if (retmin) {
+            set_GSSERR(retmin);
+            goto done;
+        }
+    }
+
+    /* in_flags all verified, assign as current flags */
+    ctx->neg_flags |= in_flags;
+
+    enc_sess_key.data = encrypted_random_session_key.data;
+    enc_sess_key.length = encrypted_random_session_key.length;
+
+    retmin = ntlm_encode_auth_msg(ctx->ntlm, ctx->neg_flags,
+                                  &lm_chal_resp,  &nt_chal_resp,
+                                  domain, username,
+                                  ctx->workstation, &enc_sess_key,
+                                  add_mic ? &auth_mic : NULL,
+                                  &ctx->auth_msg);
+    if (retmin) {
+        set_GSSERR(retmin);
+        goto done;
+    }
+
+    /* Now we need to calculate the MIC, because the MIC is part of the
+     * message it protects, ntlm_encode_auth_msg() always add a zeroeth
+     * buffer, however it returns in data_mic the pointer to the actual
+     * area in the auth_msg that points at the mic, so we can backfill */
+    if (add_mic) {
+        retmin = ntlm_mic(&ctx->exported_session_key, &ctx->nego_msg,
+                          &ctx->chal_msg, &ctx->auth_msg, &mic);
+        if (retmin) {
+            set_GSSERR(retmin);
+            goto done;
+        }
+        /* now that we have the mic, copy it into the auth message */
+        memcpy(auth_mic.data, mic.data, 16);
+
+        /* Make sure SPNEGO gets to know it has to add mechlistMIC too */
+        ctx->int_flags |= NTLMSSP_CTX_FLAG_AUTH_WITH_MIC;
+    }
+
+    set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
     ntlm_free_buffer_data(&client_target_info);
