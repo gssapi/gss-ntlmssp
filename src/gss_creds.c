@@ -161,9 +161,11 @@ static int get_user_file_creds(const char *filename,
     cred->type = GSSNTLM_CRED_USER;
     cred->cred.user.user.type = GSSNTLM_NAME_USER;
     if (dom) {
+        free(cred->cred.user.user.data.user.domain);
         cred->cred.user.user.data.user.domain = strdup(dom);
         if (!cred->cred.user.user.data.user.domain) return ENOMEM;
     }
+    free(cred->cred.user.user.data.user.name);
     cred->cred.user.user.data.user.name = strdup(usr);
     if (!cred->cred.user.user.data.user.name) return ENOMEM;
 
@@ -235,52 +237,51 @@ static int get_creds_from_store(struct gssntlm_name *name,
     uint32_t i;
     int ret;
 
-    /* special case to let server creds carry a keyfile */
-    if (name->type == GSSNTLM_NAME_SERVER) {
-        const char *keyfile = NULL;
-        cred->type = GSSNTLM_CRED_SERVER;
-        ret = gssntlm_copy_name(name, &cred->cred.server.name);
+    if (name) {
+        /* special case to let server creds carry a keyfile */
+        if (name->type == GSSNTLM_NAME_SERVER) {
+            const char *keyfile = NULL;
+            cred->type = GSSNTLM_CRED_SERVER;
+            ret = gssntlm_copy_name(name, &cred->cred.server.name);
+            if (ret) return ret;
+            for (i = 0; i < cred_store->count; i++) {
+                if (strcmp(cred_store->elements[i].key,
+                            GSS_NTLMSSP_CS_KEYFILE) == 0) {
+                    keyfile = cred_store->elements[i].value;
+                }
+            }
+            if (keyfile) {
+                cred->cred.server.keyfile = strdup(keyfile);
+                if (cred->cred.server.keyfile == NULL) {
+                    return errno;
+                }
+            }
+            return 0;
+        }
+
+        if (name->type != GSSNTLM_NAME_USER) return ENOENT;
+
+        ret = gssntlm_copy_name(name, &cred->cred.user.user);
         if (ret) return ret;
-        for (i = 0; i < cred_store->count; i++) {
-            if (strcmp(cred_store->elements[i].key,
-                        GSS_NTLMSSP_CS_KEYFILE) == 0) {
-                keyfile = cred_store->elements[i].value;
-            }
-        }
-        if (keyfile) {
-            cred->cred.server.keyfile = strdup(keyfile);
-            if (cred->cred.server.keyfile == NULL) {
-                return errno;
-            }
-        }
-        return 0;
     }
 
     /* so far only user options can be defined in the cred_store */
-    if (name->type != GSSNTLM_NAME_USER) return ENOENT;
-
     cred->type = GSSNTLM_CRED_USER;
-    ret = gssntlm_copy_name(name, &cred->cred.user.user);
-    if (ret) return ret;
 
     for (i = 0; i < cred_store->count; i++) {
         if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_DOMAIN) == 0) {
-            /* ignore duplicates */
-            if (cred->cred.user.user.data.user.domain) continue;
+            free(cred->cred.user.user.data.user.domain);
             cred->cred.user.user.data.user.domain =
                                     strdup(cred_store->elements[i].value);
             if (!cred->cred.user.user.data.user.domain) return ENOMEM;
         }
         if (strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_NTHASH) == 0) {
-            /* ignore duplicates */
-            if (cred->cred.user.nt_hash.length) continue;
             ret = hex_to_key(cred_store->elements[i].value,
                              &cred->cred.user.nt_hash);
             if (ret) return ret;
         }
         if ((strcmp(cred_store->elements[i].key, GSS_NTLMSSP_CS_PASSWORD) == 0) ||
             (strcmp(cred_store->elements[i].key, GENERIC_CS_PASSWORD) == 0)) {
-            if (cred->cred.user.nt_hash.length) continue;
             cred->cred.user.nt_hash.length = 16;
             ret = NTOWFv1(cred_store->elements[i].value,
                           &cred->cred.user.nt_hash);
@@ -300,6 +301,9 @@ static int get_creds_from_store(struct gssntlm_name *name,
             if (ret) return ret;
         }
     }
+
+    /* now check if a user name was found, if not error out */
+    if (cred->cred.user.user.data.user.name == NULL) return ENOENT;
 
     return 0;
 }
