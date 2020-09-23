@@ -2655,6 +2655,38 @@ int test_NTOWF_UTF16(struct ntlm_ctx *ctx)
     return test_keys("results", &expected, &result);
 }
 
+int test_ACQ_NO_NAME(void)
+{
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_key_value_element_desc cred_file = {
+        .key = GSS_NTLMSSP_CS_KEYFILE,
+        .value = TEST_USER_FILE
+    };
+    gss_key_value_set_desc cred_store = {
+        .elements = &cred_file,
+        .count = 1
+    };
+    uint32_t retmin, retmaj;
+    int ret;
+
+    retmaj = gssntlm_acquire_cred_from(&retmin, GSS_C_NO_NAME,
+                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                       GSS_C_INITIATE, &cred_store,
+                                       &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred_from(cred_store) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    gssntlm_release_cred(&retmin, &cli_cred);
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2883,8 +2915,13 @@ int main(int argc, const char *argv[])
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
-    fprintf(stderr, "Test NTOWF iwith UTF16\n");
+    fprintf(stderr, "Test NTOWF with UTF16\n");
     ret = test_NTOWF_UTF16(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test Acquired cred from with no name\n");
+    ret = test_ACQ_NO_NAME();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
