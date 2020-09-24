@@ -441,19 +441,22 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             char *filename;
 
             filename = get_user_file_envvar();
-            if (!filename) {
-                set_GSSERRS(ENOENT, GSS_S_CRED_UNAVAIL);
-                goto done;
+            if (filename) {
+                retmin = get_user_file_creds(filename, name, cred);
+                free(filename);
+            } else {
+                retmin = ENOENT;
             }
-            retmin = get_user_file_creds(filename, name, cred);
             if (retmin) {
-                retmin = external_get_creds(name, cred);
+                uint32_t ret;
+                ret = external_get_creds(name, cred);
+                if (ret != ERR_NOTAVAIL) {
+                    retmin = ret;
+                }
             }
-
-            free(filename);
         }
         if (retmin) {
-            set_GSSERR(retmin);
+            set_GSSERRS(retmin, GSS_S_CRED_UNAVAIL);
             goto done;
         }
     } else if (cred_usage == GSS_C_ACCEPT) {
