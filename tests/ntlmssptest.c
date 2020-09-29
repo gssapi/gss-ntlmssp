@@ -1303,7 +1303,7 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
 
     ret = ntlm_signseal_keys(data->flags, true,
                              &data->KeyExchangeKey, &state);
-    if (ret) return ret;
+    if (ret) goto done;
 
     if (data->ClientSealKey.length) {
         err = test_keys("Client Sealing Keys",
@@ -1317,14 +1317,14 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
         if (err) ret = err;
     }
 
-    if (ret) return ret;
+    if (ret) goto done;
 
     ret = ntlm_seal(data->flags, &state,
                     &data->Plaintext, &output, &signature);
 
     if (ret) {
         fprintf(stderr, "Sealing failed\n");
-        return ret;
+        goto done;
     }
 
     err = test_buffers("Ciphertext", &data->Ciphertext, &output);
@@ -1333,6 +1333,8 @@ int test_GSS_Wrap_EX(struct ntlm_ctx *ctx, struct t_gsswrapex_data *data)
     err = test_buffers("Signature", &data->Signature, &signature);
     if (err) ret = err;
 
+done:
+    ntlm_release_rc4_state(&state);
     return ret;
 }
 
@@ -2150,11 +2152,15 @@ int test_gssapi_rfc5801(void)
         return EINVAL;
     }
 
+    gss_release_buffer(&retmaj, &sasl_name);
+    gss_release_buffer(&retmaj, &mech_name);
+    gss_release_buffer(&retmaj, &mech_desc);
     return 0;
 }
 
 int test_gssapi_rfc5587(void)
 {
+    int ret = 0;
     gss_OID_set mech_attrs;
     gss_OID_set known_mech_attrs;
     uint32_t retmin, retmaj;
@@ -2164,23 +2170,27 @@ int test_gssapi_rfc5587(void)
     if (retmaj != GSS_S_COMPLETE) {
         print_gss_error("gssntlm_inquire_attrs_for_mech() failed!",
                         retmaj, retmin);
-        return EINVAL;
+        ret = EINVAL;
+        goto done;
     }
 
     if (mech_attrs == GSS_C_NULL_OID_SET) {
         fprintf(stderr, "mech_attrs returned empty\n");
-        return EINVAL;
+        ret = EINVAL;
+        goto done;
     }
 
     if (known_mech_attrs == GSS_C_NULL_OID_SET) {
         fprintf(stderr, "known_mech_attrs returned empty\n");
-        return EINVAL;
+        ret = EINVAL;
+        goto done;
     }
 
     if (mech_attrs->count != 9) {
         fprintf(stderr, "expected 9 mech_attr oids, got %lu\n",
                 mech_attrs->count);
-        return EINVAL;
+        ret = EINVAL;
+        goto done;
     }
 
 #define CHECK_MA(A, X) \
@@ -2193,7 +2203,8 @@ do { \
     } \
     if (i >= A->count) { \
         fprintf(stderr, #X " is missing from " #A " set\n"); \
-        return EINVAL; \
+        ret = EINVAL; \
+        goto done; \
     } \
 } while(0)
 
@@ -2210,7 +2221,8 @@ do { \
     if (known_mech_attrs->count != 27) {
         fprintf(stderr, "expected 27 known_mech_attr oids, got %lu\n",
                 known_mech_attrs->count);
-        return EINVAL;
+        ret = EINVAL;
+        goto done;
     }
 
     CHECK_MA(known_mech_attrs, GSS_C_MA_MECH_CONCRETE);
@@ -2241,7 +2253,10 @@ do { \
     CHECK_MA(known_mech_attrs, GSS_C_MA_COMPRESS);
     CHECK_MA(known_mech_attrs, GSS_C_MA_CTX_TRANS);
 
-    return 0;
+done:
+    gss_release_oid_set(&retmin, &mech_attrs);
+    gss_release_oid_set(&retmin, &known_mech_attrs);
+    return ret;
 }
 
 static size_t random_in_range(size_t min_count, size_t max_count)

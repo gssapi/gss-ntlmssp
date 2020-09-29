@@ -577,6 +577,12 @@ int ntlm_reset_rc4_state(uint32_t flags, bool recv,
     return ret;
 }
 
+void ntlm_release_rc4_state(struct ntlm_signseal_state *state)
+{
+    RC4_FREE(&state->recv.seal_handle);
+    RC4_FREE(&state->send.seal_handle);
+}
+
 static int ntlm_seal_regen(struct ntlm_signseal_handle *h)
 {
     struct ntlm_buffer payload;

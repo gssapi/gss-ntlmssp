@@ -343,6 +343,13 @@ int ntlm_reset_rc4_state(uint32_t flags, bool recv,
                          struct ntlm_signseal_state *state);
 
 /**
+ * @brief   Release the RC4 state
+ *
+ * @param signseal_state        Sign and seal keys and state
+ */
+void ntlm_release_rc4_state(struct ntlm_signseal_state *state);
+
+/**
  * @brief   Verifies a NTLM v1 NT Response
  *
  * @param nt_response       The NT Response buffer
