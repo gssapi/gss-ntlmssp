@@ -474,8 +474,7 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
     gssntlm_int_release_name(&ctx->source_name);
     gssntlm_int_release_name(&ctx->target_name);
 
-    RC4_FREE(&ctx->crypto_state.send.seal_handle);
-    RC4_FREE(&ctx->crypto_state.recv.seal_handle);
+    ntlm_release_rc4_state(&ctx->crypto_state);
 
     safezero((uint8_t *)ctx, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
@@ -1009,6 +1008,7 @@ done:
     }
     *context_handle = (gss_ctx_id_t)ctx;
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
+    gssntlm_release_name(&tmpmin, (gss_name_t *)&gss_usrname);
     gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
     safefree(computer_name);
     safefree(nb_computer_name);

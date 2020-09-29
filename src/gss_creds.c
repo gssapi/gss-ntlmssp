@@ -58,13 +58,16 @@ static int get_user_file_creds(const char *filename,
     char *p;
     bool found = false;
     FILE *f;
-    int ret;
+    int ret = 0;
 
     ctx = calloc(1, sizeof(struct gssntlm_ctx));
     if (!ctx) return ENOMEM;
 
     lm_compat_lvl = gssntlm_get_lm_compatibility_level();
-    if (!gssntlm_required_security(lm_compat_lvl, ctx)) return ERR_BADLMLVL;
+    if (!gssntlm_required_security(lm_compat_lvl, ctx)) {
+        ret = ERR_BADLMLVL;
+        goto done;
+    }
 
     /* Use the same file format used by Heimdal in hope to achieve
      * some compatibility between implementations:
@@ -88,7 +91,10 @@ static int get_user_file_creds(const char *filename,
      */
 
     f = fopen(filename, "r");
-    if (!f) return errno;
+    if (!f) {
+        ret = errno;
+        goto done;
+    }
 
     while(fgets(line, 1024, f)) {
         p = line;
@@ -155,7 +161,8 @@ static int get_user_file_creds(const char *filename,
     fclose(f);
 
     if (!found) {
-        return ENOENT;
+        ret = ENOENT;
+        goto done;
     }
 
     cred->type = GSSNTLM_CRED_USER;
@@ -163,36 +170,44 @@ static int get_user_file_creds(const char *filename,
     if (dom) {
         free(cred->cred.user.user.data.user.domain);
         cred->cred.user.user.data.user.domain = strdup(dom);
-        if (!cred->cred.user.user.data.user.domain) return ENOMEM;
+        if (!cred->cred.user.user.data.user.domain) {
+            ret = ENOMEM;
+            goto done;
+        }
     }
     free(cred->cred.user.user.data.user.name);
     cred->cred.user.user.data.user.name = strdup(usr);
-    if (!cred->cred.user.user.data.user.name) return ENOMEM;
+    if (!cred->cred.user.user.data.user.name) {
+        ret = ENOMEM;
+        goto done;
+    }
 
     if (pwd) {
         cred->cred.user.nt_hash.length = 16;
 
         ret = NTOWFv1(pwd, &cred->cred.user.nt_hash);
-        if (ret) return ret;
+        if (ret) goto done;
 
         if (gssntlm_sec_lm_ok(ctx)) {
             cred->cred.user.lm_hash.length = 16;
             ret = LMOWFv1(pwd, &cred->cred.user.lm_hash);
-            if (ret) return ret;
+            if (ret) goto done;
         }
     }
 
     if (lm && nt) {
         ret = hex_to_key(nt, &cred->cred.user.nt_hash);
-        if (ret) return ret;
+        if (ret) goto done;
 
         if (gssntlm_sec_lm_ok(ctx)) {
             ret = hex_to_key(lm, &cred->cred.user.lm_hash);
-            if (ret) return ret;
+            if (ret) goto done;
         }
     }
 
-    return 0;
+done:
+    free(ctx);
+    return ret;
 }
 
 static int get_server_creds(struct gssntlm_name *name,
