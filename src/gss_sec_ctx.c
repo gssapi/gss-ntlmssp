@@ -855,20 +855,28 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 }
             }
 
+            /* Use domain\username format as that allows to pass in
+             * enterprise names without the need to escape them */
             ulen = strlen(usr_name);
             dlen = strlen(dom_name);
             if (ulen + dlen + 2 > 1024) {
                 set_GSSERR(ERR_NAMETOOLONG);
                 goto done;
             }
-            memcpy(useratdom, usr_name, ulen);
-            uadlen = ulen;
+            uadlen = dlen;
             if (dlen) {
-                useratdom[uadlen] = '@';
-                uadlen++;
-                memcpy(&useratdom[uadlen], dom_name, dlen);
-                uadlen += dlen;
+                memcpy(useratdom, dom_name, dlen);
             }
+
+            /* always add the domain separator, this way if the username
+             * is an enteprise name (user@email.domain form) it will be
+             * correctly recognized by gssntlm_import_name() as such */
+            useratdom[uadlen] = '\\';
+            uadlen++;
+
+            /* finally add usernmae part */
+            memcpy(&useratdom[uadlen], usr_name, ulen);
+            uadlen += ulen;
             useratdom[uadlen] = '\0';
 
             usrname.value = useratdom;
