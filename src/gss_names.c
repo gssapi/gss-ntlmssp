@@ -31,17 +31,20 @@ static uint32_t string_split(uint32_t *minor_status, char sep,
     p = memchr(str, sep, len);
     if (!p) return GSSERRS(0, GSS_S_UNAVAILABLE);
 
-    if (s1) {
-        l = p - str;
+    /* left side */
+    l = p - str;
+    if (s1 && l != 0) {
         r1 = strndup(str, l);
         if (!r1) {
             set_GSSERR(ENOMEM);
             goto done;
         }
     }
-    if (s2) {
-        p++;
-        l = len - (p - str);
+
+    /* right side */
+    p++;
+    l = len - (p - str);
+    if (s2 && l != 0) {
         r2 = strndup(p, l);
         if (!r2) {
             set_GSSERR(ENOMEM);
@@ -62,43 +65,169 @@ done:
     return GSSERR();
 }
 
+/* Form of names allowed in GSSNTLMSSP now:
+ *
+ * Standard Forms:
+ *  foo
+ *      USERNAME: foo
+ *      DOMAIN: <null>
+ *
+ *  BAR\foo
+ *      USERNAME: foo
+ *      DOMAIN: BAR
+ *
+ *  foo@BAR
+ *      USERNAME: foo
+ *      DOMAIN: BAR
+ *
+ * Enterprise name forms:
+ *  foo\@bar.example.com
+ *      USERNAME: foo@bar.example.com
+ *      DOMAIN: <null>
+ *
+ *  foo\@bar.example.com@BAR
+ *      USERNAME: foo@bar.example.com
+ *      DOMAIN: BAR
+ *
+ *  \foo@bar.example.com
+ *      USERNAME: foo@bar.example.com
+ *      DOMAIN: <null>
+ *
+ *  BAR\foo@bar.example.com
+ *      USERNAME: foo@bar.example.com
+ *      DOMAIN: BAR
+ *
+ *  BAR@dom\foo@bar.example.com
+ *      USERNAME: foo@bar.example.com
+ *      DOMAIN: BAR@dom
+ *
+ * Invalid forms:
+ *  BAR@dom\@foo..
+ *  DOM\foo\@bar
+ *  foo@bar\@baz
+ */
 #define MAX_NAME_LEN 1024
-static uint32_t get_enterprise_name(uint32_t *minor_status,
-                                    const char *str, size_t len,
-                                    char **username)
+static uint32_t parse_user_name(uint32_t *minor_status,
+                                const char *str, size_t len,
+                                char **domain, char **username)
 {
     uint32_t retmaj;
     uint32_t retmin;
-    char *buf;
-    char *e;
+    char *at, *sep;
 
     if (len > MAX_NAME_LEN) {
         return GSSERRS(ERR_NAMETOOLONG, GSS_S_BAD_NAME);
     }
-    buf = alloca(len + 1);
 
-    memcpy(buf, str, len);
-    buf[len] = '\0';
+    *username = NULL;
+    *domain = NULL;
 
-    e = strstr(buf, "\\@");
-    if (e) {
-        /* remove escape */
-        memmove(e, e + 1, len - (e - buf));
-    } else {
-        /* check if domain part contains dot */
-        e = strchr(buf, '@');
-        if (e) {
-            e = strchr(e, '.');
+    /* let's check if there are '@' or '\' signs */
+    at = memchr(str, '@', len);
+    sep = memchr(str, '\\', len);
+
+    /* Check if enterprise name first */
+    if (at && sep) {
+        /* we may have an enterprise name here */
+        char strbuf[len + 1];
+        char *buf = strbuf;
+        bool domain_handled = false;
+
+        /* copy buf to manipulate it */
+        memcpy(buf, str, len);
+        buf[len] = '\0';
+
+        /* adjust pointers relative to new buffer */
+        sep = buf + (sep - str);
+        at = buf + (at - str);
+
+        if (sep > at) {
+            /* domain name contains an '@' sign ... */
+            if (*(sep + 1) == '@') {
+                /* invalid case of XXX@YYY\@ZZZ*/
+                set_GSSERR(EINVAL);
+                goto done;
+            }
+        } else if (at - sep == 1) {
+            /* it's just a '\@' escape */
+            /* no leading domain */
+            sep = NULL;
         }
-    }
-    if (!e) return GSSERRS(0, GSS_S_UNAVAILABLE);
 
-    *username = strdup(buf);
-    if (NULL == *username) {
-        set_GSSERR(ENOMEM);
+        if (sep) {
+            /* leading domain, copy if domain name is not empty */
+            domain_handled = true;
+
+            /* terminate and copy domain, even if empty */
+            /* NOTE: this is important for the Windbind integration case
+             * where we need to tell the machinery to *not* add the default
+             * domain name, it happens when the domain is NULL. */
+            *sep = '\0';
+            *domain = strdup(buf);
+            if (NULL == *domain) {
+                set_GSSERR(ENOMEM);
+                goto done;
+            }
+            /* point buf at username part */
+            len = len - (sep - buf) - 1;
+            buf = sep + 1;
+        }
+
+        for (at = strchr(buf, '@'); at != NULL; at = strchr(at, '@')) {
+            if (*(at - 1) == '\\') {
+                if (domain_handled) {
+                    /* Invalid forms like DOM\foo\@bar or foo@bar\@baz */
+                    free(*domain);
+                    *domain = NULL;
+                    set_GSSERR(EINVAL);
+                    goto done;
+                }
+                /* remove escape, moving all including terminating '\0' */
+                memmove(at - 1, at, len - (at - buf) + 1);
+            } else if (!domain_handled) {
+                /* an '@' without escape and no previous
+                 * domain was split out.
+                 * the rest of the string is the domain */
+                *at = '\0';
+                *domain = strdup(at + 1);
+                if (NULL == *domain) {
+                    set_GSSERR(ENOMEM);
+                    goto done;
+                }
+                /* note we continue the loop to check if any invalid
+                 * \@ escapes is found in the domain part */
+            }
+            at += 1;
+        }
+
+        *username = strdup(buf);
+        if (NULL == *username) {
+            set_GSSERR(ENOMEM);
+            goto done;
+        }
+
+        /* we got an enterprise name, return */
+        set_GSSERRS(0, GSS_S_COMPLETE);
         goto done;
     }
 
+    /* Check if in classic DOMAIN\User windows format */
+    if (sep) {
+        retmaj = string_split(&retmin, '\\', str, len, domain, username);
+        goto done;
+    }
+
+    /* else accept a user@domain format too */
+    if (at) {
+        retmaj = string_split(&retmin, '@', str, len, username, domain);
+        goto done;
+    }
+
+    /* finally, take string as simple user name */
+    *username = strndup(str, len);
+    if (NULL == *username) {
+        set_GSSERR(ENOMEM);
+    }
     set_GSSERRS(0, GSS_S_COMPLETE);
 
 done:
@@ -186,44 +315,11 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_USER_NAME)) {
 
         name->type = GSSNTLM_NAME_USER;
-        name->data.user.domain = NULL;
-
-        /* Check if enterprise name first */
-        retmaj = get_enterprise_name(&retmin,
-                                     input_name_buffer->value,
-                                     input_name_buffer->length,
-                                     &name->data.user.name);
-        if ((retmaj == GSS_S_COMPLETE) ||
-            (retmaj != GSS_S_UNAVAILABLE)) {
-            goto done;
-        }
-        /* Check if in classic DOMAIN\User windows format */
-        retmaj = string_split(&retmin, '\\',
-                              input_name_buffer->value,
-                              input_name_buffer->length,
-                              &name->data.user.domain,
-                              &name->data.user.name);
-        if ((retmaj == GSS_S_COMPLETE) ||
-            (retmaj != GSS_S_UNAVAILABLE)) {
-            goto done;
-        }
-        /* else accept a user@domain format too */
-        retmaj = string_split(&retmin, '@',
-                              input_name_buffer->value,
-                              input_name_buffer->length,
-                              &name->data.user.name,
-                              &name->data.user.domain);
-        if ((retmaj == GSS_S_COMPLETE) ||
-            (retmaj != GSS_S_UNAVAILABLE)) {
-            goto done;
-        }
-        /* finally, take string as simple user name */
-        name->data.user.name = strndup(input_name_buffer->value,
-                                       input_name_buffer->length);
-        if (!name->data.user.name) {
-            set_GSSERR(ENOMEM);
-        }
-        retmaj = GSS_S_COMPLETE;
+        retmaj = parse_user_name(&retmin,
+                                 input_name_buffer->value,
+                                 input_name_buffer->length,
+                                 &name->data.user.domain,
+                                 &name->data.user.name);
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_MACHINE_UID_NAME)) {
 
         name->type = GSSNTLM_NAME_USER;
