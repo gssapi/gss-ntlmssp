@@ -2702,6 +2702,92 @@ done:
     return ret;
 }
 
+int test_import_name(void)
+{
+    struct {
+        const char *name;
+        const char *username;
+        const char *domain;
+        uint32_t error;
+    } name_test[] = {
+        { "foo", "foo", NULL, 0 },
+        { "BAR\\foo", "foo", "BAR", 0 },
+        { "foo@BAR", "foo", "BAR", 0 },
+        { "foo\\@bar.baz", "foo@bar.baz", NULL, 0 },
+        { "foo\\@bar.baz@BAR", "foo@bar.baz", "BAR", 0 },
+        { "\\foo@bar.baz", "foo@bar.baz", "", 0 },
+        { "BAR\\foo@bar.baz", "foo@bar.baz", "BAR", 0 },
+        { "BAR@baz\\foo@bar.baz", "foo@bar.baz", "BAR@baz", 0 },
+        { "BAR@baz\\@foo@bar.baz", NULL, NULL, GSS_S_FAILURE },
+        { "BAR\\foo\\@bar.baz", NULL, NULL, GSS_S_FAILURE },
+        { "foo@bar\\@baz", NULL, NULL, GSS_S_FAILURE },
+        { NULL, NULL, NULL, 0 }
+    };
+    int ret = 0;
+
+    for (int i = 0; name_test[i].name != NULL; i++) {
+        struct gssntlm_name *gss_username = NULL;
+        gss_buffer_desc username;
+        uint32_t retmin, retmaj;
+        bool failed = false;
+
+        username.value = discard_const(name_test[i].name);
+        username.length = strlen(username.value);
+
+        retmaj = gssntlm_import_name(&retmin, &username,
+                                     GSS_C_NT_USER_NAME,
+                                     (gss_name_t *)&gss_username);
+        if (retmaj != name_test[i].error) {
+            failed = true;
+        } else if (retmaj == GSS_S_COMPLETE) {
+            if ((gss_username->data.user.name == NULL &&
+                 name_test[i].username != NULL) ||
+                (name_test[i].username == NULL &&
+                 gss_username->data.user.name != NULL) ||
+                (gss_username->data.user.name != NULL &&
+                 name_test[i].username != NULL &&
+                 strcmp(gss_username->data.user.name,
+                        name_test[i].username) != 0)) {
+                failed = true;
+            }
+            if ((gss_username->data.user.domain == NULL &&
+                 name_test[i].domain != NULL) ||
+                (name_test[i].domain == NULL &&
+                 gss_username->data.user.domain != NULL) ||
+                (gss_username->data.user.domain != NULL &&
+                 name_test[i].domain != NULL &&
+                 strcmp(gss_username->data.user.domain,
+                        name_test[i].domain) != 0)) {
+                failed = true;
+            }
+        }
+
+        if (failed) {
+            fprintf(stderr, "gssntlm_import_name(%s) failed!\n",
+                    name_test[i].name);
+            fprintf(stderr, "Expected: [%s]\\[%s]\n",
+                    name_test[i].domain, name_test[i].username);
+            if (gss_username) {
+                fprintf(stderr, "Obtained: [%s]\\[%s]\n",
+                                gss_username->data.user.domain,
+                                gss_username->data.user.name);
+            }
+            if (retmaj) {
+                print_gss_error("Function returned error.", retmaj, retmin);
+            } else {
+                fprintf(stderr, "Expected error: %d", (int)name_test[i].error);
+                fflush(stderr);
+            }
+
+            ret++;
+        }
+
+        gssntlm_release_name(&retmin, (gss_name_t *)&gss_username);
+    }
+
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -2939,6 +3025,11 @@ int main(int argc, const char *argv[])
     ret = test_ACQ_NO_NAME();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
+
+    fprintf(stderr, "Test importing different name forms\n");
+    ret = test_import_name();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret += ret;
 
 done:
     ntlm_free_ctx(&ctx);
