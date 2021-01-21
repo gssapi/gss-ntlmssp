@@ -9,13 +9,74 @@
 
 #include <wbclient.h>
 
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+
+static pthread_key_t key;
+static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+
+/* note that the destructor is given directly the content of the key in
+ * ptr, not the key itself. */
+static void key_destructor(void *ptr)
+{
+    wbcCtxFree((struct wbcContext *)ptr);
+}
+
+static void key_create(void)
+{
+    /* we have no way to report errors ... */
+    (void)pthread_key_create(&key, key_destructor);
+}
+
+static struct wbcContext *winbind_get_context(void)
+{
+    struct wbcContext *ctx;
+    int ret;
+
+    ret = pthread_once(&key_once, key_create);
+    if (ret != 0) {
+        return NULL;
+    }
+    ctx = pthread_getspecific(key);
+    if (ctx == NULL) {
+        ctx = wbcCtxCreate();
+        ret = pthread_setspecific(key, ctx);
+        if (ret != 0) {
+            wbcCtxFree(ctx);
+            ctx = NULL;
+        }
+    }
+    return ctx;
+}
+
+#else /* HAVE_PTHREAD */
+
+/* non thread-safe version */
+static struct wbcContext *gctx = NULL;
+
+static struct wbcContext *winbind_get_context(void)
+{
+    if (gctx == NULL) {
+        gctx = wbcCtxCreate();
+    }
+    return gctx;
+}
+#endif /* HAVE_PTHREAD */
+
 uint32_t winbind_get_names(char **computer, char **domain)
 {
+    struct wbcContext *ctx;
     struct wbcInterfaceDetails *details = NULL;
     wbcErr wbc_status;
     int ret = ERR_NOTAVAIL;
 
-    wbc_status = wbcInterfaceDetails(&details);
+    ctx = winbind_get_context();
+    if (ctx == NULL) {
+        ret = ERR_BADCTX;
+        goto done;
+    }
+
+    wbc_status = wbcCtxInterfaceDetails(ctx, &details);
     if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
 
     if (computer &&
@@ -51,6 +112,7 @@ done:
 uint32_t winbind_get_creds(struct gssntlm_name *name,
                            struct gssntlm_cred *cred)
 {
+    struct wbcContext *ctx;
     struct wbcCredentialCacheParams params;
     struct wbcCredentialCacheInfo *result;
     struct wbcInterfaceDetails *details = NULL;
@@ -58,10 +120,16 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     bool cached = false;
     int ret = ERR_NOTAVAIL;
 
+    ctx = winbind_get_context();
+    if (ctx == NULL) {
+        ret = ERR_BADCTX;
+        goto done;
+    }
+
     if (name && name->data.user.domain) {
         params.domain_name = name->data.user.domain;
     } else {
-        wbc_status = wbcInterfaceDetails(&details);
+        wbc_status = wbcCtxInterfaceDetails(ctx, &details);
         if (!WBC_ERROR_IS_OK(wbc_status)) goto done;
 
         params.domain_name = details->netbios_domain;
@@ -80,7 +148,7 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     params.level = WBC_CREDENTIAL_CACHE_LEVEL_NTLMSSP;
     params.num_blobs = 0;
     params.blobs = NULL;
-    wbc_status = wbcCredentialCache(&params, &result, NULL);
+    wbc_status = wbcCtxCredentialCache(ctx, &params, &result, NULL);
 
     if (WBC_ERROR_IS_OK(wbc_status)) {
         /* Yes, winbind seems to think it has credentials for us */
@@ -120,6 +188,7 @@ uint32_t winbind_cli_auth(char *user, char *domain,
                           struct ntlm_key *exported_session_key)
 {
     /* Get responses and session key from winbind */
+    struct wbcContext *ctx;
     struct wbcCredentialCacheParams params;
     struct wbcCredentialCacheInfo *result = NULL;
     struct wbcNamedBlob *sesskey_blob = NULL;
@@ -129,6 +198,12 @@ uint32_t winbind_cli_auth(char *user, char *domain,
     wbcErr wbc_status;
     int ret;
     int i;
+
+    ctx = winbind_get_context();
+    if (ctx == NULL) {
+        ret = ERR_BADCTX;
+        goto done;
+    }
 
     if (input_chan_bindings != GSS_C_NO_CHANNEL_BINDINGS) {
         /* Winbind doesn't support this (yet). We'd want to pass our
@@ -167,7 +242,7 @@ uint32_t winbind_cli_auth(char *user, char *domain,
         }
     }
 
-    wbc_status = wbcCredentialCache(&params, &result, NULL);
+    wbc_status = wbcCtxCredentialCache(ctx, &params, &result, NULL);
     if (!WBC_ERROR_IS_OK(wbc_status)) {
         ret = ERR_NOTAVAIL;
         goto done;
@@ -295,6 +370,7 @@ uint32_t winbind_srv_auth(char *user, char *domain,
                           struct ntlm_key *ntlmv2_key,
                           struct gssntlm_name_attribute **auth_attrs)
 {
+    struct wbcContext *ctx;
     struct wbcAuthUserParams wbc_params = { 0 };
     struct wbcAuthUserInfo *wbc_info = NULL;
     struct wbcAuthErrorInfo *wbc_err = NULL;
@@ -304,6 +380,11 @@ uint32_t winbind_srv_auth(char *user, char *domain,
 
     if (ntlmv2_key->length != 16) {
         return ERR_KEYLEN;
+    }
+
+    ctx = winbind_get_context();
+    if (ctx == NULL) {
+        return ERR_BADCTX;
     }
 
     wbc_params.account_name = user;
@@ -320,7 +401,8 @@ uint32_t winbind_srv_auth(char *user, char *domain,
     wbc_params.password.response.lm_length = lm_chal_resp->length;
     wbc_params.password.response.lm_data = lm_chal_resp->data;
 
-    wbc_status = wbcAuthenticateUserEx(&wbc_params, &wbc_info, &wbc_err);
+    wbc_status = wbcCtxAuthenticateUserEx(ctx, &wbc_params, &wbc_info,
+                                          &wbc_err);
 
     if (!WBC_ERROR_IS_OK(wbc_status)) {
         /* TODO: use wbcErrorString, to save error message */
