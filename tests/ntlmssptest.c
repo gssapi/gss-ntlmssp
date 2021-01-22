@@ -1513,7 +1513,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal, bool use_cs)
     }
 
     if (user_env_file || use_cs) {
-        retmaj = gssntlm_acquire_cred_from(&retmin, (gss_name_t)gss_username,
+        retmaj = gssntlm_acquire_cred_from(&retmin, NULL,
+                                           (gss_name_t)gss_username,
                                            GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                            GSS_C_INITIATE, cred_store,
                                            &cli_cred, NULL, NULL);
@@ -1560,7 +1561,8 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal, bool use_cs)
         return EINVAL;
     }
 
-    retmaj = gssntlm_acquire_cred_from(&retmin, (gss_name_t)gss_srvname,
+    retmaj = gssntlm_acquire_cred_from(&retmin, NULL,
+                                       (gss_name_t)gss_srvname,
                                        GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                        GSS_C_ACCEPT, cred_store,
                                        &srv_cred, NULL, NULL);
@@ -2684,7 +2686,7 @@ int test_ACQ_NO_NAME(void)
     uint32_t retmin, retmaj;
     int ret;
 
-    retmaj = gssntlm_acquire_cred_from(&retmin, GSS_C_NO_NAME,
+    retmaj = gssntlm_acquire_cred_from(&retmin, NULL, GSS_C_NO_NAME,
                                        GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                        GSS_C_INITIATE, &cred_store,
                                        &cli_cred, NULL, NULL);

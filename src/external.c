@@ -8,23 +8,54 @@
 #include "gss_ntlmssp_winbind.h"
 #endif
 
-uint32_t external_netbios_get_names(char **computer, char **domain)
+void *external_get_context(void)
 {
 #if HAVE_WBCLIENT
-    return winbind_get_names(computer, domain);
+    return winbind_get_context();
+#else
+    return NULL;
+#endif
+}
+
+void external_free_context(void *ctx)
+{
+#if HAVE_WBCLIENT
+    winbind_free_context(ctx);
+#else
+    return;
+#endif
+}
+
+uint32_t external_netbios_get_names(void *ctx, char **computer, char **domain)
+{
+#if HAVE_WBCLIENT
+    return winbind_get_names(ctx, computer, domain);
 #else
     return ERR_NOTAVAIL;
 #endif
 }
 
-uint32_t external_get_creds(struct gssntlm_name *name,
+uint32_t external_get_creds(void *ctx,
+                            struct gssntlm_name *name,
                             struct gssntlm_cred *cred)
 {
+    void *ectx = NULL;
+    uint32_t ret;
+
+    if (ctx == NULL) {
+        ectx = external_get_context();
+    } else {
+        ectx = ctx;
+    }
 #if HAVE_WBCLIENT
-    return winbind_get_creds(name, cred);
+    ret = winbind_get_creds(ectx, name, cred);
 #else
-    return ERR_NOTAVAIL;
+    ret = ERR_NOTAVAIL;
 #endif
+    if (ctx == NULL) {
+        external_free_context(ectx);
+    }
+    return ret;
 }
 
 uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
@@ -33,7 +64,8 @@ uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
                            gss_channel_bindings_t input_chan_bindings)
 {
 #if HAVE_WBCLIENT
-    return winbind_cli_auth(cred->cred.external.user.data.user.name,
+    return winbind_cli_auth(ctx->external_context,
+                            cred->cred.external.user.data.user.name,
                             cred->cred.external.user.data.user.domain,
                             input_chan_bindings,
                             in_flags, &ctx->neg_flags,
@@ -70,7 +102,8 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
         chal_ptr = ctx->server_chal;
     }
 
-    return winbind_srv_auth(cred->cred.external.user.data.user.name,
+    return winbind_srv_auth(ctx->external_context,
+                            cred->cred.external.user.data.user.name,
                             cred->cred.external.user.data.user.domain,
                             ctx->workstation, chal_ptr,
                             nt_chal_resp, lm_chal_resp, session_base_key,
