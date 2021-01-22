@@ -53,7 +53,7 @@ OM_uint32 gss_acquire_cred_from(OM_uint32 *minor_status,
                                 gss_OID_set *actual_mechs,
                                 OM_uint32 *time_rec)
 {
-    return gssntlm_acquire_cred_from(minor_status,
+    return gssntlm_acquire_cred_from(minor_status, NULL,
                                      desired_name,
                                      time_req,
                                      desired_mechs,

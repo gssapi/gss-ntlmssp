@@ -136,6 +136,8 @@ struct gssntlm_ctx {
 
     uint32_t int_flags;
     time_t expiration_time;
+
+    void *external_context;
 };
 
 #define set_GSSERRS(min, maj) \
@@ -189,8 +191,11 @@ void gssntlm_release_attrs(struct gssntlm_name_attribute **attrs);
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst);
 int gssntlm_copy_creds(struct gssntlm_cred *in, struct gssntlm_cred *out);
 
-uint32_t external_netbios_get_names(char **computer, char **domain);
-uint32_t external_get_creds(struct gssntlm_name *name,
+void *external_get_context(void);
+void external_free_context(void *ctx);
+uint32_t external_netbios_get_names(void *ctx, char **computer, char **domain);
+uint32_t external_get_creds(void *ctx,
+                            struct gssntlm_name *name,
                             struct gssntlm_cred *cred);
 uint32_t external_cli_auth(struct gssntlm_ctx *ctx,
                            struct gssntlm_cred *cred,
@@ -202,7 +207,7 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                            struct ntlm_buffer *lm_chal_resp,
                            struct ntlm_key *session_base_key);
 
-uint32_t netbios_get_names(char *computer_name,
+uint32_t netbios_get_names(void *ctx, char *computer_name,
                            char **netbios_host, char **netbios_domain);
 
 bool is_ntlm_v1(struct ntlm_buffer *nt_chal_resp);
@@ -232,6 +237,7 @@ uint32_t gssntlm_acquire_cred(uint32_t *minor_status,
                               uint32_t *time_rec);
 
 uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
+                                   void *external_context,
                                    gss_name_t desired_name,
                                    uint32_t time_req,
                                    gss_OID_set desired_mechs,

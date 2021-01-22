@@ -713,7 +713,7 @@ done:
     return GSSERR();
 }
 
-uint32_t netbios_get_names(char *computer_name,
+uint32_t netbios_get_names(void *ctx, char *computer_name,
                            char **netbios_host, char **netbios_domain)
 {
     char *nb_computer_name = NULL;
@@ -741,7 +741,7 @@ uint32_t netbios_get_names(char *computer_name,
 
     if (!nb_computer_name || !nb_domain_name) {
         /* fetch only mising ones */
-        ret = external_netbios_get_names(
+        ret = external_netbios_get_names(ctx,
                     nb_computer_name ? NULL : &nb_computer_name,
                     nb_domain_name ? NULL : &nb_domain_name);
         if ((ret != 0) &&

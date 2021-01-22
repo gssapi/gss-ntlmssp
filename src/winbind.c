@@ -28,7 +28,7 @@ static void key_create(void)
     (void)pthread_key_create(&key, key_destructor);
 }
 
-static struct wbcContext *winbind_get_context(void)
+static struct wbcContext *winbind_pthread_context(void)
 {
     struct wbcContext *ctx;
     int ret;
@@ -49,28 +49,69 @@ static struct wbcContext *winbind_get_context(void)
     return ctx;
 }
 
-#else /* HAVE_PTHREAD */
+/* This variable is used to indicate that the context to be used
+ * is the thread local context. We need a single pointer signaling
+ * the routines need to use a TLS context. We cannot return the actual
+ * TLS context pointer because we have no assurance the caller will
+ * hold the pointer within the same thread. We calso cannot use NULL
+ * because a NULL indicates a failure to allocate the context when
+ * non-tls storage is used (in which case we return an allocated
+ * context) */
+static long use_tls_ctx = 0;
 
-/* non thread-safe version */
-static struct wbcContext *gctx = NULL;
-
-static struct wbcContext *winbind_get_context(void)
-{
-    if (gctx == NULL) {
-        gctx = wbcCtxCreate();
-    }
-    return gctx;
-}
 #endif /* HAVE_PTHREAD */
 
-uint32_t winbind_get_names(char **computer, char **domain)
+void *winbind_get_context(void)
+{
+#ifdef HAVE_PTHREAD
+    const char *envvar;
+#ifdef DEFAULT_WB_TLS_CTX
+    int tls_ctx = 1;
+#else
+    int tls_ctx = 0;
+#endif
+    /* we return use_tls_ctx if we are told to use per thread
+     * context, the code knows how to cope correctly */
+    envvar = getenv("GSSNTLMSSP_WB_TLS_CTX");
+    if (envvar != NULL) {
+        tls_ctx = atoi(envvar);
+    }
+    if (tls_ctx == 1) {
+        return &use_tls_ctx;
+    }
+#endif /* HAVE_PTHREAD */
+
+    return wbcCtxCreate();
+}
+
+static struct wbcContext *winbind_fetch_context(void *ectx)
+{
+#ifdef HAVE_PTHREAD
+    if (ectx == &use_tls_ctx) {
+        return winbind_pthread_context();
+    }
+#endif /* HAVE_PTHREAD */
+    return (struct wbcContext *)ectx;
+}
+
+void winbind_free_context(void *ectx)
+{
+#ifdef HAVE_PTHREAD
+    if (ectx == &use_tls_ctx) {
+        return;
+    }
+#endif /* HAVE_PTHREAD */
+    return wbcCtxFree((struct wbcContext *)ectx);
+}
+
+uint32_t winbind_get_names(void *ectx, char **computer, char **domain)
 {
     struct wbcContext *ctx;
     struct wbcInterfaceDetails *details = NULL;
     wbcErr wbc_status;
     int ret = ERR_NOTAVAIL;
 
-    ctx = winbind_get_context();
+    ctx = winbind_fetch_context(ectx);
     if (ctx == NULL) {
         ret = ERR_BADCTX;
         goto done;
@@ -109,7 +150,8 @@ done:
     return ret;
 }
 
-uint32_t winbind_get_creds(struct gssntlm_name *name,
+uint32_t winbind_get_creds(void *ectx,
+                           struct gssntlm_name *name,
                            struct gssntlm_cred *cred)
 {
     struct wbcContext *ctx;
@@ -120,7 +162,7 @@ uint32_t winbind_get_creds(struct gssntlm_name *name,
     bool cached = false;
     int ret = ERR_NOTAVAIL;
 
-    ctx = winbind_get_context();
+    ctx = winbind_fetch_context(ectx);
     if (ctx == NULL) {
         ret = ERR_BADCTX;
         goto done;
@@ -178,7 +220,7 @@ done:
     return ret;
 }
 
-uint32_t winbind_cli_auth(char *user, char *domain,
+uint32_t winbind_cli_auth(void *ectx, char *user, char *domain,
                           gss_channel_bindings_t input_chan_bindings,
                           uint32_t in_flags,
                           uint32_t *neg_flags,
@@ -199,7 +241,7 @@ uint32_t winbind_cli_auth(char *user, char *domain,
     int ret;
     int i;
 
-    ctx = winbind_get_context();
+    ctx = winbind_fetch_context(ectx);
     if (ctx == NULL) {
         ret = ERR_BADCTX;
         goto done;
@@ -363,7 +405,7 @@ done:
     return 0;
 }
 
-uint32_t winbind_srv_auth(char *user, char *domain,
+uint32_t winbind_srv_auth(void *ectx, char *user, char *domain,
                           char *workstation, uint8_t *challenge,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
@@ -382,7 +424,7 @@ uint32_t winbind_srv_auth(char *user, char *domain,
         return ERR_KEYLEN;
     }
 
-    ctx = winbind_get_context();
+    ctx = winbind_fetch_context(ectx);
     if (ctx == NULL) {
         return ERR_BADCTX;
     }

@@ -97,6 +97,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        ctx->external_context = external_get_context();
+
         retmin = gssntlm_copy_name(&cred->cred.user.user,
                                    &ctx->source_name);
         if (retmin) {
@@ -169,7 +171,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        retmin = netbios_get_names(computer_name,
+        retmin = netbios_get_names(ctx->external_context, computer_name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
             set_GSSERR(retmin);
@@ -476,6 +478,8 @@ uint32_t gssntlm_delete_sec_context(uint32_t *minor_status,
 
     ntlm_release_rc4_state(&ctx->crypto_state);
 
+    external_free_context(ctx->external_context);
+
     safezero((uint8_t *)ctx, sizeof(struct gssntlm_ctx));
     safefree(*context_handle);
 
@@ -593,6 +597,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        ctx->external_context = external_get_context();
+
         /* acquire our own name */
         if (!server_name) {
             gss_buffer_desc tmpbuf;
@@ -618,7 +624,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        retmin = netbios_get_names(computer_name,
+        retmin = netbios_get_names(ctx->external_context, computer_name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
             set_GSSERR(retmin);
@@ -894,7 +900,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                 cred_store = &cs;
             }
 
-            retmaj = gssntlm_acquire_cred_from(&retmin,
+            retmaj = gssntlm_acquire_cred_from(&retmin, ctx->external_context,
                                                (gss_name_t)gss_usrname,
                                                 GSS_C_INDEFINITE,
                                                 GSS_C_NO_OID_SET,

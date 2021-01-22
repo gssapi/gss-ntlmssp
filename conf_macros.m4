@@ -85,3 +85,20 @@ AC_DEFUN([WITH_WBCLIENT],
 
           AM_CONDITIONAL([BUILD_WBCLIENT], [test x"$with_wbclient" = xyes])
          ])
+
+AC_DEFUN([WITH_WINBIND_TLS_CONTEXT],
+         [
+          AC_ARG_WITH([winbind-tls-context],
+                      [AC_HELP_STRING([--with-winbind-tls-context],
+                                      [Whether to default to thread local storage for winbind contexts [no]])
+                      ],
+                      [with_winbind_tls_context=$withval],
+                      with_winbind_tls_context=no)
+
+         if test x"$with_winbind_tls_context" = xyes; then
+             AC_DEFINE(DEFAULT_WB_TLS_CTX, 1,
+                       [whether to default to thread local storage for winbind contexts S])
+         fi
+         AM_CONDITIONAL([DEFAULT_WB_TLS_CTX], [test x"$with_winbind_tls_context" = xyes])
+        ])
+

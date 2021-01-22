@@ -401,6 +401,7 @@ void gssntlm_int_release_cred(struct gssntlm_cred *cred)
 }
 
 uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
+                                   void *external_context,
                                    gss_name_t desired_name,
                                    uint32_t time_req,
                                    gss_OID_set desired_mechs,
@@ -464,7 +465,7 @@ uint32_t gssntlm_acquire_cred_from(uint32_t *minor_status,
             }
             if (retmin) {
                 uint32_t ret;
-                ret = external_get_creds(name, cred);
+                ret = external_get_creds(external_context, name, cred);
                 if (ret != ERR_NOTAVAIL) {
                     retmin = ret;
                 }
@@ -520,7 +521,7 @@ uint32_t gssntlm_acquire_cred(uint32_t *minor_status,
                               gss_OID_set *actual_mechs,
                               uint32_t *time_rec)
 {
-    return gssntlm_acquire_cred_from(minor_status,
+    return gssntlm_acquire_cred_from(minor_status, NULL,
                                      desired_name,
                                      time_req,
                                      desired_mechs,
@@ -563,7 +564,7 @@ uint32_t gssntlm_acquire_cred_with_password(uint32_t *minor_status,
     cred_store.count = 1;
     cred_store.elements = &element;
 
-    return gssntlm_acquire_cred_from(minor_status,
+    return gssntlm_acquire_cred_from(minor_status, NULL,
                                      desired_name,
                                      time_req,
                                      desired_mechs,
@@ -586,7 +587,7 @@ uint32_t gssntlm_inquire_cred(uint32_t *minor_status,
     uint32_t maj, min;
 
     if (cred_handle == GSS_C_NO_CREDENTIAL) {
-        maj = gssntlm_acquire_cred_from(&min,
+        maj = gssntlm_acquire_cred_from(&min, NULL,
                                         NULL, GSS_C_INDEFINITE,
                                         NULL, GSS_C_INITIATE,
                                         GSS_C_NO_CRED_STORE,

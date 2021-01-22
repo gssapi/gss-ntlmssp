@@ -53,6 +53,7 @@ WITH_TEST_DIR
 WITH_MANPAGES
 WITH_XML_CATALOG
 WITH_WBCLIENT
+WITH_WINBIND_TLS_CONTEXT
 
 m4_include([external/pkg.m4])
 m4_include([external/docbook.m4])
