@@ -36,13 +36,3 @@ AM_CONDITIONAL([HAVE_SUSE], [test x"$osname" = xsuse])
 AM_CONDITIONAL([HAVE_DEBIAN], [test x"$osname" = xdebian])
 AM_CONDITIONAL([HAVE_GENTOO], [test x"$osname" = xgentoo])
 
-AC_CHECK_MEMBERS([struct ucred.pid, struct ucred.uid, struct ucred.gid], , ,
-                 [[#include <sys/socket.h>]])
-
-if test x"$ac_cv_member_struct_ucred_pid" = xyes -a \
-        x"$ac_cv_member_struct_ucred_uid" = xyes -a \
-        x"$ac_cv_member_struct_ucred_gid" = xyes ; then
-    AC_DEFINE([HAVE_UCRED], [1], [Define if struct ucred is available])
-else
-    AC_MSG_ERROR([struct ucred is not available])
-fi
