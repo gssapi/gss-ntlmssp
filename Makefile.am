@@ -48,7 +48,10 @@ check_PROGRAMS = \
 gssntlmssp_LTLIBRARIES = \
     gssntlmssp.la
 
-dist_noinst_SCRIPTS = tests/scripts/dlopen.sh
+dist_noinst_SCRIPTS = \
+    tests/scripts/dlopen.sh \
+    tests/env1.sh \
+    tests/env2.sh
 
 dist_noinst_DATA =
 
@@ -69,8 +72,6 @@ AM_CPPFLAGS = \
     -DSHLIBEXT=\"$(SHLIBEXT)\" \
     -DSYSCONFDIR=\"$(sysconfdir)\" \
     -DLOCALEDIR=\"$(localedir)\"
-
-#EXTRA_DIST = build/config.rpath
 
 GN_MECHGLUE_LIBS = $(GSSAPI_LIBS) $(CRYPTO_LIBS) $(WBC_LIBS)
 
@@ -222,7 +223,15 @@ endif
 # Testing          #
 ####################
 
+EXTRA_DIST = \
+    examples/test_user_file.txt \
+    examples/test_user_file2.txt \
+    examples/test_user_file3.txt
+
 TESTS = ntlmssptest tests/env1.sh tests/env2.sh
 
 test_gssntlmssp:
 	TMPDIR=tests/scripts/ ./tests/scripts/dlopen.sh ./.libs/gssntlmssp.so || exit 1
+
+distclean-local:
+	rm -f tests-trace.log

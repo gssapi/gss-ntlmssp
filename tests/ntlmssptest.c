@@ -1338,7 +1338,7 @@ done:
     return ret;
 }
 
-#define TEST_USER_FILE "examples/test_user_file.txt"
+#define TEST_USER_FILE ABS_SRC_DIR"/examples/test_user_file.txt"
 
 long seed = 0;
 static size_t repeatable_rand(uint8_t *buf, size_t max)
