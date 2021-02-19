@@ -94,6 +94,8 @@ AC_CHECK_LIB(unistring, u8_toupper,,
              [AC_MSG_ERROR([libunistring does not support u8_toupper])],
              [$UNISTRING_LIBS])
 
+AC_SUBST([UNISTRING_LIBS])
+
 AX_CHECK_OPENSSL(,[AC_MSG_ERROR([Could not find OpenSSL support])])
 
 CRYPTO_LIBS="$OPENSSL_LIBS"

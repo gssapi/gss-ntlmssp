@@ -130,10 +130,11 @@ ntlmssptest_SOURCES = \
 ntlmssptest_CFLAGS = \
     $(WBC_CFLAGS) \
     $(AM_CFLAGS)
+ntlmssptest_LDFLAGS = \
+    -L$(libdir)
 ntlmssptest_LDADD = \
-    $(WBC_LIBS) \
-    $(GSSAPI_LIBS) \
-    $(CRYPTO_LIBS)
+    $(GN_MECHGLUE_LIBS) \
+    $(UNISTRING_LIBS)
 
 dist_noinst_DATA += \
     m4
