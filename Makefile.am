@@ -119,6 +119,7 @@ gssntlmssp_la_CFLAGS = \
     $(WBC_CFLAGS) \
     $(AM_CFLAGS)
 gssntlmssp_la_LDFLAGS = \
+    -L$(libdir) \
     $(GN_MECHGLUE_LIBS) \
     -export-symbols-regex '^gss(spi|)_' \
     -avoid-version \
