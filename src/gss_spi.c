@@ -443,3 +443,12 @@ OM_uint32 gss_inquire_attrs_for_mech(OM_uint32 *minor_status,
     return gssntlm_inquire_attrs_for_mech(minor_status, mech_oid, mech_attrs,
                                           known_mech_attrs);
 }
+
+OM_uint32 gssspi_mech_invoke(OM_uint32 *minor_status,
+                             const gss_OID desired_mech,
+                             const gss_OID desired_object,
+                             gss_buffer_t value)
+{
+    return gssntlm_mech_invoke(minor_status, desired_mech, desired_object,
+                               value);
+}

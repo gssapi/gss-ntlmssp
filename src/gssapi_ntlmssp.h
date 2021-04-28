@@ -53,6 +53,14 @@ extern "C" {
 #define GSS_NTLMSSP_RESET_CRYPTO_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x03"
 #define GSS_NTLMSSP_RESET_CRYPTO_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
+/* Debug OID for mech_invoke
+ * Use this with gsspi_mech_invoke, to pass a file name and enable debugging.
+ */
+#define GSS_NTLMSSP_DEBUG_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x04"
+#define GSS_NTLMSSP_DEBUG_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
+
+
+
 #define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
 #define GSS_NTLMSSP_CS_NTHASH "ntlmssp_nthash"
 #define GSS_NTLMSSP_CS_PASSWORD "ntlmssp_password"
