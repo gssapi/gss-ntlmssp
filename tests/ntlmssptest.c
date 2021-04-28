@@ -2790,14 +2790,40 @@ int test_import_name(void)
     return ret;
 }
 
+int test_debug(void)
+{
+    char *test_env;
+    uint32_t maj, min;
+
+    test_env = getenv("NTLMSSP_TEST_DEBUG");
+    if (test_env) {
+        fprintf(stderr, "%s\n", test_env);
+        gss_buffer_desc val = { strlen(test_env), test_env };
+        maj = gssntlm_mech_invoke(&min, discard_const(&gssntlm_oid),
+                                  discard_const(&gssntlm_debug_oid), &val);
+        if (maj != GSS_S_COMPLETE) {
+            fprintf(stderr, "%d %d\n", maj, min);
+            return 1;
+        }
+        return 0;
+    }
+
+    /* enable trace debugging by default in tests */
+    setenv("GSSNTLMSSP_DEBUG", "tests-trace.log", 0);
+
+    return 0;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
     int gret = 0;
     int ret;
 
-    /* enable trace debugging by dfault in tests */
-    setenv("GSSNTLMSSP_DEBUG", "tests-trace.log", 0);
+    fprintf(stderr, "Test setup debug\n");
+    ret = test_debug();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     fprintf(stderr, "Test errors\n");
     ret = test_Errors();

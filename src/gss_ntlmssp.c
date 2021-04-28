@@ -178,3 +178,36 @@ int gssntlm_get_lm_compatibility_level(void)
     /* use 3 by default for better compatibility */
     return 3;
 }
+
+uint32_t gssntlm_mech_invoke(uint32_t *minor_status,
+                             const gss_OID desired_mech,
+                             const gss_OID desired_object,
+                             gss_buffer_t value)
+{
+    uint32_t retmaj = GSS_S_COMPLETE;
+    uint32_t retmin = 0;
+
+    if (minor_status == NULL) {
+        return GSS_S_CALL_INACCESSIBLE_WRITE;
+    }
+
+    if (desired_mech != GSS_C_NO_OID &&
+        !gss_oid_equal(desired_mech, &gssntlm_oid)) {
+        return GSSERRS(0, GSS_S_BAD_MECH);
+    }
+
+    if (desired_object == GSS_C_NO_OID) {
+        return GSSERRS(0, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+
+    if (!gss_oid_equal(desired_object, &gssntlm_debug_oid)) {
+        return GSSERRS(EINVAL, GSS_S_UNAVAILABLE);
+    }
+
+    retmin = gssntlm_debug_invoke(value);
+    if (retmin != 0) {
+        retmaj = GSS_S_UNAVAILABLE;
+    }
+
+    return GSSERR();
+}
