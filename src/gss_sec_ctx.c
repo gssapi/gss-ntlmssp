@@ -398,7 +398,7 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             ctx->gss_flags |= GSS_C_INTEG_FLAG;
         }
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_SEAL) {
-            ctx->gss_flags |= GSS_C_CONF_FLAG & GSS_C_INTEG_FLAG;
+            ctx->gss_flags |= GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG;
         }
 
         ctx->stage = NTLMSSP_STAGE_DONE;
