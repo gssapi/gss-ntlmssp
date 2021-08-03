@@ -835,15 +835,19 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        if (((usr_name == NULL) || (usr_name[0] == '\0')) &&
-            (nt_chal_resp.length == 0) &&
-            (((lm_chal_resp.length == 1) && (lm_chal_resp.data[0] == '\0')) ||
-             (lm_chal_resp.length == 0))) {
-            /* Anonymous auth */
-            /* FIXME: not supported for now */
-            set_GSSERR(ERR_NOTSUPPORTED);
-            goto done;
-
+        if ((usr_name == NULL) || (usr_name[0] == '\0')) {
+            if ((nt_chal_resp.length == 0) &&
+                (((lm_chal_resp.length == 1) &&
+                  (lm_chal_resp.data[0] == '\0')) ||
+                 (lm_chal_resp.length == 0))) {
+                /* Anonymous auth */
+                /* FIXME: not supported for now */
+                set_GSSERR(ERR_NOTSUPPORTED);
+                goto done;
+            } else {
+                set_GSSERR(ERR_NOUSRFOUND);
+                goto done;
+            }
         } else {
 
             char useratdom[1024];
