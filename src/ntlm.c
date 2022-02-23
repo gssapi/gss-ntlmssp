@@ -1199,9 +1199,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     if (enc_sess_key) {
         buffer.length += enc_sess_key->length;
     }
-    if ((flags & NTLMSSP_NEGOTIATE_VERSION) || mic) {
-        buffer.length += sizeof(struct wire_version);
-    }
+    buffer.length += sizeof(struct wire_version);
     if (mic) {
         buffer.length += 16;
     }
@@ -1219,9 +1217,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
         ret = ntlm_encode_version(ctx, &buffer, &data_offs);
         if (ret) goto done;
     }
-    else if (mic) {
-        /* the space for version is always present in the layout
-         * if MIC is present */
+    else {
         memset(&buffer.data[data_offs], 0, sizeof(struct wire_version));
         data_offs += sizeof(struct wire_version);
     }
