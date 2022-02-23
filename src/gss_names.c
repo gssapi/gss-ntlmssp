@@ -1,4 +1,4 @@
-/* Copyright 2013 Simo Sorce <simo@samba.org>, see COPYING for license */
+/* Copyright 2013-2022 Simo Sorce <simo@samba.org>, see COPYING for license */
 
 #define _GNU_SOURCE
 
@@ -266,9 +266,6 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
                                      gss_OID input_name_type,
                                      gss_name_t *output_name)
 {
-    char hostname[HOST_NAME_MAX + 1] = { 0 };
-    char struid[12] = { 0 };
-    uid_t uid;
     struct gssntlm_name *name = NULL;
     uint32_t retmaj;
     uint32_t retmin;
@@ -291,30 +288,74 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
 
     if (gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE) ||
         gss_oid_equal(input_name_type, GSS_C_NT_HOSTBASED_SERVICE_X)) {
+        char *spn = NULL;
+        char *p = NULL;
 
         name->type = GSSNTLM_NAME_SERVER;
 
-        retmaj = string_split(&retmin, '@',
-                              input_name_buffer->value,
-                              input_name_buffer->length,
-                              NULL, &name->data.server.name);
-        if ((retmaj == GSS_S_COMPLETE) ||
-            (retmaj != GSS_S_UNAVAILABLE)) {
-            goto done;
+        if (input_name_buffer->length > 0) {
+            spn = strndup(input_name_buffer->value, input_name_buffer->length);
+            if (!spn) {
+                set_GSSERR(ENOMEM);
+                goto done;
+            }
+            p = memchr(spn, '@', input_name_buffer->length);
+            if (p && input_name_buffer->length == 1) {
+                free(spn);
+                spn = p = NULL;
+            }
         }
 
-        /* no seprator, assume only service is provided and try to source
-         * the local host name */
-        retmin = gethostname(hostname, HOST_NAME_MAX);
-        if (retmin) {
-            set_GSSERR(retmin);
-            goto done;
+        if (p) {
+            /* Windows expects a SPN not a GSS Name */
+            if (p != spn) {
+                *p = '/';
+                name->data.server.spn = spn;
+                spn = NULL;
+            }
+            p += 1;
+            name->data.server.name = strdup(p);
+            if (!name->data.server.name) {
+                free(spn);
+                set_GSSERR(ENOMEM);
+                goto done;
+            }
+        } else {
+            char hostname[HOST_NAME_MAX + 1] = { 0 };
+            size_t l, r;
+            /* no seprator, assume only service is provided and try to
+             * source the local host name */
+            retmin = gethostname(hostname, HOST_NAME_MAX);
+            if (retmin) {
+                free(spn);
+                set_GSSERR(retmin);
+                goto done;
+            }
+            hostname[HOST_NAME_MAX] = '\0';
+            if (spn != NULL) {
+                /* spn = <service> + </> + <hostname> + <\0> */
+                l = strlen(spn) + 1 + strlen(hostname) + 1;
+                name->data.server.spn = malloc(l);
+                if (!name->data.server.spn) {
+                    free(spn);
+                    set_GSSERR(ENOMEM);
+                    goto done;
+                }
+                r = snprintf(name->data.server.spn, l, "%s/%s", spn, hostname);
+                if (r != l - 1) {
+                    free(spn);
+                    set_GSSERR(ENOMEM);
+                    goto done;
+                }
+            }
+            name->data.server.name = strdup(hostname);
+            if (!name->data.server.name) {
+                free(spn);
+                set_GSSERR(ENOMEM);
+                goto done;
+            }
         }
-        hostname[HOST_NAME_MAX] = '\0';
-        name->data.server.name = strdup(hostname);
-        if (!name->data.server.name) {
-            set_GSSERR(ENOMEM);
-        }
+        free(spn);
         set_GSSERRS(0, GSS_S_COMPLETE);
 
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_USER_NAME)) {
@@ -326,6 +367,7 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
                                  &name->data.user.domain,
                                  &name->data.user.name);
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_MACHINE_UID_NAME)) {
+        uid_t uid;
 
         name->type = GSSNTLM_NAME_USER;
         name->data.user.domain = NULL;
@@ -333,6 +375,8 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         uid = *(uid_t *)input_name_buffer->value;
         retmaj = uid_to_name(&retmin, uid, &name->data.user.name);
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_STRING_UID_NAME)) {
+        char struid[12] = { 0 };
+        uid_t uid;
 
         name->type = GSSNTLM_NAME_USER;
         name->data.user.domain = NULL;
@@ -454,7 +498,7 @@ void gssntlm_release_attrs(struct gssntlm_name_attribute **attrs)
 
 int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
 {
-    char *dom = NULL, *usr = NULL, *srv = NULL;
+    char *dom = NULL, *usr = NULL, *spn = NULL, *srv = NULL;
     int ret;
     dst->type = src->type;
     switch (src->type) {
@@ -480,6 +524,14 @@ int gssntlm_copy_name(struct gssntlm_name *src, struct gssntlm_name *dst)
         dst->data.user.name = usr;
         break;
     case GSSNTLM_NAME_SERVER:
+        if (src->data.server.spn) {
+            spn = strdup(src->data.server.spn);
+            if (!spn) {
+                ret = ENOMEM;
+                goto done;
+            }
+        }
+        dst->data.server.spn = spn;
         if (src->data.server.name) {
             srv = strdup(src->data.server.name);
             if (!srv) {
@@ -499,6 +551,7 @@ done:
     if (ret) {
         safefree(dom);
         safefree(usr);
+        safefree(spn);
         safefree(srv);
     }
     return ret;
@@ -560,6 +613,7 @@ void gssntlm_int_release_name(struct gssntlm_name *name)
         safefree(name->data.user.name);
         break;
     case GSSNTLM_NAME_SERVER:
+        safefree(name->data.server.spn);
         safefree(name->data.server.name);
         break;
     }
@@ -635,7 +689,7 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
         }
         break;
     case GSSNTLM_NAME_SERVER:
-        out->value = strdup(in->data.server.name);
+        out->value = strdup(in->data.server.spn);
         if (!out->value) {
             set_GSSERR(ENOMEM);
             goto done;

@@ -59,6 +59,7 @@ struct gssntlm_name {
             char *name;
         } user;
         struct {
+            char *spn;
             char *name;
         } server;
     } data;

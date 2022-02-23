@@ -1,13 +1,20 @@
-/* Copyright 2013 Simo Sorce <simo@samba.org>, see COPYING for license */
+/* Copyright 2013-2022 Simo Sorce <simo@samba.org>, see COPYING for license */
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "config.h"
+
+#ifndef	HOST_NAME_MAX
+#include <sys/param.h>
+#define	HOST_NAME_MAX	MAXHOSTNAMELEN
+#endif
 
 #include "../src/gssapi_ntlmssp.h"
 #include "../src/gss_ntlmssp.h"
@@ -2790,6 +2797,87 @@ int test_import_name(void)
     return ret;
 }
 
+int test_hostbased_name(void)
+{
+    char hostname[HOST_NAME_MAX + 1] = { 0 };
+    struct {
+        const char *input;
+        const char *name;
+        const char *spn_svc;
+        const char *spn_name;
+        size_t spn_svc_len;
+    } hostbased_test[] = {
+        { "HTTP", hostname, "HTTP/", hostname, 5 },
+        { "HTTP@foo.bar", "foo.bar", "HTTP/", "foo.bar", 5 },
+        { "@foo.bar", "foo.bar", NULL, NULL, 0 },
+        { "@", hostname, NULL, NULL, 0 },
+        { "", hostname, NULL, NULL, 0 },
+        { NULL, NULL, NULL, NULL, 0 }
+    };
+    int ret = 0;
+
+    /* get hostname to verify results */
+    ret = gethostname(hostname, HOST_NAME_MAX);
+    if (ret) {
+        fprintf(stderr, "Test: test_hostbased_name failed to get hostname\n");
+    }
+
+    for (int i = 0; hostbased_test[i].input != NULL; i++) {
+        struct gssntlm_name *gss_host_name = NULL;
+        gss_buffer_desc host_name;
+        uint32_t retmin, retmaj;
+        bool failed = false;
+
+        host_name.value = discard_const(hostbased_test[i].input);
+        host_name.length = strlen(host_name.value);
+
+        retmaj = gssntlm_import_name(&retmin, &host_name,
+                                     GSS_C_NT_HOSTBASED_SERVICE,
+                                     (gss_name_t *)&gss_host_name);
+        if (retmaj == GSS_S_COMPLETE) {
+            if ((gss_host_name->type != GSSNTLM_NAME_SERVER) ||
+                (strcmp(hostbased_test[i].name,
+                        gss_host_name->data.server.name) != 0)) {
+                failed = true;
+            }
+            if (hostbased_test[i].spn_svc_len != 0) {
+                if ((strncmp(hostbased_test[i].spn_svc,
+                            gss_host_name->data.server.spn,
+                            hostbased_test[i].spn_svc_len) != 0) ||
+                    (strcmp(hostbased_test[i].spn_name,
+                            gss_host_name->data.server.spn +
+                            hostbased_test[i].spn_svc_len) != 0)) {
+                    failed = true;
+                }
+            }
+        } else {
+            failed = true;
+        }
+
+        if (failed) {
+            fprintf(stderr, "gssntlm_import_name(%s) failed!\n",
+                    hostbased_test[i].input);
+            fprintf(stderr, "Expected: [%s%s]\n",
+                    hostbased_test[i].spn_svc, hostbased_test[i].spn_name);
+            if (gss_host_name) {
+                fprintf(stderr, "Obtained: [%s]+[%s]\n",
+                                gss_host_name->data.server.spn,
+                                gss_host_name->data.server.name);
+            }
+            if (retmaj != GSS_S_COMPLETE) {
+                print_gss_error("Function returned error.", retmaj, retmin);
+            }
+            fflush(stderr);
+
+            ret++;
+        }
+
+        gssntlm_release_name(&retmin, (gss_name_t *)&gss_host_name);
+    }
+
+    return ret;
+}
+
 int test_debug(void)
 {
     char *test_env;
@@ -3056,6 +3144,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test importing different name forms\n");
     ret = test_import_name();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret += ret;
+
+    fprintf(stderr, "Test importing different hostbased name forms\n");
+    ret = test_hostbased_name();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret += ret;
 
