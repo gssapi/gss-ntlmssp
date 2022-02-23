@@ -972,9 +972,17 @@ int ntlm_verify_mic(struct ntlm_key *key,
 
     /* flags must be checked as they may push the payload further down */
     flags = le32toh(msg->neg_flags);
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        /* skip version for now */
-        payload_offs += sizeof(struct wire_version);
+    if ((flags & NTLMSSP_NEGOTIATE_VERSION) == 0) {
+        struct wire_version zver = {0};
+        /* mic is at payload_offs right now, but this offset may
+         * need to be reduced if the sender completely omitted
+         * the version struct, as some older clients do */
+        if (memcmp(&msg->version, &zver,
+                   sizeof(struct wire_version)) != 0) {
+            /* version struct is not all zeros, this indicates the actual
+             * struct was omitted and payload is shifted down */
+            payload_offs -= sizeof(struct wire_version);
+        }
     }
 
     if (payload_offs + NTLM_SIGNATURE_SIZE > authenticate_message->length) {

@@ -349,15 +349,14 @@ void ntlm_internal_set_version(uint8_t major, uint8_t minor,
 
 static int ntlm_encode_version(struct ntlm_ctx *ctx,
                                struct ntlm_buffer *buffer,
-                               size_t *data_offs)
+                               size_t data_offs)
 {
-    if (*data_offs + sizeof(struct wire_version) > buffer->length) {
+    if (data_offs + sizeof(struct wire_version) > buffer->length) {
         return ERR_ENCODE;
     }
 
-    memcpy(&buffer->data[*data_offs], &ntlmssp_version,
+    memcpy(&buffer->data[data_offs], &ntlmssp_version,
            sizeof(struct wire_version));
-    *data_offs += sizeof(struct wire_version);
     return 0;
 }
 
@@ -932,6 +931,12 @@ int ntlm_encode_neg_msg(struct ntlm_ctx *ctx, uint32_t flags,
         if (ret) goto done;
     }
 
+    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
+        ret = ntlm_encode_version(ctx, &buffer,
+                                  (char *)&msg->version - (char *)msg);
+        if (ret) goto done;
+    }
+
 done:
     if (ret) {
         safefree(buffer.data);
@@ -958,6 +963,14 @@ int ntlm_decode_neg_msg(struct ntlm_ctx *ctx,
     payload_offs = (char *)msg->payload - (char *)msg;
 
     neg_flags = le32toh(msg->neg_flags);
+
+    if ((neg_flags & NTLMSSP_NEGOTIATE_VERSION) == 0) {
+        /* adjust the payload offset to point to the
+         * version field, for compatibility with older
+         * clients that completely omitted the structure
+         * on the wire */
+        payload_offs -= sizeof(struct wire_version);
+    }
 
     if (domain &&
         (neg_flags & NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED)) {
@@ -1003,10 +1016,6 @@ int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
 
     buffer.length = sizeof(struct wire_chal_msg);
 
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        buffer.length += sizeof(struct wire_version);
-    }
-
     if ((flags & NTLMSSP_TARGET_TYPE_SERVER)
         || (flags & NTLMSSP_TARGET_TYPE_DOMAIN)) {
         if (!target_name) return EINVAL;
@@ -1035,7 +1044,8 @@ int ntlm_encode_chal_msg(struct ntlm_ctx *ctx,
 
     /* this must be first as it pushes the payload further down */
     if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        ret = ntlm_encode_version(ctx, &buffer, &data_offs);
+        ret = ntlm_encode_version(ctx, &buffer,
+                                  (char *)&msg->version - (char *)msg);
         if (ret) goto done;
     }
 
@@ -1077,6 +1087,7 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
 {
     struct wire_chal_msg *msg;
     size_t payload_offs;
+    size_t base_chal_size;
     uint32_t flags;
     char *trg = NULL;
     int ret = 0;
@@ -1089,6 +1100,16 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
     payload_offs = (char *)msg->payload - (char *)msg;
 
     flags = le32toh(msg->neg_flags);
+    base_chal_size = sizeof(struct wire_chal_msg);
+
+    if ((flags & NTLMSSP_NEGOTIATE_VERSION) == 0) {
+        /* adjust the payload offset to point to the
+         * version field, for compatibility with older
+         * clients that completely omitted the structure
+         * on the wire */
+        payload_offs -= sizeof(struct wire_version);
+        base_chal_size -= sizeof(struct wire_version);
+    }
 
     if ((flags & NTLMSSP_TARGET_TYPE_SERVER)
         || (flags & NTLMSSP_TARGET_TYPE_DOMAIN)) {
@@ -1107,7 +1128,7 @@ int ntlm_decode_chal_msg(struct ntlm_ctx *ctx,
 
     /* if we allowed a broken short challenge message from an old
      * server we must stop here */
-    if (buffer->length < sizeof(struct wire_chal_msg)) {
+    if (buffer->length < base_chal_size) {
         if (flags & NTLMSSP_NEGOTIATE_TARGET_INFO) {
             ret = ERR_DECODE;
         }
@@ -1190,9 +1211,6 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     if (enc_sess_key) {
         buffer.length += enc_sess_key->length;
     }
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        buffer.length += sizeof(struct wire_version);
-    }
     if (mic) {
         buffer.length += 16;
     }
@@ -1207,11 +1225,12 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
 
     /* this must be first as it pushes the payload further down */
     if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        ret = ntlm_encode_version(ctx, &buffer, &data_offs);
+        ret = ntlm_encode_version(ctx, &buffer,
+                                  (char *)&msg->version - (char *)msg);
         if (ret) goto done;
     }
 
-    /* this must be second as it pushes the payload further down */
+    /* this pushes the payload further down */
     if (mic) {
         memset(&buffer.data[data_offs], 0, mic->length);
         /* return the actual pointer back in the mic, as it will
@@ -1293,6 +1312,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
                          struct ntlm_buffer *mic)
 {
     struct wire_auth_msg *msg;
+    uint32_t neg_flags;
     size_t payload_offs;
     char *dom = NULL;
     char *usr = NULL;
@@ -1308,10 +1328,13 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     msg = (struct wire_auth_msg *)buffer->data;
     payload_offs = (char *)msg->payload - (char *)msg;
 
-    /* this must be first as it pushes the payload further down */
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        /* skip version for now */
-        payload_offs += sizeof(struct wire_version);
+    neg_flags = le32toh(msg->neg_flags);
+    if ((neg_flags & NTLMSSP_NEGOTIATE_VERSION) == 0) {
+        /* adjust the payload offset to point to the
+         * version field, for compatibility with older
+         * clients that completely omitted the structure
+         * on the wire */
+        payload_offs -= sizeof(struct wire_version);
     }
 
     /* Unconditionally copy 16 bytes for the MIC, if it was really
@@ -1319,12 +1342,24 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
      * in the NT Response, that will be fully decoded later by the caller
      * and the MIC checked otherwise these 16 bytes will just be ignored */
     if (mic) {
+        size_t mic_offs = payload_offs;
+
         if (mic->length < 16) return ERR_DECODE;
-        /* mic is at payload_offs right now */
-        if (buffer->length - payload_offs < 16) return ERR_DECODE;
-        memcpy(mic->data, &buffer->data[payload_offs], 16);
-        /* NOTE: we do not push down the payload because we do not know that
-         * the MIC is actually present yet for real */
+
+        if ((neg_flags & NTLMSSP_NEGOTIATE_VERSION) == 0) {
+            struct wire_version zver = {0};
+            /* mic is at payload_offs right now, but this offset may be
+             * wrongly reduced for compatibility with older clients,
+             * if all bytes are zeroed, then it means there was an actual
+             * empty version struct */
+            if (memcmp(&msg->version, &zver,
+                       sizeof(struct wire_version)) == 0) {
+                mic_offs += sizeof(struct wire_version);
+            }
+        }
+
+        if (buffer->length - mic_offs < 16) return ERR_DECODE;
+        memcpy(mic->data, &buffer->data[mic_offs], 16);
     }
 
     if (msg->lm_chalresp.len != 0 && lm_chalresp) {
