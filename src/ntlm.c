@@ -898,6 +898,10 @@ int ntlm_encode_neg_msg(struct ntlm_ctx *ctx, uint32_t flags,
 
     buffer.length = sizeof(struct wire_neg_msg);
 
+    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
+        buffer.length += sizeof(struct wire_version);
+    }
+
     /* Strings MUST use OEM charset in negotiate message */
     if (flags & NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED) {
         if (!domain) return EINVAL;
@@ -919,6 +923,11 @@ int ntlm_encode_neg_msg(struct ntlm_ctx *ctx, uint32_t flags,
     ntlm_encode_header(&msg->header, NEGOTIATE_MESSAGE);
 
     msg->neg_flags = htole32(flags);
+
+    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
+        ret = ntlm_encode_version(ctx, &buffer, &data_offs);
+        if (ret) goto done;
+    }
 
     if (dom_len) {
         ret = ntlm_encode_oem_str(&msg->domain_name, &buffer,
@@ -1190,7 +1199,7 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     if (enc_sess_key) {
         buffer.length += enc_sess_key->length;
     }
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
+    if ((flags & NTLMSSP_NEGOTIATE_VERSION) || mic) {
         buffer.length += sizeof(struct wire_version);
     }
     if (mic) {
@@ -1209,6 +1218,12 @@ int ntlm_encode_auth_msg(struct ntlm_ctx *ctx,
     if (flags & NTLMSSP_NEGOTIATE_VERSION) {
         ret = ntlm_encode_version(ctx, &buffer, &data_offs);
         if (ret) goto done;
+    }
+    else if (mic) {
+        /* the space for version is always present in the layout
+         * if MIC is present */
+        memset(&buffer.data[data_offs], 0, sizeof(struct wire_version));
+        data_offs += sizeof(struct wire_version);
     }
 
     /* this must be second as it pushes the payload further down */
@@ -1294,6 +1309,7 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
 {
     struct wire_auth_msg *msg;
     size_t payload_offs;
+    size_t mic_offs;
     char *dom = NULL;
     char *usr = NULL;
     char *wks = NULL;
@@ -1306,7 +1322,9 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
     if (enc_sess_key) enc_sess_key->data = NULL;
 
     msg = (struct wire_auth_msg *)buffer->data;
-    payload_offs = (char *)msg->payload - (char *)msg;
+    mic_offs = payload_offs = (char *)msg->payload - (char *)msg;
+    /* if MIC is present then there's always a reserved space for version */
+    mic_offs += sizeof(struct wire_version);
 
     /* this must be first as it pushes the payload further down */
     if (flags & NTLMSSP_NEGOTIATE_VERSION) {
@@ -1320,9 +1338,9 @@ int ntlm_decode_auth_msg(struct ntlm_ctx *ctx,
      * and the MIC checked otherwise these 16 bytes will just be ignored */
     if (mic) {
         if (mic->length < 16) return ERR_DECODE;
-        /* mic is at payload_offs right now */
-        if (buffer->length - payload_offs < 16) return ERR_DECODE;
-        memcpy(mic->data, &buffer->data[payload_offs], 16);
+        /* mic is at mic_offs right now */
+        if (buffer->length - mic_offs < 16) return ERR_DECODE;
+        memcpy(mic->data, &buffer->data[mic_offs], 16);
         /* NOTE: we do not push down the payload because we do not know that
          * the MIC is actually present yet for real */
     }

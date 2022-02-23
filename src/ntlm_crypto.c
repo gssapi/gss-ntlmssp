@@ -962,20 +962,12 @@ int ntlm_verify_mic(struct ntlm_key *key,
 {
     uint8_t micbuf[NTLM_SIGNATURE_SIZE];
     struct ntlm_buffer check_mic = { micbuf, NTLM_SIGNATURE_SIZE };
-    struct wire_auth_msg *msg;
     size_t payload_offs;
-    uint32_t flags;
     int ret;
 
-    msg = (struct wire_auth_msg *)authenticate_message->data;
     payload_offs = offsetof(struct wire_auth_msg, payload);
-
-    /* flags must be checked as they may push the payload further down */
-    flags = le32toh(msg->neg_flags);
-    if (flags & NTLMSSP_NEGOTIATE_VERSION) {
-        /* skip version for now */
-        payload_offs += sizeof(struct wire_version);
-    }
+    /* if MIC is present then there's always a reserved space for version */
+    payload_offs += sizeof(struct wire_version);
 
     if (payload_offs + NTLM_SIGNATURE_SIZE > authenticate_message->length) {
         return EINVAL;
