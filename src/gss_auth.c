@@ -84,7 +84,7 @@ uint32_t gssntlm_cli_auth(uint32_t *minor_status,
 
                 retmin = ntlm_process_target_info(
                                             ctx->ntlm, protect, target_info,
-                                            ctx->target_name.data.server.name,
+                                            ctx->target_name.data.server.spn,
                                             &cb, &client_target_info,
                                             &srv_time, add_mic_ptr);
                 if (retmin) {

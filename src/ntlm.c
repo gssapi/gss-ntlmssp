@@ -754,7 +754,7 @@ done:
 
 int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
                              struct ntlm_buffer *in,
-                             const char *server,
+                             const char *spn,
                              struct ntlm_buffer *unhashed_cb,
                              struct ntlm_buffer *out,
                              uint64_t *out_srv_time,
@@ -786,8 +786,9 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
         goto done;
     }
 
-    if (server && av_target_name) {
-        if (strcasecmp(server, av_target_name) != 0) {
+    if (spn && av_target_name &&
+        ((av_flags & MSVAVFLAGS_UNVERIFIED_SPN) == 0)) {
+        if (strcasecmp(spn, av_target_name) != 0) {
             ret = EINVAL;
             goto done;
         }
@@ -808,15 +809,14 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
         if (ret) goto done;
     }
 
-    if (!av_target_name && server) {
-        av_target_name = strdup(server);
+    if (!av_target_name && spn) {
+        av_target_name = strdup(spn);
         if (!av_target_name) {
             ret = ENOMEM;
             goto done;
         }
+        av_flags |= MSVAVFLAGS_UNVERIFIED_SPN;
     }
-    /* TODO: add way to tell if the target name is verified o not,
-     * if not set av_flags |= MSVAVFLAGS_UNVERIFIED_SPN; */
 
     ret = ntlm_encode_target_info(ctx,
                                   nb_computer_name, nb_domain_name,

@@ -26,7 +26,6 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
     struct gssntlm_ctx *ctx;
     struct gssntlm_name *server = NULL;
     struct gssntlm_cred *cred = NULL;
-    char *computer_name = NULL;
     char *nb_computer_name = NULL;
     char *nb_domain_name = NULL;
     struct gssntlm_name *client_name = NULL;
@@ -165,13 +164,8 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
             if (retmaj) goto done;
         }
 
-        computer_name = strdup(client_name->data.server.name);
-        if (!computer_name) {
-            set_GSSERR(ENOMEM);
-            goto done;
-        }
-
-        retmin = netbios_get_names(ctx->external_context, computer_name,
+        retmin = netbios_get_names(ctx->external_context,
+                                   client_name->data.server.name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
             set_GSSERR(retmin);
@@ -433,7 +427,6 @@ done:
         gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&cred);
     }
     gssntlm_release_name(&tmpmin, (gss_name_t *)&client_name);
-    safefree(computer_name);
     safefree(nb_computer_name);
     safefree(nb_domain_name);
     safefree(trgt_name);
@@ -532,7 +525,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     int lm_compat_lvl = -1;
     struct ntlm_buffer challenge = { 0 };
     struct gssntlm_name *server_name = NULL;
-    char *computer_name = NULL;
     char *nb_computer_name = NULL;
     char *nb_domain_name = NULL;
     char *chal_target_name;
@@ -618,13 +610,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        computer_name = strdup(server_name->data.server.name);
-        if (!computer_name) {
-            set_GSSERR(ENOMEM);
-            goto done;
-        }
-
-        retmin = netbios_get_names(ctx->external_context, computer_name,
+        retmin = netbios_get_names(ctx->external_context,
+                                   server_name->data.server.name,
                                    &nb_computer_name, &nb_domain_name);
         if (retmin) {
             set_GSSERR(retmin);
@@ -731,15 +718,19 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
+        av_flags = MSVAVFLAGS_UNVERIFIED_SPN;
+
         timestamp = ntlm_timestamp_now();
 
         retmin = ntlm_encode_target_info(ctx->ntlm,
                                          nb_computer_name,
                                          nb_domain_name,
-                                         computer_name,
+                                         server_name->data.server.name,
                                          NULL, NULL,
-                                         NULL, &timestamp,
-                                         NULL, NULL, NULL,
+                                         &av_flags, &timestamp,
+                                         NULL,
+                                         server_name->data.server.spn,
+                                         NULL,
                                          &target_info);
         if (retmin) {
             set_GSSERR(retmin);
@@ -1028,7 +1019,6 @@ done:
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
     gssntlm_release_name(&tmpmin, (gss_name_t *)&gss_usrname);
     gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
-    safefree(computer_name);
     safefree(nb_computer_name);
     safefree(nb_domain_name);
     safefree(usr_name);
