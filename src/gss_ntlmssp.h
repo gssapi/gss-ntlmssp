@@ -18,7 +18,8 @@
                 NTLMSSP_NEGOTIATE_NTLM | \
                 NTLMSSP_REQUEST_TARGET | \
                 NTLMSSP_NEGOTIATE_OEM | \
-                NTLMSSP_NEGOTIATE_UNICODE)
+                NTLMSSP_NEGOTIATE_UNICODE | \
+                NTLMSSP_NEGOTIATE_VERSION)
 
 #define NTLMSSP_DEFAULT_SERVER_FLAGS ( \
                 NTLMSSP_NEGOTIATE_ALWAYS_SIGN | \
