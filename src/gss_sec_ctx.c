@@ -673,6 +673,18 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
             /* leave only the crossing between requested and allowed flags */
             ctx->neg_flags &= in_flags;
+
+            /* Try to force the use of NTLMSSP_NEGOTIATE_VERSION even if the
+             * client did not advertize it in their negotiate message, but
+             * should be capable of providing it.
+             * This is what Windows Server 2022 also does, and addresses
+             * issues with older clients that incorrectly deal with MIC
+             * calculations in absence of this flag. */
+            if ((ctx->neg_flags & (NTLMSSP_NEGOTIATE_ALWAYS_SIGN |
+                                    NTLMSSP_NEGOTIATE_SEAL |
+                                    NTLMSSP_NEGOTIATE_SIGN))) {
+                ctx->neg_flags |= NTLMSSP_NEGOTIATE_VERSION;
+            }
         } else {
             /* If there is no negotiate message set datagram mode */
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_DATAGRAM | \
