@@ -26,7 +26,7 @@ struct export_attrs {
 
 struct export_name {
     uint8_t type;
-    struct relmem domain;
+    struct relmem dom_or_spn;
     struct relmem name;
     struct export_attrs attrs;
 };
@@ -38,7 +38,7 @@ struct export_keys {
     uint32_t seq_num;
 };
 
-#define EXPORT_CTX_VER 0x0004
+#define EXPORT_CTX_VER 0x0005
 struct export_ctx {
     uint16_t version;
     uint8_t role;
@@ -211,7 +211,7 @@ static int export_name(struct export_state *state,
         if (name->data.user.domain) {
             ret = export_data_buffer(state, name->data.user.domain,
                                      strlen(name->data.user.domain),
-                                     &exp_name->domain);
+                                     &exp_name->dom_or_spn);
             if (ret) {
                 return ret;
             }
@@ -227,6 +227,14 @@ static int export_name(struct export_state *state,
         break;
     case GSSNTLM_NAME_SERVER:
         exp_name->type = EXP_NAME_SERV;
+        if (name->data.server.spn) {
+            ret = export_data_buffer(state, name->data.server.spn,
+                                     strlen(name->data.server.spn),
+                                     &exp_name->dom_or_spn);
+            if (ret) {
+                return ret;
+            }
+        }
         if (name->data.server.name) {
             ret = export_data_buffer(state, name->data.server.name,
                                      strlen(name->data.server.name),
@@ -599,10 +607,10 @@ static uint32_t import_name(uint32_t *minor_status,
     case EXP_NAME_USER:
         imp_name->type = GSSNTLM_NAME_USER;
         dest = NULL;
-        if (name->domain.len > 0) {
+        if (name->dom_or_spn.len > 0) {
             retmaj = import_data_buffer(&retmin, state,
                                      &dest, NULL, true,
-                                     &name->domain, true);
+                                     &name->dom_or_spn, true);
             if (retmaj != GSS_S_COMPLETE) goto done;
         }
         imp_name->data.user.domain = (char *)dest;
@@ -618,6 +626,14 @@ static uint32_t import_name(uint32_t *minor_status,
 
     case EXP_NAME_SERV:
         imp_name->type = GSSNTLM_NAME_SERVER;
+        dest = NULL;
+        if (name->dom_or_spn.len > 0) {
+            retmaj = import_data_buffer(&retmin, state,
+                                     &dest, NULL, true,
+                                     &name->dom_or_spn, true);
+            if (retmaj != GSS_S_COMPLETE) goto done;
+        }
+        imp_name->data.server.spn = (char *)dest;
         dest = NULL;
         if (name->name.len > 0) {
             retmaj = import_data_buffer(&retmin, state,
@@ -878,9 +894,11 @@ done:
     return GSSERR();
 }
 
+#define EXPORT_CRED_VER 0x0002
+
 #pragma pack(push, 1)
 struct export_cred {
-    uint16_t version;    /* 0x00 0x02 */
+    uint16_t version;
     uint16_t type;
 
     struct export_name name;    /* user or server name */
@@ -933,7 +951,7 @@ uint32_t gssntlm_export_cred(uint32_t *minor_status,
     state.exp_data = (uint8_t *)&ecred.data - (uint8_t *)&ecred;
     state.exp_len = state.exp_data;
 
-    ecred.version = htole16(1);
+    ecred.version = htole16(EXPORT_CRED_VER);
 
     switch (cred->type) {
     case GSSNTLM_CRED_NONE:
@@ -1052,7 +1070,7 @@ uint32_t gssntlm_import_cred(uint32_t *minor_status,
     ecred = (struct export_cred *)state.exp_struct;
     state.exp_data = (char *)ecred->data - (char *)ecred;
 
-    if (ecred->version != le16toh(1)) {
+    if (ecred->version != le16toh(EXPORT_CRED_VER)) {
         set_GSSERRS(ERR_BADARG, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
