@@ -814,7 +814,6 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
             ret = ENOMEM;
             goto done;
         }
-        av_flags |= MSVAVFLAGS_UNVERIFIED_SPN;
     }
 
     ret = ntlm_encode_target_info(ctx,

@@ -730,7 +730,15 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
             goto done;
         }
 
-        av_flags = MSVAVFLAGS_UNVERIFIED_SPN;
+        /* TODO: allow client applications to set a context option to
+         * provide an av_flags default value so that flags like
+         * MSVAVFLAGS_UNVERIFIED_SPN can be set. By default SSPI does
+         * not set this flag, and setting it causes servers with restrictive
+         * policy to fail authentication. Given no MS client set this flag
+         * by default, neither should we until there is a clear need. We
+         * trust our calling applications to do the right thing here.
+         * av_flags = MSVAVFLAGS_UNVERIFIED_SPN;
+         */
 
         timestamp = ntlm_timestamp_now();
 
