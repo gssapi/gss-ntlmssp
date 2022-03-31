@@ -12,6 +12,12 @@
 
 #include "crypto.h"
 
+/* legacy provider with openssl 3.0 */
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#  include <openssl/provider.h>
+#  include <openssl/crypto.h>
+#endif
+
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 HMAC_CTX *HMAC_CTX_new(void)
 {
@@ -104,6 +110,43 @@ int HMAC_MD5(struct ntlm_buffer *key,
     return HMAC_MD5_IOV(key, &iov, result);
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+typedef struct ossl3_library_context {
+    OSSL_LIB_CTX *libctx;
+    OSSL_PROVIDER *legacy_provider;
+    OSSL_PROVIDER *default_provider;
+} ossl3_context_t;
+
+static ossl3_context_t *init_ossl3_ctx()
+{
+    ossl3_context_t *ctx = OPENSSL_malloc(sizeof(ossl3_context_t));
+    if (!ctx) return NULL;
+
+    ctx->libctx = OSSL_LIB_CTX_new();
+    if (!ctx->libctx) {
+        OPENSSL_free(ctx);
+        return NULL;
+    }
+
+    /* Load both legacy and default provider as both may be needed */
+    /* if they fail keep going and an error will be raised when we try to
+     * fetch the cipher later */
+    ctx->legacy_provider = OSSL_PROVIDER_load(ctx->libctx, "legacy");
+    ctx->default_provider = OSSL_PROVIDER_load(ctx->libctx, "default");
+    return ctx;
+}
+
+static void free_ossl3_ctx(ossl3_context_t *ctx)
+{
+    if (ctx == NULL) return;
+    if (ctx->legacy_provider) OSSL_PROVIDER_unload(ctx->legacy_provider);
+    if (ctx->default_provider) OSSL_PROVIDER_unload(ctx->default_provider);
+    if (ctx->libctx) OSSL_LIB_CTX_free(ctx->libctx);
+
+    OPENSSL_free(ctx);
+}
+#endif
+
 static int mdx_hash(const EVP_MD *type,
                     struct ntlm_buffer *payload,
                     struct ntlm_buffer *result)
@@ -149,7 +192,32 @@ done:
 int MD4_HASH(struct ntlm_buffer *payload,
              struct ntlm_buffer *result)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    ossl3_context_t *ossl3_ctx = NULL;
+    EVP_MD *md;
+    int ret;
+
+    ossl3_ctx = init_ossl3_ctx();
+    if (ossl3_ctx == NULL) {
+        ret = ERR_CRYPTO;
+        goto done;
+    }
+
+    md = EVP_MD_fetch(ossl3_ctx->libctx, "MD4", "");
+    if (md == NULL) {
+        ret = ERR_CRYPTO;
+        goto done;
+    }
+
+    ret = mdx_hash(md, payload, result);
+
+done:
+    free_ossl3_ctx(ossl3_ctx);
+    return ret;
+#else
     return mdx_hash(EVP_md4(), payload, result);
+#endif
+
 }
 
 int MD5_HASH(struct ntlm_buffer *payload,
