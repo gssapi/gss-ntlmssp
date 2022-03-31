@@ -236,4 +236,4 @@ test_gssntlmssp:
 	TMPDIR=tests/scripts/ ./tests/scripts/dlopen.sh ./.libs/gssntlmssp.so || exit 1
 
 distclean-local:
-	rm -f tests-trace.log
+	rm -f tests*.log
