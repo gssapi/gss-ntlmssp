@@ -7,16 +7,51 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        container:
+          - docker.io/library/alpine:latest
+          - docker.io/library/alpine:edge
+          - docker.io/library/archlinux:latest
+          - docker.io/library/debian:oldstable
+          - docker.io/library/debian:stable
+          - docker.io/library/debian:unstable
+          - docker.io/library/debian:testing
+          - docker.io/library/ubuntu:latest
+          - docker.io/library/ubuntu:rolling
+          - docker.io/library/ubuntu:devel
+          # - quay.io/centos/centos:stream9
+          # - registry.fedoraproject.org/fedora:latest
+          - registry.fedoraproject.org/fedora:rawhide
+      fail-fast: false
+
+    container:
+      image: ${{ matrix.container }}
+
     steps:
+    - name: update and install packages
+      run: |
+        if command -v apk; then
+          apk add automake autoconf docbook-xml docbook-xsl doxygen krb5-dev libtool libunistring-dev libxslt gettext-dev gcc libxml2 m4 make musl-dev openssl-dev zlib-dev
+        elif command -v apt; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y autotools-dev autoconf build-essential libtool libkrb5-dev libssl-dev libunistring-dev gettext xsltproc libxml2-utils docbook-xml  docbook-xsl zlib1g-dev
+        elif command -v dnf; then
+          dnf install -y autoconf automake docbook-style-xsl doxygen gettext-devel krb5-devel libtool libunistring-devel libxml2 libxslt m4 make openssl-devel pkgconfig 'pkgconfig(wbclient)' zlib-devel
+        elif command -v pacman; then
+          pacman -Sy --noconfirm automake autoconf docbook-xml docbook-xsl doxygen libtool libxslt gcc libxml2 m4 make zlib
+        fi
     - uses: actions/checkout@v2
-    - name: update repositories
-      run: sudo apt-get update
-    - name: install dependency
-      run: sudo apt-get install libkrb5-dev libunistring-dev gettext xsltproc libxml2-utils docbook-xml  docbook-xsl
     - name: autoreconf
       run: autoreconf -fi
     - name: configure
-      run: ./configure --with-wbclient=no
+      run: |
+        # Alpine needs extra flags. See https://gitlab.alpinelinux.org/alpine/aports/-/issues/13285
+        if command -v apk; then
+          export LDFLAGS=-lintl
+        fi
+        ./configure --with-wbclient=no
     - name: make
       run: make
     - name: make check
