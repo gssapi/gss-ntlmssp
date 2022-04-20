@@ -36,6 +36,68 @@
         </para>
     </refsect1>
 
+    <refsect1 id='envvars'>
+        <title>ENVIRONMENT VARIABLES</title>
+        <variablelist>
+       <varlistentry><term>NTLM_USER_FILE</term>
+            <listitem>
+                <para>A file containing users and their password hashes. The
+                file formats supported are the one used by Heimdal for its
+                NTLM backend, and the samba password file format.</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>NETBIOS_COMPUTER_NAME</term>
+            <listitem>
+                <para>Set the NETBIOS (short) Computer name used in NTLM
+                packets</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>NETBIOS_DOMAIN_NAME</term>
+            <listitem>
+                <para>Set the NETBIOS (short) Domain name used in NTLM
+                packets</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>NTLMUSER</term>
+            <listitem>
+                <para>Set the NTLM User name used for authentication on
+                initiation of the security context</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>USER</term>
+            <listitem>
+                <para>The default source for the User name used on
+                initiation of the security context</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>LM_COMPAT_LEVEL</term>
+            <listitem>
+                <para>The LM Compatibility Level enforced during security
+                context negotiation. The default level is 3</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>GSSNTLMSSP_DEBUG</term>
+            <listitem>
+                <para>The name of a file to send debug logs</para>
+            </listitem>
+        </varlistentry>
+        <varlistentry><term>GSSNTLMSSP_WB_TLS_CTX</term>
+            <listitem>
+                <para>This variable is used to control whether thread local
+                contexts are used for winbindd communication or whether a
+                single process context is used. Setting the value of this
+                variable to 0 disables per-thread contexts. Because creating
+                Winbindd contexts is an expensive operation this is used as
+                an optimization in applications that can insure a single
+                thread is used, or already handle their own locking. The
+                default behavior is to create a context for each thread,
+                this behavior can be restored by setting the environment
+                variable back to the value 1</para>
+            </listitem>
+        </varlistentry>
+        </variablelist>
+    </refsect1>
+
     <refsect1 id='see_also'>
         <title>SEE ALSO</title>
         <para>
