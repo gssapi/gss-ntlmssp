@@ -95,6 +95,12 @@ struct gssntlm_cred {
             bool creds_in_cache;
         } external;
     } cred;
+
+    /* set cred options provided default flags
+     * this is currently intentionally not imported/exported
+     * as it is considered an ephemeral local status
+     */
+    uint32_t neg_flags;
 };
 
 struct gssntlm_ctx {

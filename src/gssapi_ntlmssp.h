@@ -59,6 +59,12 @@ extern "C" {
 #define GSS_NTLMSSP_DEBUG_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x04"
 #define GSS_NTLMSSP_DEBUG_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
+/* Set Default Neg Flags Cred Option OID
+ * Use this with gss_set_cred_option to provide a set of NEGOTIATE flags
+ * to override the default selection on context initialization.
+ */
+#define GSS_NTLMSSP_NEG_FLAGS_OID_STRING GSS_NTLMSSP_BASE_OID_STRING "\x05"
+#define GSS_NTLMSSP_NEG_FLAGS_OID_LENGTH GSS_NTLMSSP_BASE_OID_LENGTH + 1
 
 
 #define GSS_NTLMSSP_CS_DOMAIN "ntlmssp_domain"
