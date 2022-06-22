@@ -116,6 +116,10 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         ctx->gss_flags = req_flags;
 
         ctx->neg_flags = NTLMSSP_DEFAULT_CLIENT_FLAGS;
+        /* override neg_flags default if requested */
+        if (cred->neg_flags) {
+            ctx->neg_flags = cred->neg_flags;
+        }
 
         /*
          * we ignore unsupported flags for now
@@ -634,6 +638,11 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
 
         ctx->neg_flags = NTLMSSP_DEFAULT_SERVER_FLAGS;
         /* Fixme: How do we allow anonymous negotition ? */
+
+        /* override neg_flags default if requested */
+        if (cred->neg_flags) {
+            ctx->neg_flags = cred->neg_flags;
+        }
 
         if (gssntlm_sec_lm_ok(ctx)) {
             ctx->neg_flags |= NTLMSSP_REQUEST_NON_NT_SESSION_KEY;

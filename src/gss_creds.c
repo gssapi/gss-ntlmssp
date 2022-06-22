@@ -717,11 +717,57 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
     return GSSERRS(0, GSS_S_COMPLETE);
 }
 
+gss_OID_desc gssntlm_neg_flags_oid = {
+    GSS_NTLMSSP_NEG_FLAGS_OID_LENGTH,
+    discard_const(GSS_NTLMSSP_NEG_FLAGS_OID_STRING)
+};
+
+static uint32_t gssntlm_set_cred_neg_flags(uint32_t *minor_status,
+                                           struct gssntlm_cred *cred,
+                                           const gss_buffer_t value)
+{
+
+    if (cred == NULL || value == NULL) {
+        *minor_status = EINVAL;
+        return GSS_S_CALL_INACCESSIBLE_READ;
+    }
+    if (value->length == 0) {
+        /* special to reset to library defaults */
+        if (cred->type == GSSNTLM_CRED_SERVER) {
+            cred->neg_flags = NTLMSSP_DEFAULT_SERVER_FLAGS;
+        } else {
+            cred->neg_flags = NTLMSSP_DEFAULT_CLIENT_FLAGS;
+        }
+    } else if (value->length == sizeof(uint32_t)) {
+        cred->neg_flags = *(uint32_t *)value->value;
+    } else {
+        *minor_status = EINVAL;
+        return GSS_S_FAILURE;
+    }
+
+    *minor_status = 0;
+    return GSS_S_COMPLETE;
+}
+
 uint32_t gssntlm_set_cred_option(uint32_t *minor_status,
                                  gss_cred_id_t *cred_handle,
                                  const gss_OID desired_object,
                                  const gss_buffer_t value)
 {
+    struct gssntlm_cred *cred;
+
+    if (minor_status == NULL) return GSS_S_CALL_INACCESSIBLE_WRITE;
+    *minor_status = 0;
+
+    if (cred_handle == NULL) return GSS_S_CALL_INACCESSIBLE_WRITE;
+    cred = (struct gssntlm_cred *)*cred_handle;
+
+    if (desired_object == GSS_C_NO_OID) return GSS_S_CALL_INACCESSIBLE_READ;
+
+    if (gss_oid_equal(desired_object, &gssntlm_neg_flags_oid)) {
+        return gssntlm_set_cred_neg_flags(minor_status, cred, value);
+    }
+
     *minor_status = EINVAL;
     return GSS_S_UNAVAILABLE;
 }
