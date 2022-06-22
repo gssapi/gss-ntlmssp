@@ -452,3 +452,12 @@ OM_uint32 gssspi_mech_invoke(OM_uint32 *minor_status,
     return gssntlm_mech_invoke(minor_status, desired_mech, desired_object,
                                value);
 }
+
+OM_uint32 gssspi_set_cred_option(OM_uint32 *minor_status,
+                                 gss_cred_id_t *cred_handle,
+                                 const gss_OID desired_object,
+                                 const gss_buffer_t value)
+{
+    return gssntlm_set_cred_option(minor_status, cred_handle, desired_object,
+                                   value);
+}

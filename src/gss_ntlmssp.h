@@ -453,4 +453,8 @@ uint32_t gssntlm_inquire_attrs_for_mech(uint32_t *minor_status,
                                         gss_OID_set *mech_attrs,
                                         gss_OID_set *known_mech_attrs);
 
+uint32_t gssntlm_set_cred_option(uint32_t *minor_status,
+                                 gss_cred_id_t *cred_handle,
+                                 const gss_OID desired_object,
+                                 const gss_buffer_t value);
 #endif /* _GSS_NTLMSSP_H_ */

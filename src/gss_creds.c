@@ -716,3 +716,12 @@ uint32_t gssntlm_inquire_cred_by_mech(uint32_t *minor_status,
     if (cred_usage) *cred_usage = usage;
     return GSSERRS(0, GSS_S_COMPLETE);
 }
+
+uint32_t gssntlm_set_cred_option(uint32_t *minor_status,
+                                 gss_cred_id_t *cred_handle,
+                                 const gss_OID desired_object,
+                                 const gss_buffer_t value)
+{
+    *minor_status = EINVAL;
+    return GSS_S_UNAVAILABLE;
+}
