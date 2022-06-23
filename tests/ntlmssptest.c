@@ -1892,6 +1892,256 @@ done:
     return ret;
 }
 
+int inner_setup_channel(gss_cred_id_t cli_cred, gss_ctx_id_t *cli_ctx,
+                        gss_cred_id_t srv_cred, gss_ctx_id_t *srv_ctx,
+                        gss_name_t gss_srvname, int *step)
+{
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    uint32_t retmin, retmaj;
+    uint32_t req_flags = 0;
+    int ret;
+
+    *step = 1;
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      req_flags, 0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      GSS_C_NO_BUFFER, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    *step = 2;
+    retmaj = gssntlm_accept_sec_context(&retmin, srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    *step = 3;
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      req_flags, 0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      &srv_token, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_init_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    *step = 4;
+    retmaj = gssntlm_accept_sec_context(&retmin, srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_accept_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+    return ret;
+}
+
+int test_gssapi_neg_flags(void)
+{
+    gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    gss_OID_desc gssntlm_neg_flags_oid = {
+        GSS_NTLMSSP_NEG_FLAGS_OID_LENGTH,
+        discard_const(GSS_NTLMSSP_NEG_FLAGS_OID_STRING)
+    };
+    const char *username;
+    const char *password = "testpassword";
+    const char *srvname = "test@testserver";
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc pwbuf;
+    gss_buffer_desc nbuf;
+    gss_buffer_desc value;
+    uint32_t neg_flags;
+    uint32_t retmin, retmaj;
+    int step;
+    int ret;
+
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+    username = getenv("TEST_USER_NAME");
+
+    if (username == NULL) {
+        username = "TESTDOM\\testuser";
+    }
+    nbuf.value = discard_const(username);
+    nbuf.length = strlen(username);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    pwbuf.value = discard_const(password);
+    pwbuf.length = strlen(password);
+    retmaj = gssntlm_acquire_cred_with_password(&retmin,
+                                                (gss_name_t)gss_username,
+                                                (gss_buffer_t)&pwbuf,
+                                                GSS_C_INDEFINITE,
+                                                GSS_C_NO_OID_SET,
+                                                GSS_C_INITIATE,
+                                                &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred_with_password failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        return EINVAL;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = inner_setup_channel(cli_cred, &cli_ctx, srv_cred, &srv_ctx,
+                              gss_srvname, &step);
+    if (ret != 0) {
+        goto done;
+    }
+
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+
+    /* test again with different neg flags */
+    neg_flags = NTLMSSP_NEGOTIATE_128 \
+                | NTLMSSP_NEGOTIATE_NTLM \
+                | NTLMSSP_NEGOTIATE_UNICODE;
+    value.value = &neg_flags;
+    value.length = sizeof(neg_flags);
+
+    retmaj = gssntlm_set_cred_option(&retmin, &cli_cred,
+                                     &gssntlm_neg_flags_oid, &value);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_set_cred_option(cli_cred) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = inner_setup_channel(cli_cred, &cli_ctx, srv_cred, &srv_ctx,
+                              gss_srvname, &step);
+    if (ret != 0) {
+        goto done;
+    }
+    fprintf(stderr, "1 ");
+
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+
+    /* test again with incompatible neg flags */
+    neg_flags = NTLMSSP_NEGOTIATE_56;
+    value.value = &neg_flags;
+    value.length = sizeof(neg_flags);
+
+    retmaj = gssntlm_set_cred_option(&retmin, &srv_cred,
+                                     &gssntlm_neg_flags_oid, &value);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_set_cred_option(srv_cred) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = inner_setup_channel(cli_cred, &cli_ctx, srv_cred, &srv_ctx,
+                              gss_srvname, &step);
+    if (!(ret == 22 && step == 2)) {
+        fprintf(stderr, "Expected Negotiataion failure (%d, %d)\n", ret, step);
+        ret = EINVAL;
+        goto done;
+    }
+    fprintf(stderr, "2 ");
+
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+
+    /* test again with reset flags */
+    value.value = NULL;
+    value.length = 0;
+    retmaj = gssntlm_set_cred_option(&retmin, &cli_cred,
+                                     &gssntlm_neg_flags_oid, &value);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_set_cred_option(cli_cred) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_set_cred_option(&retmin, &srv_cred,
+                                     &gssntlm_neg_flags_oid, &value);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_set_cred_option(srv_cred) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = inner_setup_channel(cli_cred, &cli_ctx, srv_cred, &srv_ctx,
+                              gss_srvname, &step);
+    if (ret != 0) {
+        goto done;
+    }
+    fprintf(stderr, "3 ");
+
+    ret = 0;
+
+done:
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    return ret;
+}
+
 int test_gssapi_cl(void)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
@@ -3151,6 +3401,11 @@ int main(int argc, const char *argv[])
     ret = test_hostbased_name();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret += ret;
+
+    fprintf(stderr, "Test Negotiate flags variations\n");
+    ret = test_gssapi_neg_flags();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
 done:
     ntlm_free_ctx(&ctx);
