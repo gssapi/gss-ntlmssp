@@ -1,4 +1,4 @@
-/* Copyright 2013 Simo Sorce <simo@samba.org>, see COPYING for license */
+/* Copyright 2013-2022 Simo Sorce <simo@samba.org>, see COPYING for license */
 
 #include <errno.h>
 #include <string.h>
@@ -6,7 +6,6 @@
 #include <openssl/des.h>
 #include <openssl/rc4.h>
 #include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <zlib.h>
 
@@ -16,32 +15,6 @@
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #  include <openssl/provider.h>
 #  include <openssl/crypto.h>
-#endif
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-HMAC_CTX *HMAC_CTX_new(void)
-{
-    HMAC_CTX *ctx;
-
-    ctx = OPENSSL_malloc(sizeof(HMAC_CTX));
-    if (!ctx) return NULL;
-
-    HMAC_CTX_init(ctx);
-
-    return ctx;
-}
-
-void HMAC_CTX_free(HMAC_CTX *ctx)
-{
-    if (ctx == NULL) return;
-
-    HMAC_CTX_cleanup(ctx);
-    OPENSSL_free(ctx);
-}
-
-#define EVP_MD_CTX_new EVP_MD_CTX_create
-#define EVP_MD_CTX_free EVP_MD_CTX_destroy
-
 #endif
 
 int RAND_BUFFER(struct ntlm_buffer *random)
@@ -59,35 +32,42 @@ int HMAC_MD5_IOV(struct ntlm_buffer *key,
                  struct ntlm_iov *iov,
                  struct ntlm_buffer *result)
 {
-    HMAC_CTX *hmac_ctx;
-    unsigned int len;
+    EVP_MD_CTX* ctx = NULL;
+    EVP_PKEY* pkey = NULL;
     size_t i;
     int ret = 0;
 
     if (result->length != 16) return EINVAL;
 
-    hmac_ctx = HMAC_CTX_new();
-    if (!hmac_ctx) {
+    pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key->data, key->length);
+    if (!pkey) {
         ret = ERR_CRYPTO;
         goto done;
     }
 
-    ret = HMAC_Init_ex(hmac_ctx, key->data, key->length, EVP_md5(), NULL);
-    if (ret == 0) {
+    ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        ret = ERR_CRYPTO;
+        goto done;
+    }
+
+    ret = EVP_DigestSignInit(ctx, NULL, EVP_md5(), NULL, pkey);
+    if (ret != 1) {
         ret = ERR_CRYPTO;
         goto done;
     }
 
     for (i = 0; i < iov->num; i++) {
-        ret = HMAC_Update(hmac_ctx, iov->data[i]->data, iov->data[i]->length);
-        if (ret == 0) {
+        ret = EVP_DigestSignUpdate(ctx, iov->data[i]->data,
+                                   iov->data[i]->length);
+        if (ret != 1) {
             ret = ERR_CRYPTO;
             goto done;
         }
     }
 
-    ret = HMAC_Final(hmac_ctx, result->data, &len);
-    if (ret == 0) {
+    ret = EVP_DigestSignFinal(ctx, result->data, &result->length);
+    if (ret != 1) {
         ret = ERR_CRYPTO;
         goto done;
     }
@@ -95,7 +75,8 @@ int HMAC_MD5_IOV(struct ntlm_buffer *key,
     ret = 0;
 
 done:
-    HMAC_CTX_free(hmac_ctx);
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
     return ret;
 }
 
