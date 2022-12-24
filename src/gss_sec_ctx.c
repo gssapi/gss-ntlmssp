@@ -640,7 +640,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         /* Fixme: How do we allow anonymous negotition ? */
 
         /* override neg_flags default if requested */
-        if (cred->neg_flags) {
+        if (cred && cred->neg_flags) {
             ctx->neg_flags = cred->neg_flags;
         }
 
