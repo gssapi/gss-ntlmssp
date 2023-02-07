@@ -299,7 +299,7 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
                 set_GSSERR(ENOMEM);
                 goto done;
             }
-            p = memchr(spn, '@', input_name_buffer->length);
+            p = strchr(spn, '@');
             if (p && input_name_buffer->length == 1) {
                 free(spn);
                 spn = p = NULL;
