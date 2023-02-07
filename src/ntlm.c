@@ -731,8 +731,6 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
 
 done:
     if (ret) {
-        ntlm_free_buffer_data(&sh);
-        ntlm_free_buffer_data(&cb);
         safefree(nb_computer);
         safefree(nb_domain);
         safefree(dns_computer);
