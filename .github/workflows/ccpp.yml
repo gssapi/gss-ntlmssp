@@ -42,7 +42,7 @@ jobs:
         elif command -v pacman; then
           pacman -Sy --noconfirm automake autoconf docbook-xml docbook-xsl doxygen libtool libxslt gcc libxml2 m4 make zlib
         fi
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: autoreconf
       run: autoreconf -fi
     - name: configure
@@ -57,8 +57,8 @@ jobs:
     - name: make check
       run: make check
     - name: Upload logs
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: testlogs
+        name: testlogs ${{ matrix.container }}
         path: test-suite.log
