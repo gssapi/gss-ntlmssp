@@ -1,7 +1,7 @@
 /* Copyright 2013 Simo Sorce <simo@samba.org>, see COPYING for license */
 
 #ifndef _NTLM_H_
-#define _NTLM_H
+#define _NTLM_H_
 
 #include <stdbool.h>
 
