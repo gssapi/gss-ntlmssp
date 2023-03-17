@@ -3132,6 +3132,48 @@ int test_debug(void)
     return 0;
 }
 
+int test_bad_challenge(struct ntlm_ctx *ctx)
+{
+    struct ntlm_buffer challenge = { T_ServerChallenge, 8 };
+    struct ntlm_buffer message = { 0 };
+    struct wire_chal_msg *msg;
+    uint32_t type;
+    uint32_t flags;
+    char *target_name = NULL;
+    uint8_t chal[8];
+    struct ntlm_buffer rchallenge = { chal, 8 };
+    int ret;
+
+    /* check we can decode encode/decode NULL target_name */
+    flags = T_NTLMv1.ChallengeFlags &
+                ~(NTLMSSP_TARGET_TYPE_SERVER | NTLMSSP_TARGET_TYPE_DOMAIN);
+    flags |= NTLMSSP_NEGOTIATE_UNICODE;
+
+    ret = ntlm_encode_chal_msg(ctx, flags, NULL,
+                               &challenge, NULL, &message);
+    if (ret) return ret;
+
+    /* Doctor the message to set back NTLMSSP_TARGET_TYPE_SERVER */
+    msg = (struct wire_chal_msg *)message.data;
+    msg->neg_flags |= NTLMSSP_TARGET_TYPE_SERVER;
+
+    ret = ntlm_decode_msg_type(ctx, &message, &type);
+    if (ret) return ret;
+    if (type != 2) return EINVAL;
+
+    ret = ntlm_decode_chal_msg(ctx, &message, &flags, &target_name,
+                               &rchallenge, NULL);
+    if (ret) return ret;
+
+    if (target_name != NULL) {
+        ret = EINVAL;
+        free(target_name);
+    }
+    free(message.data);
+
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -3364,6 +3406,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test NTOWF with UTF16\n");
     ret = test_NTOWF_UTF16(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test Bad Challenge Message\n");
+    ret = test_bad_challenge(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
