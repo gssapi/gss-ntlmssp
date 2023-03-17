@@ -325,7 +325,9 @@ done:
         safefree(out);
     } else {
         /* make sure to terminate output string */
-        out[outlen] = '\0';
+        if (out) {
+            out[outlen] = '\0';
+        }
     }
 
     *str = out;
