@@ -78,12 +78,12 @@ int ntlm_init_ctx(struct ntlm_ctx **ctx)
     _ctx = calloc(1, sizeof(struct ntlm_ctx));
     if (!_ctx) return ENOMEM;
 
-    _ctx->from_oem = iconv_open("UTF16LE", "UTF-8");
+    _ctx->from_oem = iconv_open("UTF-16LE", "UTF-8");
     if (_ctx->from_oem == (iconv_t) -1) {
         ret = errno;
     }
 
-    _ctx->to_oem = iconv_open("UTF-8", "UTF16LE");
+    _ctx->to_oem = iconv_open("UTF-8", "UTF-16LE");
     if (_ctx->to_oem == (iconv_t) -1) {
         iconv_close(_ctx->from_oem);
         ret = errno;
