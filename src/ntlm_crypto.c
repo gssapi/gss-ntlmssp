@@ -50,7 +50,7 @@ int NTOWFv1(const char *password, struct ntlm_key *result)
     int ret;
 
     len = strlen(password);
-    retstr = u8_conv_to_encoding("UTF16LE", iconveh_error,
+    retstr = u8_conv_to_encoding("UTF-16LE", iconveh_error,
                                  (const uint8_t *)password, len,
                                  NULL, NULL, &out);
     if (!retstr) return ERR_CRYPTO;
@@ -254,7 +254,7 @@ int NTOWFv2(struct ntlm_ctx *ctx, struct ntlm_key *nt_hash,
         offs += len;
     }
 
-    retstr = (uint8_t *)u8_conv_to_encoding("UTF16LE", iconveh_error,
+    retstr = (uint8_t *)u8_conv_to_encoding("UTF-16LE", iconveh_error,
                                             upcased, offs, NULL, NULL, &out);
     if (!retstr) return ERR_CRYPTO;
 
