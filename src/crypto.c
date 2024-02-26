@@ -98,15 +98,18 @@ typedef struct ossl3_library_context {
     OSSL_PROVIDER *default_provider;
 } ossl3_context_t;
 
-static ossl3_context_t *init_ossl3_ctx()
+static pthread_once_t global_ossl3_ctx_init = PTHREAD_ONCE_INIT;
+static ossl3_context_t *global_ossl3_ctx = NULL;
+
+static void init_global_ossl3_ctx(void)
 {
     ossl3_context_t *ctx = OPENSSL_malloc(sizeof(ossl3_context_t));
-    if (!ctx) return NULL;
+    if (!ctx) return;
 
     ctx->libctx = OSSL_LIB_CTX_new();
     if (!ctx->libctx) {
         OPENSSL_free(ctx);
-        return NULL;
+        return;
     }
 
     /* Load both legacy and default provider as both may be needed */
@@ -114,11 +117,25 @@ static ossl3_context_t *init_ossl3_ctx()
      * fetch the cipher later */
     ctx->legacy_provider = OSSL_PROVIDER_load(ctx->libctx, "legacy");
     ctx->default_provider = OSSL_PROVIDER_load(ctx->libctx, "default");
-    return ctx;
+    global_ossl3_ctx = ctx;
 }
 
-static void free_ossl3_ctx(ossl3_context_t *ctx)
+static ossl3_context_t *get_ossl3_ctx()
 {
+    int ret;
+
+    ret = pthread_once(&global_ossl3_ctx_init, init_global_ossl3_ctx);
+    if (ret != 0) {
+        return NULL;
+    }
+
+    return global_ossl3_ctx;
+}
+
+__attribute__((destructor))
+static void free_ossl3_ctx()
+{
+    ossl3_context_t *ctx = global_ossl3_ctx;
     if (ctx == NULL) return;
     if (ctx->legacy_provider) OSSL_PROVIDER_unload(ctx->legacy_provider);
     if (ctx->default_provider) OSSL_PROVIDER_unload(ctx->default_provider);
@@ -178,7 +195,7 @@ int MD4_HASH(struct ntlm_buffer *payload,
     EVP_MD *md;
     int ret;
 
-    ossl3_ctx = init_ossl3_ctx();
+    ossl3_ctx = get_ossl3_ctx();
     if (ossl3_ctx == NULL) {
         ret = ERR_CRYPTO;
         goto done;
@@ -193,7 +210,6 @@ int MD4_HASH(struct ntlm_buffer *payload,
     ret = mdx_hash(md, payload, result);
 
 done:
-    free_ossl3_ctx(ossl3_ctx);
     return ret;
 #else
     return mdx_hash(EVP_md4(), payload, result);
