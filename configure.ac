@@ -34,6 +34,7 @@ AC_CHECK_HEADERS(stdint.h dlfcn.h)
 AC_CONFIG_HEADER(config.h)
 
 AC_CHECK_TYPES([errno_t], [], [], [[#include <errno.h>]])
+AC_FUNC_STRERROR_R
 
 m4_include([build_macros.m4])
 BUILD_WITH_SHARED_BUILD_DIR

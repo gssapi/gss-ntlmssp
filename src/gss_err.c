@@ -94,16 +94,9 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
         goto done;
     }
 
-    /* handle both XSI and GNU specific varints of strerror_r */
+    /* handle both XSI and GNU specific variants of strerror_r */
     errno = 0;
-#if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE)
-    /* XSI version */
-    err = strerror_r(status_value, buf, 400);
-    /* The XSI-compliant strerror_r() function returns 0 on success.
-     * On error, a (positive) error number is returned (since glibc
-     * 2.13), or -1 is returned and errno is set to indicate the
-     * error (glibc versions before 2.13). */
-#else
+#if STRERROR_R_CHAR_P
     {
         char *ret;
         ret = strerror_r(status_value, buf, 400);
@@ -116,6 +109,13 @@ uint32_t gssntlm_display_status(uint32_t *minor_status,
             err = 0;
         }
     }
+#else
+    /* XSI version */
+    err = strerror_r(status_value, buf, 400);
+    /* The XSI-compliant strerror_r() function returns 0 on success.
+     * On error, a (positive) error number is returned (since glibc
+     * 2.13), or -1 is returned and errno is set to indicate the
+     * error (glibc versions before 2.13). */
 #endif
     if (err == -1) err = errno;
     switch (err) {
