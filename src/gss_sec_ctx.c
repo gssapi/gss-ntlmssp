@@ -568,6 +568,8 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
     if (time_rec) *time_rec = 0;
     if (delegated_cred_handle) *delegated_cred_handle = GSS_C_NO_CREDENTIAL;
 
+    ctx = (struct gssntlm_ctx *)(*context_handle);
+
     if (acceptor_cred_handle) {
         cred = (struct gssntlm_cred *)acceptor_cred_handle;
         if (cred->type != GSSNTLM_CRED_SERVER) {
@@ -796,7 +798,6 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         retmaj = GSS_S_CONTINUE_NEEDED;
 
     } else {
-        ctx = (struct gssntlm_ctx *)(*context_handle);
 
         if (!gssntlm_role_is_server(ctx)) {
             set_GSSERRS(ERR_WRONGCTX, GSS_S_NO_CONTEXT);
