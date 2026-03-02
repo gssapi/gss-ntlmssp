@@ -524,7 +524,7 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
                                     uint32_t *time_rec,
                                     gss_cred_id_t *delegated_cred_handle)
 {
-    struct gssntlm_ctx *ctx;
+    struct gssntlm_ctx *ctx = NULL;
     struct gssntlm_cred *cred = NULL;
     int lm_compat_lvl = -1;
     struct ntlm_buffer challenge = { 0 };
@@ -1039,13 +1039,15 @@ done:
 
     if ((retmaj != GSS_S_COMPLETE) &&
         (retmaj != GSS_S_CONTINUE_NEEDED)) {
-        gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
+        if (ctx != (struct gssntlm_ctx *)(*context_handle)) {
+            gssntlm_delete_sec_context(&tmpmin, (gss_ctx_id_t *)&ctx, NULL);
+            ctx = NULL;
+        }
     } else {
         if (mech_type) *mech_type = discard_const(&gssntlm_oid);
         if (ret_flags) *ret_flags = ctx->gss_flags;
         if (time_rec) *time_rec = GSS_C_INDEFINITE;
     }
-    *context_handle = (gss_ctx_id_t)ctx;
     gssntlm_release_name(&tmpmin, (gss_name_t *)&server_name);
     gssntlm_release_name(&tmpmin, (gss_name_t *)&gss_usrname);
     gssntlm_release_cred(&tmpmin, (gss_cred_id_t *)&usr_cred);
@@ -1058,6 +1060,10 @@ done:
     ntlm_free_buffer_data(&lm_chal_resp);
     ntlm_free_buffer_data(&enc_sess_key);
     ntlm_free_buffer_data(&target_info);
+
+    if (ctx != NULL) {
+        *context_handle = (gss_ctx_id_t)ctx;
+    }
 
     return GSSERR();
 }
