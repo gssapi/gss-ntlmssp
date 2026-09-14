@@ -618,6 +618,8 @@ int ntlm_verify_nt_response(struct ntlm_buffer *nt_response,
     struct ntlm_buffer expected_response = { buf, 24 };
     int ret;
 
+    if (nt_response->length < 24) return EINVAL;
+
     ret = ntlm_compute_nt_response(nt_key, ext_sec,
                                    server_chal, client_chal,
                                    &expected_response);
@@ -638,6 +640,8 @@ int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
     uint8_t buf[24];
     struct ntlm_buffer expected_response = { buf, 24 };
     int ret;
+
+    if (lm_response->length < 24) return EINVAL;
 
     ret = ntlm_compute_lm_response(lm_key, ext_sec,
                                    server_chal, client_chal,

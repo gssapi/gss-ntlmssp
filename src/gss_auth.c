@@ -333,6 +333,11 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
 
     ext_sec = (ctx->neg_flags & NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY);
 
+    if (ntlm_v1 && lm_chal_resp->length < 24) {
+        set_GSSERR(EINVAL);
+        goto done;
+    }
+
     switch (cred->type) {
 
     case GSSNTLM_CRED_USER:
