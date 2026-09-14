@@ -344,6 +344,11 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
         if (ntlm_v1) {
             uint8_t client_chal[8] = { 0 };
 
+            if (lm_chal_resp->length < 24) {
+                set_GSSERR(EINVAL);
+                goto done;
+            }
+
             if (ext_sec) {
                 memcpy(client_chal, lm_chal_resp->data, 8);
             }
