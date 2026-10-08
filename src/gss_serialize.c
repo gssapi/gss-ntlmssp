@@ -549,8 +549,17 @@ static uint32_t import_attrs(uint32_t *minor_status,
     uint32_t retmaj = GSS_S_COMPLETE;
     uint32_t retmin = 0;
     uint8_t *cursor;
+    size_t array_len;
 
     if (attrs->count == 0) goto done;
+
+    /* the pointer array holds two relmem entries per attribute; make sure
+     * it sits entirely within the exported data before we read from it */
+    array_len = (size_t)attrs->count * 2 * sizeof(struct relmem);
+    if (state->exp_data + attrs->buffers.ptr + array_len > state->exp_len) {
+        set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
+        goto done;
+    }
 
     a = calloc(attrs->count + 1, sizeof(struct gssntlm_name_attribute));
     if (a == NULL) {
