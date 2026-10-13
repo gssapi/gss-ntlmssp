@@ -954,6 +954,13 @@ uint32_t gssntlm_accept_sec_context(uint32_t *minor_status,
         }
 
         if (ctx->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH) {
+            /* the peer's encrypted session key must be a full 16 bytes;
+             * a shorter (or absent) field would read past the decoded
+             * buffer below */
+            if (enc_sess_key.length < 16) {
+                set_GSSERRS(ERR_DECODE, GSS_S_DEFECTIVE_TOKEN);
+                goto done;
+            }
             memcpy(encrypted_random_session_key.data, enc_sess_key.data, 16);
             ctx->exported_session_key.length = 16;
 
