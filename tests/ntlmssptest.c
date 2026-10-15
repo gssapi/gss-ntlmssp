@@ -1801,6 +1801,32 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal, bool use_cs)
         goto done;
     }
 
+    /* A peer supplied MIC or wrap token shorter than the 16 byte NTLM
+     * signature must be refused as defective, not read past its end. */
+    {
+        uint8_t shortbuf[4] = { 0 };
+        gss_buffer_desc shorttok = { sizeof(shortbuf), shortbuf };
+        gss_buffer_desc shortout = { 0, NULL };
+
+        retmaj = gssntlm_verify_mic(&retmin, srv_ctx, &message,
+                                    &shorttok, NULL);
+        if (retmaj != GSS_S_DEFECTIVE_TOKEN) {
+            print_gss_error("gssntlm_verify_mic accepted a short token!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+
+        retmaj = gssntlm_unwrap(&retmin, srv_ctx, &shorttok, &shortout,
+                                NULL, NULL);
+        if (retmaj != GSS_S_DEFECTIVE_TOKEN) {
+            print_gss_error("gssntlm_unwrap accepted a short token!",
+                            retmaj, retmin);
+            ret = EINVAL;
+            goto done;
+        }
+    }
+
     gss_release_buffer(&retmin, &cli_token);
     gss_release_buffer(&retmin, &srv_token);
 

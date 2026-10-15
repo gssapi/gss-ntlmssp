@@ -72,6 +72,10 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
     if (!message_buffer->value || message_buffer->length == 0) {
         return GSSERRS(ERR_NOARG, GSS_S_CALL_INACCESSIBLE_READ);
     }
+    if (!message_token->value ||
+        message_token->length < NTLM_SIGNATURE_SIZE) {
+        return GSSERRS(ERR_DECODE, GSS_S_DEFECTIVE_TOKEN);
+    }
     if (qop_state) {
         *qop_state = GSS_C_QOP_DEFAULT;
     }
@@ -173,6 +177,9 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
     }
     if (!input_message_buffer->value || input_message_buffer->length == 0) {
         return GSSERRS(ERR_BADARG, GSS_S_CALL_INACCESSIBLE_READ);
+    }
+    if (input_message_buffer->length < NTLM_SIGNATURE_SIZE) {
+        return GSSERRS(ERR_DECODE, GSS_S_DEFECTIVE_TOKEN);
     }
     if (conf_state) {
         *conf_state = 0;
