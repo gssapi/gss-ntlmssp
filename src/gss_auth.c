@@ -404,6 +404,14 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
             break;
         }
 
+        /* The NT proof is the first 16 bytes of the NTv2 response. If the
+         * peer authenticated via LMv2 the NT response was never checked for
+         * length, so guard against reading past a short (or absent) one. */
+        if (nt_chal_resp->length < 16) {
+            set_GSSERR(EINVAL);
+            goto done;
+        }
+
         /* The NT proof is the first 16 bytes */
         nt_proof.data = nt_chal_resp->data;
         nt_proof.length = 16;
