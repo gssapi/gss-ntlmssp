@@ -892,6 +892,58 @@ int test_SessionBaseKeyV2(struct ntlm_ctx *ctx)
     return test_keys("results", &T_NTLMv2.SessionBaseKey, &session_base_key);
 }
 
+/* A peer that authenticates with a valid LMv2 response but a short NT
+ * response used to make gssntlm_srv_auth() read the NTv2 proof past the
+ * end of the (short) NT response buffer. */
+int test_ShortNTResponseV2(struct ntlm_ctx *ctx)
+{
+    struct gssntlm_ctx gctx = { 0 };
+    struct gssntlm_cred cred = { 0 };
+    struct ntlm_key nt_hash = { .length = 16 };
+    struct ntlm_key ntlmv2_key = { .length = 16 };
+    struct ntlm_key kxkey = { .length = 16 };
+    struct ntlm_buffer lm_chal_resp = { 0 };
+    uint8_t nt_buf[4] = { 0 };
+    struct ntlm_buffer nt_chal_resp = { nt_buf, sizeof(nt_buf) };
+    uint8_t client_chal[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    uint32_t retmaj, retmin;
+    int ret;
+
+    gctx.ntlm = ctx;
+    gctx.role = GSSNTLM_SERVER;
+    gssntlm_required_security(1, &gctx); /* enables LM + NTLM */
+    memset(gctx.server_chal, 0x42, 8);
+
+    ret = NTOWFv1(T_Passwd, &nt_hash);
+    if (ret) return ret;
+
+    cred.type = GSSNTLM_CRED_USER;
+    cred.cred.user.user.type = GSSNTLM_NAME_USER;
+    cred.cred.user.user.data.user.name = discard_const(T_User);
+    cred.cred.user.user.data.user.domain = discard_const(T_UserDom);
+    cred.cred.user.nt_hash = nt_hash;
+
+    /* a valid LMv2 response, as a client knowing the password would send */
+    ret = NTOWFv2(ctx, &nt_hash, T_User, T_UserDom, &ntlmv2_key);
+    if (ret) return ret;
+    ret = ntlmv2_compute_lm_response(&ntlmv2_key, gctx.server_chal,
+                                     client_chal, &lm_chal_resp);
+    if (ret) return ret;
+
+    retmaj = gssntlm_srv_auth(&retmin, &gctx, &cred,
+                              &nt_chal_resp, &lm_chal_resp, &kxkey);
+
+    free(lm_chal_resp.data);
+
+    /* the short NT response must be rejected, not accepted or read OOB */
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "short NT response was accepted!\n");
+        return EINVAL;
+    }
+
+    return 0;
+}
+
 int test_EncryptedSessionKey(struct ntlm_ctx *ctx,
                              struct ntlm_key *key_exchange_key,
                              struct ntlm_key *encrypted_session_key)
@@ -3324,6 +3376,11 @@ int main(int argc, const char *argv[])
     fprintf(stderr, "Test EncryptedSessionKey v2\n");
     ret = test_EncryptedSessionKey(ctx, &T_NTLMv2.SessionBaseKey,
                                    &T_NTLMv2.EncryptedSessionKey);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test short NTResponse v2\n");
+    ret = test_ShortNTResponseV2(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
