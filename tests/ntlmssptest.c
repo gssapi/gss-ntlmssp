@@ -814,6 +814,30 @@ int test_NTOWFv2(struct ntlm_ctx *ctx)
     return test_keys("results", &T_NTLMv2.ResponseKeyNT, &result);
 }
 
+int test_NTOWFv2_long(struct ntlm_ctx *ctx)
+{
+    struct ntlm_key nt_hash = { .length = 16 };
+    struct ntlm_key result = { .length = 16 };
+    char user[700];
+    int ret;
+
+    ret = NTOWFv1(T_Passwd, &nt_hash);
+    if (ret) return ret;
+
+    /* a user name whose upcased form overflows the internal buffer must
+     * be rejected rather than writing past it */
+    memset(user, 'a', sizeof(user) - 1);
+    user[sizeof(user) - 1] = '\0';
+
+    ret = NTOWFv2(ctx, &nt_hash, user, T_UserDom, &result);
+    if (ret == 0) {
+        fprintf(stderr, "NTOWFv2 accepted an over-long user name\n");
+        return EINVAL;
+    }
+
+    return 0;
+}
+
 int test_LMResponseV2(struct ntlm_ctx *ctx)
 {
     struct ntlm_buffer result;
@@ -3263,6 +3287,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test SessionBaseKey v2\n");
     ret = test_SessionBaseKeyV2(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test NTOWFv2 with over-long user name\n");
+    ret = test_NTOWFv2_long(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

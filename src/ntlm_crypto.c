@@ -246,10 +246,16 @@ int NTOWFv2(struct ntlm_ctx *ctx, struct ntlm_key *nt_hash,
     retstr = u8_toupper((const uint8_t *)user, len,
                         NULL, NULL, upcased, &out);
     if (!retstr) return ERR_CRYPTO;
+    if (retstr != upcased) {
+        /* the upcased user name did not fit in the fixed buffer */
+        free(retstr);
+        return ERR_CRYPTO;
+    }
     offs = out;
 
     if (domain) {
         len = strlen(domain);
+        if (len > MAX_USER_DOM_LEN - offs) return ERR_CRYPTO;
         memcpy(&upcased[offs], domain, len);
         offs += len;
     }
