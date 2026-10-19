@@ -90,10 +90,13 @@ int LMOWFv1(const char *password, struct ntlm_key *result)
                                 NULL, NULL, (uint8_t *)upcased, &out);
     if (!retstr) return ERR_CRYPTO;
     if (retstr != upcased) {
+        /* the upcased form did not fit in the stack buffer so u8_toupper
+         * allocated its own; upcased was left untouched. Bail out instead
+         * of deriving the key from uninitialized stack memory. */
         free(retstr);
-        ret = EINVAL;
+        return ERR_CRYPTO;
     }
-    memset(&upcased[len], 0, 15 - len);
+    memset(&upcased[out], 0, 15 - out);
 
     /* part1 */
     key.data = (uint8_t *)upcased;

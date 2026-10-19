@@ -2992,6 +2992,38 @@ int test_ZERO_LMKEY(struct ntlm_ctx *ctx)
     return test_keys("results", &MS_SessionKey, &result);
 }
 
+int test_LMOWFv1_upcase(struct ntlm_ctx *ctx)
+{
+    /* A password whose OEM upper-case form is longer than the 15 byte
+     * scratch buffer used by LMOWFv1() (7 x U+0149, which upper-cases to
+     * 21 bytes). The upper-case conversion then has to allocate its own
+     * buffer and the scratch buffer is never filled, so the key must not
+     * be derived from it. */
+    const char *expand = "\xC5\x89\xC5\x89\xC5\x89\xC5\x89"
+                         "\xC5\x89\xC5\x89\xC5\x89";
+    /* A password that upper-cases to fewer bytes than the input (3 x the
+     * "ff" ligature U+FB00 -> "FFFFFF"), to check the padding is anchored
+     * at the converted length, not the input length. */
+    const char *shrink = "\xEF\xAC\x80\xEF\xAC\x80\xEF\xAC\x80";
+    struct ntlm_key result = { .length = 16 };
+    struct ntlm_key shrunk = { .length = 16 };
+    struct ntlm_key plain = { .length = 16 };
+    int ret;
+
+    ret = LMOWFv1(expand, &result);
+    if (ret == 0) {
+        fprintf(stderr, "LMOWFv1 accepted an over-long upper-case password\n");
+        return EINVAL;
+    }
+
+    ret = LMOWFv1(shrink, &shrunk);
+    if (ret) return ret;
+    ret = LMOWFv1("FFFFFF", &plain);
+    if (ret) return ret;
+
+    return test_keys("results", &plain, &shrunk);
+}
+
 int test_NTOWF_UTF16(struct ntlm_ctx *ctx)
 {
     const char *passwd = "Pass\xF0\x9D\x84\x9E";
@@ -3518,6 +3550,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test NTOWF with UTF16\n");
     ret = test_NTOWF_UTF16(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test LMOWFv1 upper-case buffer handling\n");
+    ret = test_LMOWFv1_upcase(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
