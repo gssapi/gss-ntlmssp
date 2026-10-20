@@ -635,7 +635,7 @@ int ntlm_verify_nt_response(struct ntlm_buffer *nt_response,
     if (ret) return ret;
 
     ret = EINVAL;
-    if (memcmp(nt_response->data, expected_response.data, 24) == 0) {
+    if (CT_MEMCMP(nt_response->data, expected_response.data, 24) == 0) {
         ret = 0;
     }
 
@@ -658,7 +658,7 @@ int ntlm_verify_lm_response(struct ntlm_buffer *lm_response,
     if (ret) return ret;
 
     ret = EINVAL;
-    if (memcmp(lm_response->data, expected_response.data, 24) == 0) {
+    if (CT_MEMCMP(lm_response->data, expected_response.data, 24) == 0) {
         ret = 0;
     }
 
@@ -691,7 +691,7 @@ int ntlmv2_verify_nt_response(struct ntlm_buffer *nt_response,
     if (ret) goto done;
 
     ret = EINVAL;
-    if (memcmp(nt_resp->v2.resp, proof, 16) == 0) {
+    if (CT_MEMCMP(nt_resp->v2.resp, proof, 16) == 0) {
         ret = 0;
     }
 
@@ -723,7 +723,7 @@ int ntlmv2_verify_lm_response(struct ntlm_buffer *lm_response,
 
     if (ret) return ret;
 
-    if (memcmp(lm_resp->v2.resp, proof, 16) == 0) return 0;
+    if (CT_MEMCMP(lm_resp->v2.resp, proof, 16) == 0) return 0;
 
     return EINVAL;
 }
@@ -1008,7 +1008,7 @@ int ntlm_verify_mic(struct ntlm_key *key,
                         authenticate_message, &check_mic);
     if (ret) return ret;
 
-    if (memcmp(mic->data, check_mic.data, NTLM_SIGNATURE_SIZE) != 0) {
+    if (CT_MEMCMP(mic->data, check_mic.data, NTLM_SIGNATURE_SIZE) != 0) {
         return EACCES;
     }
 
