@@ -168,4 +168,15 @@ int DESL(struct ntlm_buffer *key,
  */
 uint32_t CRC32(uint32_t crc, struct ntlm_buffer *payload);
 
+/**
+ * @brief Constant time memory comparison
+ *
+ * @param a         First buffer
+ * @param b         Second buffer
+ * @param len       The number of bytes to compare
+ *
+ * @return 0 if the buffers are equal, non-zero otherwise
+ */
+int CT_MEMCMP(const void *a, const void *b, size_t len);
+
 #endif /* _SRC_CRYPTO_H_ */

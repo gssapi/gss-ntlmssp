@@ -89,8 +89,8 @@ uint32_t gssntlm_verify_mic(uint32_t *minor_status,
         return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
-    if (memcmp(signature.data,
-               message_token->value, NTLM_SIGNATURE_SIZE) != 0) {
+    if (CT_MEMCMP(signature.data,
+                  message_token->value, NTLM_SIGNATURE_SIZE) != 0) {
         return GSSERRS(0, GSS_S_BAD_SIG);
     }
 
@@ -206,8 +206,8 @@ uint32_t gssntlm_unwrap(uint32_t *minor_status,
         return GSSERRS(retmin, GSS_S_FAILURE);
     }
 
-    if (memcmp(input_message_buffer->value,
-               signature.data, NTLM_SIGNATURE_SIZE) != 0) {
+    if (CT_MEMCMP(input_message_buffer->value,
+                  signature.data, NTLM_SIGNATURE_SIZE) != 0) {
         safefree(output_message_buffer->value);
         return GSSERRS(0, GSS_S_BAD_SIG);
     }

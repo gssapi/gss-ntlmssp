@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include <openssl/crypto.h>
 #include <openssl/des.h>
 #include <openssl/rc4.h>
 #include <openssl/evp.h>
@@ -14,7 +15,6 @@
 /* legacy provider with openssl 3.0 */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #  include <openssl/provider.h>
-#  include <openssl/crypto.h>
 #endif
 
 int RAND_BUFFER(struct ntlm_buffer *random)
@@ -384,4 +384,9 @@ int DESL(struct ntlm_buffer *key,
 uint32_t CRC32(uint32_t crc, struct ntlm_buffer *payload)
 {
     return crc32(crc, payload->data, payload->length);
+}
+
+int CT_MEMCMP(const void *a, const void *b, size_t len)
+{
+    return CRYPTO_memcmp(a, b, len);
 }
