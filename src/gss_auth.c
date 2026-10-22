@@ -314,6 +314,8 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
 {
     struct ntlm_key session_base_key = { .length = 16 };
     struct ntlm_key ntlmv2_key = { .length = 16 };
+    struct ntlm_key lm_session_key = { .length = 16 };
+    struct ntlm_key *lm_key = NULL;
     struct ntlm_buffer nt_proof = { 0 };
     uint32_t retmaj, retmin;
     const char *domstr;
@@ -341,6 +343,8 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
     switch (cred->type) {
 
     case GSSNTLM_CRED_USER:
+        lm_key = &cred->cred.user.lm_hash;
+
         if (ntlm_v1) {
             uint8_t client_chal[8] = { 0 };
 
@@ -428,11 +432,14 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
 
     case GSSNTLM_CRED_EXTERNAL:
         retmin = external_srv_auth(ctx, cred, nt_chal_resp, lm_chal_resp,
-                                   &session_base_key);
+                                   &session_base_key, &lm_session_key);
         if (retmin) {
             set_GSSERR(retmin);
             goto done;
         }
+        /* external creds do not carry an LM hash, the DC returns
+         * the LM session key instead */
+        lm_key = &lm_session_key;
         break;
 
     default:
@@ -444,7 +451,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
         retmin = KXKEY(ctx->ntlm, ext_sec,
                        (ctx->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY),
                        (ctx->neg_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY),
-                       ctx->server_chal, &cred->cred.user.lm_hash,
+                       ctx->server_chal, lm_key,
                        &session_base_key, lm_chal_resp,
                        key_exchange_key);
         if (retmin) {
