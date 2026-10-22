@@ -93,6 +93,10 @@ GN_MECHGLUE_OBJ = \
 
 if BUILD_WBCLIENT
    GN_MECHGLUE_OBJ += src/winbind.c
+   check_PROGRAMS += test_winbind
+   test_winbind_SOURCES = tests/test_winbind.c
+   test_winbind_CFLAGS = $(GSSAPI_CFLAGS) $(AM_CFLAGS)
+   test_winbind_LDADD = $(GSSAPI_LIBS)
 endif
 
 dist_noinst_HEADERS = \
@@ -228,7 +232,8 @@ endif
 EXTRA_DIST = \
     examples/test_user_file.txt \
     examples/test_user_file2.txt \
-    examples/test_user_file3.txt
+    examples/test_user_file3.txt \
+    tests/test_winbind.c
 
 TESTS = ntlmssptest tests/env1.sh tests/env2.sh
 

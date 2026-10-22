@@ -1,0 +1,168 @@
+name: Winbind AD DC Integration
+
+on: [push, pull_request]
+
+jobs:
+  winbind-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          autoconf \
+          automake \
+          build-essential \
+          docbook-xml \
+          docbook-xsl \
+          doxygen \
+          gettext \
+          krb5-user \
+          libkrb5-dev \
+          libssl-dev \
+          libtool \
+          libunistring-dev \
+          libwbclient-dev \
+          libxml2-utils \
+          make \
+          pkg-config \
+          samba \
+          samba-dsdb-modules \
+          samba-vfs-modules \
+          smbclient \
+          winbind \
+          xsltproc \
+          zlib1g-dev
+
+    - name: Provision and Start Samba AD DC
+      run: |
+        # Stop and disable any default conflicting services
+        sudo systemctl stop smbd nmbd winbind samba-ad-dc systemd-resolved || true
+        sudo systemctl disable smbd nmbd winbind || true
+        sudo systemctl mask smbd nmbd || true
+
+        # Free local port 53 while keeping reliable public DNS
+        sudo rm -f /etc/resolv.conf
+        echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+        echo "nameserver 1.1.1.1" | sudo tee -a /etc/resolv.conf
+
+        # Clean existing Samba state
+        sudo rm -rf /etc/samba/smb.conf /var/lib/samba/private/* /var/lib/samba/*.tdb /var/lib/samba/*.ldb /var/cache/samba/*
+
+        # Set up /etc/hosts for Samba AD DC
+        DC_HOST=$(hostname -s)
+        sudo sed -i '/127\.0\.1\.1/d' /etc/hosts
+        echo "127.0.0.1 ${DC_HOST}.test.local ${DC_HOST} addc.test.local test.local TESTDOM" | sudo tee -a /etc/hosts
+
+        # Provision Active Directory Domain
+        sudo samba-tool domain provision \
+          --use-rfc2307 \
+          --realm=TEST.LOCAL \
+          --domain=TESTDOM \
+          --server-role=dc \
+          --dns-backend=SAMBA_INTERNAL \
+          --option="dns forwarder = 8.8.8.8" \
+          --adminpass="AdminPassw0rd123!"
+
+        # Enable NTLM and configure winbind in smb.conf
+        sudo sed -i '/\[global\]/a \    ntlm auth = yes\n    winbind use default domain = yes\n    winbind enum users = yes\n    winbind enum groups = yes\n    winbind scan trusted domains = no' /etc/samba/smb.conf
+
+        # Configure system Kerberos
+        sudo cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
+
+        # Point local DNS to internal Samba DNS with fallback
+        echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
+        echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+
+        # Start Samba AD DC in daemon mode
+        sudo samba -D
+
+        # Wait for winbind and samba to become operational
+        for i in $(seq 1 30); do
+          if wbinfo -p >/dev/null 2>&1; then
+            echo "Winbind is operational after ${i}s"
+            break
+          fi
+          sleep 1
+        done
+        wbinfo -p
+
+        # Relax domain password policy for testing
+        sudo samba-tool domain passwordsettings set --complexity=off --history-length=0 --min-pwd-age=0 --max-pwd-age=0 || true
+
+        # Create test domain user
+        sudo samba-tool user create testuser 'TestPassw0rd123!'
+
+        # Ensure winbind sockets are accessible
+        sudo chmod 755 /run/samba/winbindd /var/run/samba/winbindd /var/lib/samba/winbindd_privileged || true
+        sudo chmod 666 /run/samba/winbindd/pipe /var/run/samba/winbindd/pipe /var/lib/samba/winbindd_privileged/pipe 2>/dev/null || true
+        sudo usermod -a -G winbindd_priv $USER || true
+
+    - name: Verify Winbind Operation
+      run: |
+        wbinfo -p
+        wbinfo -t
+        wbinfo -u | grep testuser
+        wbinfo -a "TESTDOM\\testuser%TestPassw0rd123!"
+
+    - name: Build and install GSSNTLMSSP with wbclient
+      run: |
+        autoreconf -fi
+        ./configure --prefix=/usr --with-wbclient=yes
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+        # Configure mechanism in GSS-API
+        sudo mkdir -p /etc/gss/mech.d
+        SO_PATH=$(find /usr -name "gssntlmssp.so" 2>/dev/null | head -n 1)
+        if [ -z "${SO_PATH}" ]; then
+          echo "ERROR: gssntlmssp.so not found!"
+          exit 1
+        fi
+        echo "Using GSSNTLMSSP plugin at: ${SO_PATH}"
+        echo "ntlmssp 1.3.6.1.4.1.311.2.2.10 ${SO_PATH}" | sudo tee /etc/gss/mech.d/gssntlmssp.conf
+        echo "ntlmssp 1.3.6.1.4.1.311.2.2.10 ${SO_PATH}" | sudo tee /etc/gss/mech
+
+    - name: Run standard testsuite
+      run: |
+        make check
+
+    - name: Run Winbind GSSAPI authentication test
+      run: |
+        # Compile test harness against GSSAPI library
+        gcc -Wall -O2 $(krb5-config --cflags gssapi) tests/test_winbind.c -o tests/test_winbind $(krb5-config --libs gssapi)
+
+        # Run test with NTLM_USER_FILE unset so GSSNTLMSSP uses Winbind
+        unset NTLM_USER_FILE
+        sudo -E ./tests/test_winbind "TESTDOM\\testuser" "TestPassw0rd123!" "host@addc.test.local"
+
+    - name: Dump logs on failure
+      if: failure()
+      run: |
+        echo "=== Process list ==="
+        ps aux | grep -E 'samba|winbind' || true
+        echo "=== Winbind ping ==="
+        wbinfo -p || true
+        echo "=== Samba logs ==="
+        sudo tail -n 100 /var/log/samba/log.* 2>/dev/null || true
+
+    - name: Prepare logs on failure
+      if: failure()
+      run: |
+        sudo rm -rf /var/log/samba/cores || true
+        sudo chmod -R a+rX /var/log/samba/ || true
+
+    - name: Upload logs on failure
+      uses: actions/upload-artifact@v6
+      if: failure()
+      with:
+        name: winbind-testlogs
+        path: |
+          test-suite.log
+          /var/log/samba/*.log
+          /var/log/samba/log.*
+        if-no-files-found: ignore
