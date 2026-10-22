@@ -410,6 +410,7 @@ uint32_t winbind_srv_auth(void *ectx, char *user, char *domain,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
                           struct ntlm_key *ntlmv2_key,
+                          struct ntlm_key *lm_session_key,
                           struct gssntlm_name_attribute **auth_attrs)
 {
     struct wbcContext *ctx;
@@ -420,7 +421,7 @@ uint32_t winbind_srv_auth(void *ectx, char *user, char *domain,
     uint32_t res;
     wbcErr wbc_status;
 
-    if (ntlmv2_key->length != 16) {
+    if (ntlmv2_key->length != 16 || lm_session_key->length != 16) {
         return ERR_KEYLEN;
     }
 
@@ -453,6 +454,9 @@ uint32_t winbind_srv_auth(void *ectx, char *user, char *domain,
     }
 
     memcpy(ntlmv2_key->data, wbc_info->user_session_key, ntlmv2_key->length);
+    /* only the first 8 bytes of the LM hash are needed by KXKEY */
+    memset(lm_session_key->data, 0, lm_session_key->length);
+    memcpy(lm_session_key->data, wbc_info->lm_session_key, 8);
     res = format_sids_as_name_attribute(wbc_info, auth_attrs);
 
     wbcFreeMemory(wbc_info);

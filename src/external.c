@@ -80,7 +80,8 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                            struct gssntlm_cred *cred,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
-                           struct ntlm_key *session_base_key)
+                           struct ntlm_key *session_base_key,
+                           struct ntlm_key *lm_session_key)
 {
 #if HAVE_WBCLIENT
     uint8_t challenge[8];
@@ -107,7 +108,7 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                             cred->cred.external.user.data.user.domain,
                             ctx->workstation, chal_ptr,
                             nt_chal_resp, lm_chal_resp, session_base_key,
-                            &ctx->source_name.attrs);
+                            lm_session_key, &ctx->source_name.attrs);
 #else
     return ERR_NOTAVAIL;
 #endif
