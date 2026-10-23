@@ -218,7 +218,8 @@ uint32_t external_srv_auth(struct gssntlm_ctx *ctx,
                            struct gssntlm_cred *cred,
                            struct ntlm_buffer *nt_chal_resp,
                            struct ntlm_buffer *lm_chal_resp,
-                           struct ntlm_key *session_base_key);
+                           struct ntlm_key *session_base_key,
+                           struct ntlm_key *lm_session_key);
 
 uint32_t netbios_get_names(void *ctx, char *computer_name,
                            char **netbios_host, char **netbios_domain);

@@ -23,4 +23,5 @@ uint32_t winbind_srv_auth(void *ectx, char *user, char *domain,
                           struct ntlm_buffer *nt_chal_resp,
                           struct ntlm_buffer *lm_chal_resp,
                           struct ntlm_key *ntlmv2_key,
+                          struct ntlm_key *lm_session_key,
                           struct gssntlm_name_attribute **auth_attrs);
