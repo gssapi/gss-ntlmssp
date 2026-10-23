@@ -297,6 +297,10 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
         /* mask unacceptable flags */
         if (!gssntlm_sec_lm_ok(ctx)) {
             in_flags &= ~NTLMSSP_NEGOTIATE_LM_KEY;
+            in_flags &= ~NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
+        }
+        if (!(ctx->neg_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY)) {
+            in_flags &= ~NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
         }
         if (!(ctx->neg_flags & NTLMSSP_NEGOTIATE_56)) {
             in_flags &= ~NTLMSSP_NEGOTIATE_56;

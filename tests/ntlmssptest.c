@@ -3308,6 +3308,135 @@ int test_bad_challenge(struct ntlm_ctx *ctx)
     return ret;
 }
 
+/* A server must not be able to make the client derive its session key from
+ * the LM hash when LM is not allowed, the LM hash is never computed in that
+ * case and the key would be all zeros */
+int test_non_nt_session_key(struct ntlm_ctx *ctx)
+{
+    gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    const char *username = "TESTDOM\\testuser";
+    const char *password = "testpassword";
+    const char *srvname = "test@testserver";
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc nbuf;
+    struct ntlm_buffer challenge = { T_ServerChallenge, 8 };
+    struct ntlm_buffer message = { 0 };
+    struct ntlm_key nt_hash = { .length = 16 };
+    struct ntlm_key session_base_key = { .length = 16 };
+    struct gssntlm_ctx *gctx;
+    uint32_t retmin, retmaj;
+    uint32_t flags;
+    int ret;
+
+    /* NTLMv1 with extended session security, no LM */
+    setenv("LM_COMPAT_LEVEL", "2", 1);
+
+    nbuf.value = discard_const(username);
+    nbuf.length = strlen(username);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* the user file has no LM hash when LM is not allowed */
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+    retmaj = gssntlm_acquire_cred_from(&retmin, NULL,
+                                       (gss_name_t)gss_username,
+                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                       GSS_C_INITIATE, GSS_C_NO_CRED_STORE,
+                                       &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(username) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      0, 0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      GSS_C_NO_BUFFER, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* the server drops extended session security and asks for the
+     * LM based session key */
+    flags = NTLMSSP_NEGOTIATE_UNICODE | NTLMSSP_NEGOTIATE_NTLM |
+            NTLMSSP_NEGOTIATE_ALWAYS_SIGN | NTLMSSP_NEGOTIATE_128 |
+            NTLMSSP_NEGOTIATE_56 | NTLMSSP_REQUEST_NON_NT_SESSION_KEY;
+    ret = ntlm_encode_chal_msg(ctx, flags, NULL, &challenge, NULL, &message);
+    if (ret) goto done;
+
+    srv_token.value = message.data;
+    srv_token.length = message.length;
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      0, 0, GSS_C_NO_CHANNEL_BINDINGS,
+                                      &srv_token, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_init_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gctx = (struct gssntlm_ctx *)cli_ctx;
+
+    /* without the LM key the key exchange key is the session base key */
+    ret = NTOWFv1(password, &nt_hash);
+    if (ret) goto done;
+    ret = ntlm_session_base_key(&nt_hash, &session_base_key);
+    if (ret) goto done;
+    ret = test_keys("exported session key", &session_base_key,
+                    &gctx->exported_session_key);
+    if (ret) goto done;
+
+    if (gctx->neg_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY) {
+        fprintf(stderr, "NTLMSSP_REQUEST_NON_NT_SESSION_KEY was accepted\n");
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    setenv("LM_COMPAT_LEVEL", "5", 1);
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    gss_release_buffer(&retmin, &cli_token);
+    free(message.data);
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -3580,6 +3709,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test Negotiate flags variations\n");
     ret = test_gssapi_neg_flags();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test server requested non NT session key\n");
+    ret = test_non_nt_session_key(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
