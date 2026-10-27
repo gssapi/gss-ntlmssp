@@ -440,6 +440,23 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
         /* external creds do not carry an LM hash, the DC returns
          * the LM session key instead */
         lm_key = &lm_session_key;
+
+        /* A DC that does not store LM hashes returns an all-zero LM
+         * session key, and a key exchange key derived from it would
+         * be computable from the exchange alone, so refuse it */
+        if (ntlm_v1 && !ext_sec &&
+            (ctx->neg_flags & (NTLMSSP_NEGOTIATE_LM_KEY |
+                               NTLMSSP_REQUEST_NON_NT_SESSION_KEY))) {
+            uint8_t acc = 0;
+
+            for (int i = 0; i < 8; i++) {
+                acc |= lm_session_key.data[i];
+            }
+            if (acc == 0) {
+                set_GSSERR(ERR_NOTAVAIL);
+                goto done;
+            }
+        }
         break;
 
     default:
