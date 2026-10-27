@@ -145,6 +145,25 @@ bool gssntlm_sec_v2_ok(struct gssntlm_ctx *ctx)
     return false;
 }
 
+/* A domain member server defers the LM/NTLMv1 decision to the DC, but
+ * responses verified against local credentials never reach a DC, so the
+ * local policy must be applied to them instead */
+bool gssntlm_sec_local_lm_ok(struct gssntlm_ctx *ctx)
+{
+    if (ctx->role == GSSNTLM_DOMAIN_SERVER) {
+        return (ctx->sec_req & SEC_LM_OK);
+    }
+    return gssntlm_sec_lm_ok(ctx);
+}
+
+bool gssntlm_sec_local_ntlm_ok(struct gssntlm_ctx *ctx)
+{
+    if (ctx->role == GSSNTLM_DOMAIN_SERVER) {
+        return (ctx->sec_req & SEC_NTLM_OK);
+    }
+    return gssntlm_sec_ntlm_ok(ctx);
+}
+
 bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx)
 {
     return (ctx->sec_req & SEC_EXT_SEC_OK);

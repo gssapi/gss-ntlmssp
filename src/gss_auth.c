@@ -319,6 +319,8 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
     const char *domstr;
     bool ntlm_v1;
     bool ext_sec;
+    bool lm_ok;
+    bool ntlm_ok;
     int retries;
 
     if (key_exchange_key->length != 16) {
@@ -327,7 +329,16 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
 
     ntlm_v1 = is_ntlm_v1(nt_chal_resp);
 
-    if (ntlm_v1 && !gssntlm_sec_lm_ok(ctx) && !gssntlm_sec_ntlm_ok(ctx)) {
+    /* only external credentials are actually checked by a DC */
+    if (cred->type == GSSNTLM_CRED_USER) {
+        lm_ok = gssntlm_sec_local_lm_ok(ctx);
+        ntlm_ok = gssntlm_sec_local_ntlm_ok(ctx);
+    } else {
+        lm_ok = gssntlm_sec_lm_ok(ctx);
+        ntlm_ok = gssntlm_sec_ntlm_ok(ctx);
+    }
+
+    if (ntlm_v1 && !lm_ok && !ntlm_ok) {
         return GSSERRS(ERR_NONTLMV1, GSS_S_FAILURE);
     }
 
@@ -352,7 +363,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
                                              &cred->cred.user.nt_hash,
                                              ext_sec, ctx->server_chal,
                                              client_chal);
-            if (retmin && gssntlm_sec_lm_ok(ctx)) {
+            if (retmin && lm_ok) {
                 retmin = ntlm_verify_lm_response(lm_chal_resp,
                                                  &cred->cred.user.lm_hash,
                                                  ext_sec, ctx->server_chal,
@@ -380,7 +391,7 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
             retmin = ntlmv2_verify_nt_response(nt_chal_resp,
                                                &ntlmv2_key,
                                                ctx->server_chal);
-            if (retmin && gssntlm_sec_lm_ok(ctx)) {
+            if (retmin && lm_ok) {
                 /* LMv2 Response */
                 retmin = ntlmv2_verify_lm_response(lm_chal_resp,
                                                    &ntlmv2_key,
