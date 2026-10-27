@@ -177,6 +177,8 @@ bool gssntlm_role_is_domain_member(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_lm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_ntlm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_sec_v2_ok(struct gssntlm_ctx *ctx);
+bool gssntlm_sec_local_lm_ok(struct gssntlm_ctx *ctx);
+bool gssntlm_sec_local_ntlm_ok(struct gssntlm_ctx *ctx);
 bool gssntlm_ext_sec_ok(struct gssntlm_ctx *ctx);
 
 uint32_t gssntlm_context_is_valid(struct gssntlm_ctx *ctx,
