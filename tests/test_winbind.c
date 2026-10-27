@@ -289,6 +289,20 @@ int main(int argc, char *argv[])
     }
     printf("Test 3 PASSED\n\n");
 
+    /* With LM_COMPAT_LEVEL=0 the initiator drops extended session security
+     * and negotiates LM_KEY, so the acceptor needs the LM session key from
+     * the DC. An AD DC does not store LM hashes and returns a zero key,
+     * which must be rejected rather than used to derive the session keys. */
+    printf("=== Test 4: NTLMv1 LM_KEY with zero DC LM session key ===\n");
+    setenv("LM_COMPAT_LEVEL", "0", 1);
+    ret = test_auth(user, pass, target, 0);
+    unsetenv("LM_COMPAT_LEVEL");
+    if (ret != 0) {
+        fprintf(stderr, "Test 4 FAILED\n");
+        return 1;
+    }
+    printf("Test 4 PASSED\n\n");
+
     printf("All Winbind AD DC GSSNTLMSSP tests passed successfully!\n");
     return 0;
 }
