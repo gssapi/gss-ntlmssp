@@ -502,7 +502,12 @@ static uint32_t import_data_buffer(uint32_t *minor_status,
         goto done;
     }
 
-    if (state->exp_data + rm->ptr + rm->len > state->exp_len) {
+    /* rm->ptr and rm->len come from the token; compare each against the
+     * space left rather than summing them, as the sum can wrap where
+     * size_t is 32 bits and would pass the check with an out of bounds
+     * pointer */
+    if ((rm->ptr > state->exp_len - state->exp_data) ||
+        (rm->len > state->exp_len - state->exp_data - rm->ptr)) {
         set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
@@ -556,7 +561,8 @@ static uint32_t import_attrs(uint32_t *minor_status,
     /* the pointer array holds two relmem entries per attribute; make sure
      * it sits entirely within the exported data before we read from it */
     array_len = (size_t)attrs->count * 2 * sizeof(struct relmem);
-    if (state->exp_data + attrs->buffers.ptr + array_len > state->exp_len) {
+    if ((attrs->buffers.ptr > state->exp_len - state->exp_data) ||
+        (array_len > state->exp_len - state->exp_data - attrs->buffers.ptr)) {
         set_GSSERRS(0, GSS_S_DEFECTIVE_TOKEN);
         goto done;
     }
