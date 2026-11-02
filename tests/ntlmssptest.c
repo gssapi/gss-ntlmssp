@@ -3437,6 +3437,116 @@ done:
     return ret;
 }
 
+/* With extended session security the NTLMv1 LM response carries only the
+ * client challenge and is not derived from the LM key, so it must never be
+ * accepted as proof of the password. A peer that knows just a user name can
+ * otherwise forge an LM response that matches and authenticate as that user. */
+int test_forged_ess_lm_response(struct ntlm_ctx *ctx)
+{
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    gss_buffer_desc in_token = { 0 };
+    gss_buffer_desc out_token = { 0 };
+    const char *srvname = "test@testserver";
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc nbuf;
+    uint8_t nt_buf[24] = { 0 };
+    uint8_t lm_buf[24] = { 0 };
+    uint8_t client_chal[8] = { 0x11, 0x22, 0x33, 0x44,
+                               0x55, 0x66, 0x77, 0x88 };
+    struct ntlm_buffer nt_resp = { nt_buf, 24 };
+    struct ntlm_buffer lm_resp = { lm_buf, 24 };
+    struct ntlm_buffer message = { 0 };
+    uint32_t retmin, retmaj;
+    uint32_t flags;
+    int ret;
+
+    /* NTLMv1 and LM are allowed, and extended session security is offered */
+    setenv("LM_COMPAT_LEVEL", "1", 1);
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    flags = NTLMSSP_NEGOTIATE_UNICODE | NTLMSSP_NEGOTIATE_NTLM |
+            NTLMSSP_NEGOTIATE_ALWAYS_SIGN |
+            NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
+
+    ret = ntlm_encode_neg_msg(ctx, flags, NULL, NULL, &message);
+    if (ret) goto done;
+
+    in_token.value = message.data;
+    in_token.length = message.length;
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &in_token,
+                                        GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &out_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    free(message.data);
+    message.data = NULL;
+
+    /* The forged LM response is the chosen client challenge padded with
+     * zeros, which is exactly what the extended security LM verifier
+     * recomputes, so it matches without the LM key. The NT response is
+     * left as garbage. */
+    memcpy(lm_buf, client_chal, 8);
+
+    ret = ntlm_encode_auth_msg(ctx, flags, &lm_resp, &nt_resp,
+                               discard_const("TESTDOM"),
+                               discard_const("testuser"),
+                               NULL, NULL, NULL, &message);
+    if (ret) goto done;
+
+    in_token.value = message.data;
+    in_token.length = message.length;
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &in_token,
+                                        GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &out_token,
+                                        NULL, NULL, NULL);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "Forged extended security LM response accepted\n");
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    setenv("LM_COMPAT_LEVEL", "5", 1);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    gss_release_buffer(&retmin, &out_token);
+    free(message.data);
+    return ret;
+}
+
 int main(int argc, const char *argv[])
 {
     struct ntlm_ctx *ctx;
@@ -3714,6 +3824,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test server requested non NT session key\n");
     ret = test_non_nt_session_key(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test forged extended security LM response\n");
+    ret = test_forged_ess_lm_response(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
