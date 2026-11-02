@@ -356,7 +356,11 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
                                              &cred->cred.user.nt_hash,
                                              ext_sec, ctx->server_chal,
                                              client_chal);
-            if (retmin && gssntlm_sec_lm_ok(ctx)) {
+            /* With extended session security the LM response only carries
+             * the client challenge and is not derived from the LM key, so
+             * verifying it proves nothing about the password; the NT
+             * response is the only authenticator and must stand alone. */
+            if (retmin && !ext_sec && gssntlm_sec_lm_ok(ctx)) {
                 retmin = ntlm_verify_lm_response(lm_chal_resp,
                                                  &cred->cred.user.lm_hash,
                                                  ext_sec, ctx->server_chal,
