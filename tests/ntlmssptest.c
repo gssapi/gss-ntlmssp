@@ -2381,6 +2381,176 @@ done:
     return ret;
 }
 
+int test_gssapi_lmv2_tampered_blob(struct ntlm_ctx *ctx)
+{
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    const char *password = "testpassword";
+    const char *srvname = "test@testserver";
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc nbuf;
+    struct gss_channel_bindings_struct cbts = { 0 };
+    char cli_cb_data[] = "client channel";
+    char srv_cb_data[] = "server channel";
+    struct ntlm_buffer cli_cb = { (uint8_t *)cli_cb_data,
+                                  sizeof(cli_cb_data) };
+    struct ntlm_buffer no_cb = { NULL, 0 };
+    uint8_t chalbuf[8];
+    struct ntlm_buffer challenge = { chalbuf, 8 };
+    uint8_t client_chal[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    struct ntlm_buffer message = { 0 };
+    struct ntlm_buffer chal_ti = { 0 };
+    struct ntlm_buffer signed_ti = { 0 };
+    struct ntlm_buffer tampered_ti = { 0 };
+    struct ntlm_buffer nt_resp = { 0 };
+    struct ntlm_buffer tampered_nt = { 0 };
+    struct ntlm_buffer lm_resp = { 0 };
+    struct ntlm_buffer auth_msg = { 0 };
+    struct ntlm_key nt_hash = { .length = 16 };
+    struct ntlm_key ntlmv2_key = { .length = 16 };
+    struct gssntlm_ctx *gctx;
+    char *trg = NULL;
+    char *old_lvl = NULL;
+    uint64_t srv_time = 0;
+    uint32_t flags;
+    uint32_t retmin, retmaj;
+    int ret;
+
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+
+    if (getenv("LM_COMPAT_LEVEL")) {
+        old_lvl = strdup(getenv("LM_COMPAT_LEVEL"));
+    }
+
+    /* an acceptor that still allows LM style responses */
+    setenv("LM_COMPAT_LEVEL", "1", 1);
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    flags = NTLMSSP_NEGOTIATE_UNICODE | NTLMSSP_REQUEST_TARGET |
+            NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_ALWAYS_SIGN |
+            NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY |
+            NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_128 |
+            NTLMSSP_NEGOTIATE_56;
+    ret = ntlm_encode_neg_msg(ctx, flags, NULL, NULL, &message);
+    if (ret) goto done;
+
+    cli_token.value = message.data;
+    cli_token.length = message.length;
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    message.data = srv_token.value;
+    message.length = srv_token.length;
+    ret = ntlm_decode_chal_msg(ctx, &message, &flags, &trg,
+                               &challenge, &chal_ti);
+    if (ret) goto done;
+
+    /* the client binds its NTLMv2 blob to its own channel ... */
+    ret = ntlm_process_target_info(ctx, false, &chal_ti, NULL, &cli_cb,
+                                   &signed_ti, &srv_time, NULL);
+    if (ret) goto done;
+    /* ... and a relaying attacker strips the binding from the blob */
+    ret = ntlm_process_target_info(ctx, false, &chal_ti, NULL, &no_cb,
+                                   &tampered_ti, &srv_time, NULL);
+    if (ret) goto done;
+
+    ret = NTOWFv1(password, &nt_hash);
+    if (ret) goto done;
+    ret = NTOWFv2(ctx, &nt_hash, "testuser", "TESTDOM", &ntlmv2_key);
+    if (ret) goto done;
+
+    ret = ntlmv2_compute_nt_response(&ntlmv2_key, chalbuf, client_chal,
+                                     srv_time, &signed_ti, &nt_resp);
+    if (ret) goto done;
+    ret = ntlmv2_compute_nt_response(&ntlmv2_key, chalbuf, client_chal,
+                                     srv_time, &tampered_ti, &tampered_nt);
+    if (ret) goto done;
+    /* keep the client's NT proof, which no longer matches the blob */
+    memcpy(tampered_nt.data, nt_resp.data, 16);
+
+    /* the client also sent a (valid) LMv2 response */
+    ret = ntlmv2_compute_lm_response(&ntlmv2_key, chalbuf, client_chal,
+                                     &lm_resp);
+    if (ret) goto done;
+
+    gctx = (struct gssntlm_ctx *)srv_ctx;
+    ret = ntlm_encode_auth_msg(ctx, gctx->neg_flags, &lm_resp, &tampered_nt,
+                               discard_const("TESTDOM"),
+                               discard_const("testuser"),
+                               NULL, NULL, NULL, &auth_msg);
+    if (ret) goto done;
+
+    cbts.application_data.value = srv_cb_data;
+    cbts.application_data.length = sizeof(srv_cb_data);
+
+    gss_release_buffer(&retmin, &srv_token);
+    cli_token.value = auth_msg.data;
+    cli_token.length = auth_msg.length;
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, &cbts,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "Tampered NTLMv2 blob accepted via LMv2\n");
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    if (old_lvl) {
+        setenv("LM_COMPAT_LEVEL", old_lvl, 1);
+        free(old_lvl);
+    } else {
+        unsetenv("LM_COMPAT_LEVEL");
+    }
+    gss_release_buffer(&retmin, &srv_token);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    free(trg);
+    free(chal_ti.data);
+    free(signed_ti.data);
+    free(tampered_ti.data);
+    free(nt_resp.data);
+    free(tampered_nt.data);
+    free(lm_resp.data);
+    free(auth_msg.data);
+    return ret;
+}
+
 int test_gssapi_cl(void)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
@@ -3876,6 +4046,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test NTLMv1 rejected for local creds on domain server\n");
     ret = test_gssapi_domsrv_local_v1();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test tampered NTLMv2 blob with valid LMv2 rejected\n");
+    ret = test_gssapi_lmv2_tampered_blob(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
