@@ -3465,6 +3465,59 @@ int test_bad_challenge(struct ntlm_ctx *ctx)
     return ret;
 }
 
+/* A server must not be able to substitute the target name the client puts
+ * in its authenticated target info by flagging its own as unverified */
+int test_unverified_spn(struct ntlm_ctx *ctx)
+{
+    const char *spn = "HTTP/server.example.com";
+    const char *other = "HTTP/other.example.com";
+    uint32_t av_flags = MSVAVFLAGS_UNVERIFIED_SPN;
+    struct ntlm_buffer in = { 0 };
+    struct ntlm_buffer out = { 0 };
+    struct ntlm_buffer cb = { 0 };
+    char *target_name = NULL;
+    uint64_t srv_time;
+    uint32_t out_flags = 0;
+    int ret;
+
+    ret = ntlm_encode_target_info(ctx, discard_const("SERVER"), NULL,
+                                  NULL, NULL, NULL, &av_flags, NULL,
+                                  NULL, discard_const(other), NULL, &in);
+    if (ret) return ret;
+
+    ret = ntlm_process_target_info(ctx, false, &in, spn, &cb, &out,
+                                   &srv_time, NULL);
+    free(in.data);
+    if (ret == 0) {
+        fprintf(stderr, "Mismatched unverified SPN was accepted\n");
+        free(out.data);
+        return EINVAL;
+    }
+
+    /* a matching name is still accepted, without the server's flag */
+    ret = ntlm_encode_target_info(ctx, discard_const("SERVER"), NULL,
+                                  NULL, NULL, NULL, &av_flags, NULL,
+                                  NULL, discard_const(spn), NULL, &in);
+    if (ret) return ret;
+
+    ret = ntlm_process_target_info(ctx, false, &in, spn, &cb, &out,
+                                   &srv_time, NULL);
+    free(in.data);
+    if (ret) return ret;
+
+    ret = ntlm_decode_target_info(ctx, &out, NULL, NULL, NULL, NULL, NULL,
+                                  &target_name, &out_flags, NULL, NULL, NULL);
+    free(out.data);
+    if (ret) return ret;
+
+    if (!target_name || strcmp(target_name, spn) != 0 ||
+        (out_flags & MSVAVFLAGS_UNVERIFIED_SPN)) {
+        ret = EINVAL;
+    }
+    free(target_name);
+    return ret;
+}
+
 /* A server must not be able to make the client derive its session key from
  * the LM hash when LM is not allowed, the LM hash is never computed in that
  * case and the key would be all zeros */
@@ -3846,6 +3899,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test Bad Challenge Message\n");
     ret = test_bad_challenge(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test server set unverified SPN flag\n");
+    ret = test_unverified_spn(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

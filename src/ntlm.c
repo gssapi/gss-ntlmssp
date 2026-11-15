@@ -796,8 +796,11 @@ int ntlm_process_target_info(struct ntlm_ctx *ctx, bool protect,
         goto done;
     }
 
-    if (spn && av_target_name &&
-        ((av_flags & MSVAVFLAGS_UNVERIFIED_SPN) == 0)) {
+    /* MSVAVFLAGS_UNVERIFIED_SPN describes the client's own target name,
+     * the server must not be able to set it to swap in a different SPN */
+    av_flags &= ~MSVAVFLAGS_UNVERIFIED_SPN;
+
+    if (spn && av_target_name) {
         if (strcasecmp(spn, av_target_name) != 0) {
             ret = EINVAL;
             goto done;
