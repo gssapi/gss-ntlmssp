@@ -2381,6 +2381,193 @@ done:
     return ret;
 }
 
+int test_gssapi_conf_only_mic(void)
+{
+    gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
+    gss_ctx_id_t srv_ctx = GSS_C_NO_CONTEXT;
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_cred_id_t srv_cred = GSS_C_NO_CREDENTIAL;
+    gss_buffer_desc cli_token = { 0 };
+    gss_buffer_desc srv_token = { 0 };
+    gss_buffer_desc message = { 0 };
+    gss_buffer_desc forged_mic = { 0 };
+    /* the NTLMSSP dummy signature: version 1 followed by zeros */
+    uint8_t dummy_sig[16] = { 0x01, 0x00, 0x00, 0x00 };
+    const char *username;
+    const char *password = "testpassword";
+    const char *srvname = "test@testserver";
+    gss_name_t gss_username = NULL;
+    gss_name_t gss_srvname = NULL;
+    gss_buffer_desc pwbuf;
+    gss_buffer_desc nbuf;
+    uint32_t ret_flags = 0;
+    uint32_t retmin, retmaj;
+    int ret;
+
+    setenv("NTLM_USER_FILE", TEST_USER_FILE, 0);
+    username = getenv("TEST_USER_NAME");
+
+    if (username == NULL) {
+        username = "TESTDOM\\testuser";
+    }
+
+    nbuf.value = discard_const(username);
+    nbuf.length = strlen(username);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(username) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    pwbuf.value = discard_const(password);
+    pwbuf.length = strlen(password);
+    retmaj = gssntlm_acquire_cred_with_password(&retmin,
+                                                (gss_name_t)gss_username,
+                                                (gss_buffer_t)&pwbuf,
+                                                GSS_C_INDEFINITE,
+                                                GSS_C_NO_OID_SET,
+                                                GSS_C_INITIATE,
+                                                &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred_with_password failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    nbuf.value = discard_const(srvname);
+    nbuf.length = strlen(srvname);
+    retmaj = gssntlm_import_name(&retmin, &nbuf,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 &gss_srvname);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_acquire_cred(&retmin, (gss_name_t)gss_srvname,
+                                  GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                  GSS_C_ACCEPT, &srv_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred(srvname) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* request confidentiality only */
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG, 0,
+                                      GSS_C_NO_CHANNEL_BINDINGS,
+                                      GSS_C_NO_BUFFER, NULL, &cli_token,
+                                      NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_init_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_CONTINUE_NEEDED) {
+        print_gss_error("gssntlm_accept_sec_context 1 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &cli_token);
+
+    retmaj = gssntlm_init_sec_context(&retmin, cli_cred, &cli_ctx,
+                                      gss_srvname, GSS_C_NO_OID,
+                                      GSS_C_CONF_FLAG, 0,
+                                      GSS_C_NO_CHANNEL_BINDINGS,
+                                      &srv_token, NULL, &cli_token,
+                                      &ret_flags, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_init_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    gss_release_buffer(&retmin, &srv_token);
+
+    retmaj = gssntlm_accept_sec_context(&retmin, &srv_ctx, srv_cred,
+                                        &cli_token, GSS_C_NO_CHANNEL_BINDINGS,
+                                        NULL, NULL, &srv_token,
+                                        NULL, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_accept_sec_context 2 failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    if (!(ret_flags & GSS_C_INTEG_FLAG)) {
+        /* no integrity claimed, nothing more to check */
+        ret = 0;
+        goto done;
+    }
+
+    message.value = discard_const("test message");
+    message.length = strlen(message.value);
+
+    /* a real signature from the server must verify */
+    gss_release_buffer(&retmin, &srv_token);
+    retmaj = gssntlm_get_mic(&retmin, srv_ctx, 0, &message, &srv_token);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_get_mic failed!", retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+    retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &srv_token,
+                                NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_verify_mic failed!", retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    /* integrity is claimed, so a message carrying the dummy signature
+     * must not verify */
+    message.value = discard_const("forged message");
+    message.length = strlen(message.value);
+    forged_mic.value = dummy_sig;
+    forged_mic.length = sizeof(dummy_sig);
+    retmaj = gssntlm_verify_mic(&retmin, cli_ctx, &message, &forged_mic,
+                                NULL);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "Dummy signature accepted by gss_verify_mic "
+                        "with GSS_C_INTEG_FLAG set\n");
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    gss_release_buffer(&retmin, &cli_token);
+    gss_release_buffer(&retmin, &srv_token);
+    gssntlm_delete_sec_context(&retmin, &cli_ctx, GSS_C_NO_BUFFER);
+    gssntlm_delete_sec_context(&retmin, &srv_ctx, GSS_C_NO_BUFFER);
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_name(&retmin, &gss_srvname);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    gssntlm_release_cred(&retmin, &srv_cred);
+    return ret;
+}
+
 int test_gssapi_cl(void)
 {
     gss_ctx_id_t cli_ctx = GSS_C_NO_CONTEXT;
@@ -3934,6 +4121,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test NTLMv1 rejected for local creds on domain server\n");
     ret = test_gssapi_domsrv_local_v1();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test dummy MIC rejected with confidentiality only\n");
+    ret = test_gssapi_conf_only_mic();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 

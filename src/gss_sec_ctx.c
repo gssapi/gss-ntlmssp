@@ -139,7 +139,11 @@ uint32_t gssntlm_init_sec_context(uint32_t *minor_status,
                               NTLMSSP_NEGOTIATE_KEY_EXCH;
         }
         if (req_flags & GSS_C_CONF_FLAG) {
+            /* GSS_C_CONF_FLAG implies GSS_C_INTEG_FLAG, so signing must
+             * be negotiated too, or get_mic/verify_mic would fall back
+             * to the unkeyed dummy signature */
             ctx->neg_flags |= NTLMSSP_NEGOTIATE_SEAL |
+                              NTLMSSP_NEGOTIATE_SIGN |
                               NTLMSSP_NEGOTIATE_KEY_EXCH |
                               NTLMSSP_NEGOTIATE_LM_KEY |
                               NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY;
