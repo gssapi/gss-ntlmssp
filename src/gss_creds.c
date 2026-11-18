@@ -79,7 +79,8 @@ static int get_user_file_creds(const char *filename,
     /* Use the smbpasswd file format for Samba compatibility.
      * Each line is one entry like the following:
      * NAME:UID:LM_HASH:NT_HASH:ACCT_FLAGS:TIMESTAMP
-     * Fields after NT_HASH are ignored
+     * Entries with the D (disabled) account flag are skipped, other
+     * fields after NT_HASH are ignored
      *
      * The smbpasswd format is extended to allow domain qualified names.
      */
@@ -131,6 +132,13 @@ static int get_user_file_creds(const char *filename,
             pwd = NULL;
             lm = field3;
             nt = field4;
+
+            /* skip accounts Samba marked as disabled, the flags
+             * are the bracketed field following NT_HASH */
+            if (*p == '[') {
+                char *end = strchr(p, ']');
+                if (end && memchr(p, 'D', end - p)) continue;
+            }
 
             /* check if username is domain qualified */
             p = strchr(usr, '\\');
