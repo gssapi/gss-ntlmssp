@@ -1936,6 +1936,35 @@ int test_gssapi_1(bool user_env_file, bool use_cb, bool no_seal, bool use_cs)
 
     gss_release_buffer(&retmin, &nbuf);
 
+    /* an established context must report the time it has left, and an
+     * expired one none at all */
+    {
+        struct gssntlm_ctx *sctx = (struct gssntlm_ctx *)srv_ctx;
+        time_t expiration = sctx->expiration_time;
+        uint32_t lifetime = 0;
+
+        retmaj = gssntlm_inquire_context(&retmin, srv_ctx, NULL, NULL,
+                                         &lifetime, NULL, NULL, NULL, NULL);
+        if (retmaj != GSS_S_COMPLETE || lifetime == 0 ||
+            lifetime > MAX_CHALRESP_LIFETIME) {
+            fprintf(stderr, "Wrong lifetime %u for established context\n",
+                    (unsigned int)lifetime);
+            ret = EINVAL;
+            goto done;
+        }
+
+        sctx->expiration_time = time(NULL) - 60;
+        retmaj = gssntlm_inquire_context(&retmin, srv_ctx, NULL, NULL,
+                                         &lifetime, NULL, NULL, NULL, NULL);
+        sctx->expiration_time = expiration;
+        if (retmaj != GSS_S_COMPLETE || lifetime != 0) {
+            fprintf(stderr, "Wrong lifetime %u for expired context\n",
+                    (unsigned int)lifetime);
+            ret = EINVAL;
+            goto done;
+        }
+    }
+
     retmaj = gssntlm_inquire_sec_context_by_oid(&retmin, srv_ctx,
                                                 &sasl_ssf_oid, &data_set);
     if (retmaj != GSS_S_COMPLETE) {

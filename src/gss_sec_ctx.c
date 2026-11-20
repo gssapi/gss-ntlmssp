@@ -1132,7 +1132,7 @@ uint32_t gssntlm_inquire_context(uint32_t *minor_status,
     if (ctx->int_flags & NTLMSSP_CTX_FLAG_ESTABLISHED) {
         if (lifetime_rec) {
             now = time(NULL);
-            if (ctx->expiration_time > now) {
+            if (ctx->expiration_time <= now) {
                 *lifetime_rec = 0;
             } else {
                 *lifetime_rec = ctx->expiration_time - now;
