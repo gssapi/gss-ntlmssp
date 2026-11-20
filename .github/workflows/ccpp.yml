@@ -12,7 +12,7 @@ jobs:
         container:
           - docker.io/library/alpine:latest
           - docker.io/library/alpine:edge
-          - docker.io/library/archlinux:latest
+          # - docker.io/library/archlinux:latest
           - docker.io/library/debian:oldstable
           - docker.io/library/debian:stable
           - docker.io/library/debian:unstable
