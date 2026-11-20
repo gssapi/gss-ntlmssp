@@ -3623,6 +3623,85 @@ int test_dup_av_pair(struct ntlm_ctx *ctx)
     return ret;
 }
 
+int test_display_names(void)
+{
+    char hostname[HOST_NAME_MAX + 1] = { 0 };
+    struct {
+        const char *input;
+        gss_OID type;
+        const char *display; /* NULL means the import must fail */
+    } name_test[] = {
+        /* server names without a service have no SPN */
+        { "", GSS_C_NT_HOSTBASED_SERVICE, hostname },
+        { "@", GSS_C_NT_HOSTBASED_SERVICE, hostname },
+        { "@foo.bar", GSS_C_NT_HOSTBASED_SERVICE, "foo.bar" },
+        { "HTTP@foo.bar", GSS_C_NT_HOSTBASED_SERVICE, "HTTP/foo.bar" },
+        /* user names with neither a user nor a domain part */
+        { "", GSS_C_NT_USER_NAME, NULL },
+        { "\\", GSS_C_NT_USER_NAME, NULL },
+        { "@", GSS_C_NT_USER_NAME, NULL },
+        /* domain-only user names (wildcards for credential lookups) */
+        { "D\\", GSS_C_NT_USER_NAME, "D\\" },
+        { "@dom", GSS_C_NT_USER_NAME, "dom\\" },
+        { NULL, NULL, NULL }
+    };
+    int ret = 0;
+
+    if (gethostname(hostname, HOST_NAME_MAX) != 0) {
+        fprintf(stderr, "Test: test_display_names failed to get hostname\n");
+        return 1;
+    }
+
+    for (int i = 0; name_test[i].input != NULL; i++) {
+        gss_name_t name = GSS_C_NO_NAME;
+        gss_buffer_desc in;
+        gss_buffer_desc out = GSS_C_EMPTY_BUFFER;
+        uint32_t retmin, retmaj;
+
+        in.value = discard_const(name_test[i].input);
+        in.length = strlen(in.value);
+
+        retmaj = gssntlm_import_name(&retmin, &in, name_test[i].type, &name);
+        if (name_test[i].display == NULL) {
+            if (retmaj == GSS_S_COMPLETE) {
+                fprintf(stderr, "gssntlm_import_name([%s]) should fail\n",
+                        name_test[i].input);
+                gssntlm_release_name(&retmin, &name);
+                ret++;
+            }
+            continue;
+        }
+        if (retmaj != GSS_S_COMPLETE) {
+            print_gss_error("gssntlm_import_name failed!", retmaj, retmin);
+            ret++;
+            continue;
+        }
+
+        retmaj = gssntlm_display_name(&retmin, name, &out, NULL);
+        if (retmaj != GSS_S_COMPLETE ||
+            strcmp(out.value, name_test[i].display) != 0) {
+            fprintf(stderr, "gssntlm_display_name(%s): expected [%s]\n",
+                    name_test[i].input, name_test[i].display);
+            ret++;
+        }
+        gss_release_buffer(&retmin, &out);
+
+        /* a domain-only name does not map to a local user */
+        if (name_test[i].type == GSS_C_NT_USER_NAME) {
+            retmaj = gssntlm_localname(&retmin, name, GSS_C_NO_OID, &out);
+            if (retmaj == GSS_S_COMPLETE) {
+                fprintf(stderr, "gssntlm_localname(%s) should fail\n",
+                        name_test[i].input);
+                ret++;
+            }
+            gss_release_buffer(&retmin, &out);
+        }
+        gssntlm_release_name(&retmin, &name);
+    }
+
+    return ret;
+}
+
 int test_debug(void)
 {
     char *test_env;
@@ -4150,6 +4229,11 @@ int main(int argc, const char *argv[])
     ret = test_dup_av_pair(ctx);
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
+
+    fprintf(stderr, "Test displaying names with missing parts\n");
+    ret = test_display_names();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret += ret;
 
     fprintf(stderr, "Test Negotiate flags variations\n");
     ret = test_gssapi_neg_flags();

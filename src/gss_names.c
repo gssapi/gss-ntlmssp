@@ -110,6 +110,10 @@ done:
  *  BAR@dom\@foo..
  *  DOM\foo\@bar
  *  foo@bar\@baz
+ *
+ * "BAR\\" and "@BAR" give a name with a domain and no user part (a wildcard
+ * for credential lookups); names with neither part ("", "\\", "@") are
+ * rejected by gssntlm_import_name_by_mech().
  */
 #define MAX_NAME_LEN 1024
 static uint32_t parse_user_name(uint32_t *minor_status,
@@ -362,6 +366,19 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
                                  input_name_buffer->length,
                                  &name->data.user.domain,
                                  &name->data.user.name);
+        if (retmaj == GSS_S_COMPLETE && name->data.user.name &&
+            name->data.user.name[0] == '\0') {
+            safefree(name->data.user.name);
+        }
+        /* A name with only a domain ("DOM\\" or "@DOM") is kept: the
+         * credential lookups use a NULL user part as a wildcard (first
+         * user of DOM in the credentials file, or $NTLMUSER/$USER with
+         * winbind). A name with neither part is rejected here rather
+         * than later in an unrelated call. */
+        if (retmaj == GSS_S_COMPLETE && !name->data.user.name &&
+            (!name->data.user.domain || name->data.user.domain[0] == '\0')) {
+            set_GSSERRS(ERR_NONAME, GSS_S_BAD_NAME);
+        }
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_MACHINE_UID_NAME)) {
         uid_t uid;
 
@@ -666,7 +683,18 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
         }
         break;
     case GSSNTLM_NAME_USER:
-        if (in->data.user.domain) {
+        if (!in->data.user.name) {
+            /* domain-only name, displayed so that it imports back */
+            if (!in->data.user.domain) {
+                set_GSSERRS(ERR_BADARG, GSS_S_BAD_NAME);
+                goto done;
+            }
+            ret = asprintf((char **)&out->value, "%s\\",
+                           in->data.user.domain);
+            if (ret == -1) {
+                out->value = NULL;
+            }
+        } else if (in->data.user.domain) {
             ret = asprintf((char **)&out->value, "%s\\%s",
                            in->data.user.domain, in->data.user.name);
             if (ret == -1) {
@@ -685,7 +713,16 @@ uint32_t gssntlm_display_name(uint32_t *minor_status,
         }
         break;
     case GSSNTLM_NAME_SERVER:
-        out->value = strdup(in->data.server.spn);
+        /* names imported without a service (e.g. "" or "@host") have no
+         * SPN, only the host name */
+        if (in->data.server.spn) {
+            out->value = strdup(in->data.server.spn);
+        } else if (in->data.server.name) {
+            out->value = strdup(in->data.server.name);
+        } else {
+            set_GSSERRS(ERR_BADARG, GSS_S_BAD_NAME);
+            goto done;
+        }
         if (!out->value) {
             set_GSSERR(ENOMEM);
             goto done;
@@ -719,7 +756,7 @@ uint32_t gssntlm_localname(uint32_t *minor_status,
     int ret;
 
     in = (struct gssntlm_name *)name;
-    if (in->type != GSSNTLM_NAME_USER) {
+    if (in->type != GSSNTLM_NAME_USER || !in->data.user.name) {
         set_GSSERRS(ERR_BADARG, GSS_S_BAD_NAME);
         goto done;
     }
