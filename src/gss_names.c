@@ -246,7 +246,7 @@ static uint32_t uid_to_name(uint32_t *minor_status, uid_t uid, char **name)
     struct passwd *pw;
 
     pw = getpwuid(uid);
-    if (pw) {
+    if (!pw) {
         return GSSERRS(ERR_NOUSRFOUND, GSS_S_FAILURE);
     }
     *name = strdup(pw->pw_name);
@@ -385,6 +385,10 @@ uint32_t gssntlm_import_name_by_mech(uint32_t *minor_status,
         name->type = GSSNTLM_NAME_USER;
         name->data.user.domain = NULL;
 
+        if (input_name_buffer->length != sizeof(uid_t)) {
+            set_GSSERR(ERR_BADARG);
+            goto done;
+        }
         uid = *(uid_t *)input_name_buffer->value;
         retmaj = uid_to_name(&retmin, uid, &name->data.user.name);
     } else if (gss_oid_equal(input_name_type, GSS_C_NT_STRING_UID_NAME)) {

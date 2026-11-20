@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -3702,6 +3703,84 @@ int test_display_names(void)
     return ret;
 }
 
+int test_uid_names(void)
+{
+    struct passwd *pw;
+    char struid[12];
+    uid_t uid = getuid();
+    uid_t missing;
+    gss_name_t name = GSS_C_NO_NAME;
+    gss_buffer_desc in;
+    gss_buffer_desc out = GSS_C_EMPTY_BUFFER;
+    uint32_t retmin, retmaj;
+    int ret = 0;
+
+    pw = getpwuid(uid);
+    if (!pw) {
+        /* e.g. CI containers running as a uid with no passwd entry */
+        fprintf(stderr, "Test: test_uid_names skipped, own uid has no "
+                        "passwd entry\n");
+        return 0;
+    }
+
+    /* an existing uid must resolve to its user name */
+    snprintf(struid, sizeof(struid), "%u", (unsigned)uid);
+    in.value = struid;
+    in.length = strlen(struid);
+    retmaj = gssntlm_import_name(&retmin, &in, GSS_C_NT_STRING_UID_NAME,
+                                 &name);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(STRING_UID) failed!",
+                        retmaj, retmin);
+        ret++;
+    } else {
+        retmaj = gssntlm_display_name(&retmin, name, &out, NULL);
+        if (retmaj != GSS_S_COMPLETE ||
+            strcmp(out.value, pw->pw_name) != 0) {
+            fprintf(stderr, "uid %s: expected [%s]\n", struid, pw->pw_name);
+            ret++;
+        }
+        gss_release_buffer(&retmin, &out);
+        gssntlm_release_name(&retmin, &name);
+    }
+
+    in.value = &uid;
+    in.length = sizeof(uid);
+    retmaj = gssntlm_import_name(&retmin, &in, GSS_C_NT_MACHINE_UID_NAME,
+                                 &name);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(MACHINE_UID) failed!",
+                        retmaj, retmin);
+        ret++;
+    }
+    gssntlm_release_name(&retmin, &name);
+
+    /* a short buffer must be rejected, not read past its end */
+    in.length = 1;
+    retmaj = gssntlm_import_name(&retmin, &in, GSS_C_NT_MACHINE_UID_NAME,
+                                 &name);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "MACHINE_UID with a 1 byte buffer should fail\n");
+        ret++;
+    }
+    gssntlm_release_name(&retmin, &name);
+
+    /* an unknown uid must fail cleanly */
+    for (missing = 4000000000U; getpwuid(missing) != NULL; missing--) ;
+    snprintf(struid, sizeof(struid), "%u", (unsigned)missing);
+    in.value = struid;
+    in.length = strlen(struid);
+    retmaj = gssntlm_import_name(&retmin, &in, GSS_C_NT_STRING_UID_NAME,
+                                 &name);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "unknown uid %s should fail\n", struid);
+        ret++;
+    }
+    gssntlm_release_name(&retmin, &name);
+
+    return ret;
+}
+
 int test_debug(void)
 {
     char *test_env;
@@ -4232,6 +4311,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test displaying names with missing parts\n");
     ret = test_display_names();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret += ret;
+
+    fprintf(stderr, "Test importing uid names\n");
+    ret = test_uid_names();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret += ret;
 
