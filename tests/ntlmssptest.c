@@ -3399,6 +3399,31 @@ int test_hostbased_name(void)
     return ret;
 }
 
+/* A malicious server can repeat a string AV pair in target_info; the
+ * previous value must not be leaked (run under ASan to see the leak) */
+int test_dup_av_pair(struct ntlm_ctx *ctx)
+{
+    /* AvId 2 is MsvAvNbDomainName and AvId 0 is MsvAvEOL (MS-NLMP) */
+    uint8_t raw[] = {
+        2, 0, 2, 0, 'A', 0,
+        2, 0, 2, 0, 'B', 0,
+        0, 0, 0, 0
+    };
+    struct ntlm_buffer buf = { raw, sizeof(raw) };
+    char *nb_domain = NULL;
+    int ret;
+
+    ret = ntlm_decode_target_info(ctx, &buf, NULL, &nb_domain, NULL, NULL,
+                                  NULL, NULL, NULL, NULL, NULL, NULL);
+    if (ret) return ret;
+
+    if (!nb_domain || strcmp(nb_domain, "B") != 0) {
+        ret = EINVAL;
+    }
+    free(nb_domain);
+    return ret;
+}
+
 int test_debug(void)
 {
     char *test_env;
@@ -3921,6 +3946,11 @@ int main(int argc, const char *argv[])
     ret = test_hostbased_name();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret += ret;
+
+    fprintf(stderr, "Test repeated string AV pair in target info\n");
+    ret = test_dup_av_pair(ctx);
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
 
     fprintf(stderr, "Test Negotiate flags variations\n");
     ret = test_gssapi_neg_flags();
