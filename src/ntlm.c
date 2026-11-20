@@ -452,6 +452,7 @@ static int ntlm_decode_av_pair_u16l_str(struct ntlm_ctx *ctx,
     in = (char *)av_pair->value;
     inlen = le16toh(av_pair->av_len);
     out = malloc(inlen * 2 + 1);
+    if (!out) return ENOMEM;
 
     ret = ntlm_str_convert(ctx->to_oem, in, out, inlen, &outlen);
     if (ret) {
@@ -677,6 +678,9 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
             break;
         case MSV_AV_TARGET_NAME:
             if (!av_target_name) continue;
+            /* a peer may repeat an AV pair: free any value decoded from an
+             * earlier copy so it is not leaked (the last value wins) */
+            safefree(av_target);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &av_target);
             if (ret) goto done;
             break;
@@ -705,26 +709,31 @@ int ntlm_decode_target_info(struct ntlm_ctx *ctx, struct ntlm_buffer *buffer,
             break;
         case MSV_AV_DNS_TREE_NAME:
             if (!dns_tree_name) continue;
+            safefree(dns_tree);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_tree);
             if (ret) goto done;
             break;
         case MSV_AV_DNS_DOMAIN_NAME:
             if (!dns_domain_name) continue;
+            safefree(dns_domain);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_domain);
             if (ret) goto done;
             break;
         case MSV_AV_DNS_COMPUTER_NAME:
             if (!dns_computer_name) continue;
+            safefree(dns_computer);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &dns_computer);
             if (ret) goto done;
             break;
         case MSV_AV_NB_DOMAIN_NAME:
             if (!nb_domain_name) continue;
+            safefree(nb_domain);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &nb_domain);
             if (ret) goto done;
             break;
         case MSV_AV_NB_COMPUTER_NAME:
             if (!nb_computer_name) continue;
+            safefree(nb_computer);
             ret = ntlm_decode_av_pair_u16l_str(ctx, av_pair, &nb_computer);
             if (ret) goto done;
             break;
