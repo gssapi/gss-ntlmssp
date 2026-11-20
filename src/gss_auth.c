@@ -391,19 +391,12 @@ uint32_t gssntlm_srv_auth(uint32_t *minor_status,
                 goto done;
             }
 
-            /* NTLMv2 Response */
+            /* NTLMv2 Response. There is no LMv2 fallback: LMv2 does not
+             * cover the NTLMv2 blob (MsvAvFlags, channel bindings) the
+             * caller trusts */
             retmin = ntlmv2_verify_nt_response(nt_chal_resp,
                                                &ntlmv2_key,
                                                ctx->server_chal);
-            /* LMv2 does not cover the NTLMv2 blob (MsvAvFlags, channel
-             * bindings) the caller trusts, so never fall back to it
-             * when the peer sent an NTLMv2 response that failed */
-            if (retmin && lm_ok && nt_chal_resp->length <= 24) {
-                /* LMv2 Response */
-                retmin = ntlmv2_verify_lm_response(lm_chal_resp,
-                                                   &ntlmv2_key,
-                                                   ctx->server_chal);
-            }
             if (retmin == 0) break;
         }
 
