@@ -1423,6 +1423,7 @@ done:
 }
 
 #define TEST_USER_FILE ABS_SRC_DIR"/examples/test_user_file.txt"
+#define TEST_DISABLED_USER_FILE ABS_SRC_DIR"/examples/test_user_file4.txt"
 
 long seed = 0;
 static size_t repeatable_rand(uint8_t *buf, size_t max)
@@ -3432,6 +3433,77 @@ done:
     return ret;
 }
 
+int test_ACQ_disabled_user(void)
+{
+    gss_cred_id_t cli_cred = GSS_C_NO_CREDENTIAL;
+    gss_key_value_element_desc cred_file = {
+        .key = GSS_NTLMSSP_CS_KEYFILE,
+        .value = TEST_DISABLED_USER_FILE
+    };
+    gss_key_value_set_desc cred_store = {
+        .elements = &cred_file,
+        .count = 1
+    };
+    gss_name_t gss_username = NULL;
+    gss_buffer_desc nbuf;
+    uint32_t retmin, retmaj;
+    int ret;
+
+    /* an smbpasswd entry with the D account flag must not be used */
+    nbuf.value = discard_const("disableduser");
+    nbuf.length = strlen(nbuf.value);
+    retmaj = gssntlm_import_name(&retmin, &nbuf, GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(disableduser) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_acquire_cred_from(&retmin, NULL, gss_username,
+                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                       GSS_C_INITIATE, &cred_store,
+                                       &cli_cred, NULL, NULL);
+    if (retmaj == GSS_S_COMPLETE) {
+        fprintf(stderr, "Credentials acquired for a disabled user!\n");
+        ret = EINVAL;
+        goto done;
+    }
+
+    gssntlm_release_name(&retmin, &gss_username);
+
+    /* while an enabled entry in the same file still works */
+    nbuf.value = discard_const("testuser");
+    nbuf.length = strlen(nbuf.value);
+    retmaj = gssntlm_import_name(&retmin, &nbuf, GSS_C_NT_USER_NAME,
+                                 &gss_username);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_import_name(testuser) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    retmaj = gssntlm_acquire_cred_from(&retmin, NULL, gss_username,
+                                       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                       GSS_C_INITIATE, &cred_store,
+                                       &cli_cred, NULL, NULL);
+    if (retmaj != GSS_S_COMPLETE) {
+        print_gss_error("gssntlm_acquire_cred_from(testuser) failed!",
+                        retmaj, retmin);
+        ret = EINVAL;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+    gssntlm_release_name(&retmin, &gss_username);
+    gssntlm_release_cred(&retmin, &cli_cred);
+    return ret;
+}
+
 int test_import_name(void)
 {
     struct {
@@ -4291,6 +4363,11 @@ int main(int argc, const char *argv[])
 
     fprintf(stderr, "Test Acquired cred from with no name\n");
     ret = test_ACQ_NO_NAME();
+    fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
+    if (ret) gret++;
+
+    fprintf(stderr, "Test disabled smbpasswd user is not used\n");
+    ret = test_ACQ_disabled_user();
     fprintf(stderr, "Test: %s\n", (ret ? "FAIL":"SUCCESS"));
     if (ret) gret++;
 
